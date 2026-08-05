@@ -1,0 +1,143 @@
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { queryOne } from '../db/schema';
+
+export interface AuthenticatedUser {
+  userId: string;
+  username: string;
+  email: string;
+  role: string;
+}
+
+export interface AuthenticatedRequest extends Request {
+  user?: AuthenticatedUser;
+  requestId?: string;
+}
+
+/**
+ * P0-3 FIX: JWT_SECRET is required. No hardcoded fallback.
+ * Server will refuse to start if JWT_SECRET is not set (enforced in index.ts startup check).
+ */
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('[STARTUP FATAL] JWT_SECRET environment variable is not set or is too short (minimum 32 characters). Server cannot start.');
+  }
+  return secret;
+}
+
+export async function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token) {
+    res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication token missing' } });
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthenticatedUser;
+    req.user = decoded;
+
+    // Verify user existence in database to prevent foreign key constraint violations
+    const dbUser = await queryOne<any>('SELECT id, username, email, role FROM users WHERE id = $1', [decoded.userId]);
+    if (!dbUser) {
+      // Look up by email or username in case database was re-seeded with new UUIDs
+      const matchedUser = await queryOne<any>(
+        'SELECT id, username, email, role FROM users WHERE email = $1 OR username = $2',
+        [decoded.email || '', decoded.username || '']
+      );
+      if (matchedUser) {
+        req.user.userId = matchedUser.id;
+        req.user.role = matchedUser.role;
+      } else {
+        res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'User account not found in database. Please log out and log in again.' }
+        });
+        return;
+      }
+    }
+    next();
+  } catch (err) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Invalid or expired token' } });
+  }
+}
+
+export function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, getJwtSecret()) as AuthenticatedUser;
+      req.user = decoded;
+    } catch (err) {
+      // Token invalid — continue unauthenticated (for public endpoints)
+    }
+  }
+  next();
+}
+
+export function checkRole(allowedRoles: string[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      res.status(403).json({
+        success: false,
+        error: {
+          code: 'PERMISSION_DENIED',
+          message: `Access denied. Role '${req.user.role}' is not authorized to access this resource.`
+        }
+      });
+      return;
+    }
+
+    next();
+  };
+}
+
+export function requireSuperAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  checkRole(['SUPER_ADMIN'])(req, res, next);
+}
+
+/**
+ * Used at server startup to validate all required environment variables are present.
+ * Throws with a clear message and exits the process if any critical variable is missing.
+ */
+export function validateStartupEnvironment(): void {
+  const required: Array<{ key: string; minLength?: number; description: string }> = [
+    { key: 'JWT_SECRET', minLength: 32, description: 'JWT signing secret (min 32 chars)' }
+  ];
+
+  const errors: string[] = [];
+
+  for (const req of required) {
+    const val = process.env[req.key];
+    if (!val) {
+      errors.push(`  ❌ ${req.key}: missing — ${req.description}`);
+    } else if (req.minLength && val.length < req.minLength) {
+      errors.push(`  ❌ ${req.key}: too short (${val.length} chars, need ≥ ${req.minLength}) — ${req.description}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error('\n[FATAL] Required environment variables are not set or invalid:');
+    errors.forEach(e => console.error(e));
+    console.error('\nSet these in your .env file and restart the server.\n');
+    process.exit(1);
+  }
+
+  console.log('[Auth] Environment validation passed. JWT_SECRET is set and valid.');
+}
+
+export function getRefreshSecret(): string {
+  return process.env.JWT_REFRESH_SECRET || (getJwtSecret() + '_refresh');
+}
+
+export { getJwtSecret };
+

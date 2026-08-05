@@ -1,0 +1,55 @@
+export interface MarketTick {
+  instrumentToken: string;
+  exchange: string;
+  symbol: string;
+  ltp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  change: number;
+  changePercent: number;
+  bid: number;
+  ask: number;
+  bidQty: number;
+  askQty: number;
+  timestamp: number;
+}
+
+export interface Candle {
+  time: number; // Unix timestamp in seconds
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface OptionContractDetails {
+  instrumentToken: string;
+  tradingSymbol?: string;
+  ltp: number;
+  bid?: number;
+  ask?: number;
+  change: number;
+  volume: number;
+  openInterest: number;
+  openInterestChange?: number;
+  iv: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  classification?: 'ITM' | 'ATM' | 'OTM';
+}
+
+export interface OptionChainItem {
+  strikePrice: number;
+  expiry: string;
+  isAtm?: boolean;
+  ce: OptionContractDetails;
+  pe: OptionContractDetails;
+}
+
+export type TickCallback = (tick: MarketTick) => void;
