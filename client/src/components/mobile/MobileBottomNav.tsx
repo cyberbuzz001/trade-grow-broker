@@ -1,25 +1,24 @@
 import React from 'react';
-import { Home, PieChart, ArrowLeftRight, FileText, User } from 'lucide-react';
+import { Home, PieChart, Briefcase, FileText, User } from 'lucide-react';
 
 interface MobileBottomNavProps {
-  activeTab: 'HOME' | 'PORTFOLIO' | 'ORDERS' | 'PROFILE';
-  onSelectTab: (tab: 'HOME' | 'PORTFOLIO' | 'ORDERS' | 'PROFILE') => void;
+  activeTab: 'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'ORDERS' | 'PROFILE';
+  onSelectTab: (tab: 'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'ORDERS' | 'PROFILE') => void;
   onOpenTradeModal: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   onSelectTab,
-  onOpenTradeModal,
 }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-surface)] border-t border-[var(--border-color)] px-6 h-16 flex items-center justify-between shadow-2xl">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-surface)] border-t border-[var(--border-color)] px-4 h-16 flex items-center justify-between shadow-2xl backdrop-blur-md">
       
       {/* Home Tab */}
       <button
         onClick={() => onSelectTab('HOME')}
         className={`flex flex-col items-center gap-1 transition-colors ${
-          activeTab === 'HOME' ? 'text-[var(--gogrow-blue)] font-black' : 'text-slate-400 font-bold'
+          activeTab === 'HOME' ? 'text-[var(--gogrow-blue)] font-black scale-105' : 'text-slate-400 font-bold hover:text-slate-200'
         }`}
       >
         <Home className="w-5 h-5" />
@@ -30,40 +29,40 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       <button
         onClick={() => onSelectTab('PORTFOLIO')}
         className={`flex flex-col items-center gap-1 transition-colors ${
-          activeTab === 'PORTFOLIO' ? 'text-[var(--gogrow-blue)] font-black' : 'text-slate-400 font-bold'
+          activeTab === 'PORTFOLIO' ? 'text-[var(--gogrow-blue)] font-black scale-105' : 'text-slate-400 font-bold hover:text-slate-200'
         }`}
       >
         <PieChart className="w-5 h-5" />
         <span className="text-[10px]">Portfolio</span>
       </button>
 
-      {/* Floating Center Double-Arrow Trade Action Button (Matching 07_preview7.png) */}
-      <div className="-mt-6">
-        <button
-          onClick={onOpenTradeModal}
-          className="w-13 h-13 rounded-full bg-[var(--gogrow-blue)] hover:bg-[var(--gogrow-blue-hover)] text-white flex items-center justify-center shadow-lg shadow-blue-500/40 active:scale-95 transition-transform"
-          title="Quick Trade"
-        >
-          <ArrowLeftRight className="w-6 h-6" />
-        </button>
-      </div>
+      {/* Positions Tab (Renders Right After Portfolio as requested) */}
+      <button
+        onClick={() => onSelectTab('POSITIONS')}
+        className={`flex flex-col items-center gap-1 transition-colors ${
+          activeTab === 'POSITIONS' ? 'text-[var(--gogrow-blue)] font-black scale-105' : 'text-slate-400 font-bold hover:text-slate-200'
+        }`}
+      >
+        <Briefcase className="w-5 h-5" />
+        <span className="text-[10px]">Positions</span>
+      </button>
 
       {/* Orders Tab */}
       <button
         onClick={() => onSelectTab('ORDERS')}
         className={`flex flex-col items-center gap-1 transition-colors ${
-          activeTab === 'ORDERS' ? 'text-[var(--gogrow-blue)] font-black' : 'text-slate-400 font-bold'
+          activeTab === 'ORDERS' ? 'text-[var(--gogrow-blue)] font-black scale-105' : 'text-slate-400 font-bold hover:text-slate-200'
         }`}
       >
         <FileText className="w-5 h-5" />
-        <span className="text-[10px]">Order</span>
+        <span className="text-[10px]">Orders</span>
       </button>
 
       {/* Profile Tab */}
       <button
         onClick={() => onSelectTab('PROFILE')}
         className={`flex flex-col items-center gap-1 transition-colors ${
-          activeTab === 'PROFILE' ? 'text-[var(--gogrow-blue)] font-black' : 'text-slate-400 font-bold'
+          activeTab === 'PROFILE' ? 'text-[var(--gogrow-blue)] font-black scale-105' : 'text-slate-400 font-bold hover:text-slate-200'
         }`}
       >
         <User className="w-5 h-5" />

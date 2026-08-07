@@ -53,23 +53,23 @@
 }
 
 [data-theme="dark"] {
-  /* Dark Theme Colors */
-  --bg-body: #090d16;
-  --bg-surface: #111827;
-  --bg-surface-elevated: #1a2234;
-  --bg-glass: rgba(17, 24, 39, 0.85);
-  --bg-glass-card: rgba(26, 34, 52, 0.65);
+  /* Soft Navy Slate Dark Theme Colors (No pitch black) */
+  --bg-body: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-elevated: #334155;
+  --bg-glass: rgba(30, 41, 59, 0.85);
+  --bg-glass-card: rgba(30, 41, 59, 0.95);
 
   --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --text-tertiary: #64748b;
+  --text-muted: #cbd5e1;
+  --text-tertiary: #94a3b8;
 
-  --border-color: #1e293b;
-  --border-light: #162032;
+  --border-color: #334155;
+  --border-light: #475569;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
 @layer base {

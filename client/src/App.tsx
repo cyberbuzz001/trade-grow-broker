@@ -28,7 +28,7 @@ export function App() {
   
   // Responsive / Mobile View Mode State
   const [isMobileScreen, setIsMobileScreen] = useState<boolean>(window.innerWidth < 768);
-  const [activeMobileTab, setActiveMobileTab] = useState<'HOME' | 'PORTFOLIO' | 'ORDERS' | 'PROFILE'>('HOME');
+  const [activeMobileTab, setActiveMobileTab] = useState<'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'ORDERS' | 'PROFILE'>('HOME');
   
   // Mobile Quick Order Modal State
   const [selectedMobileStock, setSelectedMobileStock] = useState<{ name: string; symbol: string; price: number } | null>(null);
@@ -188,6 +188,12 @@ export function App() {
                   setIsMobileOrderModalOpen(true);
                 }}
               />
+            )}
+
+            {activeMobileTab === 'POSITIONS' && (
+              <div className="p-4 pb-24">
+                <OrdersPositionsView token={token} initialTab="POSITIONS" onRefreshWallet={fetchWallet} />
+              </div>
             )}
 
             {activeMobileTab === 'ORDERS' && (
