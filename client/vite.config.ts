@@ -15,5 +15,18 @@ export default defineConfig({
         ws: true
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['lightweight-charts'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 1000
   }
 });
+

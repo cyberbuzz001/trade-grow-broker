@@ -93,8 +93,27 @@ async function startServer() {
     // Initialize database (run migrations & seed)
     await seedDatabase();
 
+    // Initialize Scrip Master (loads token lookup cache, blocks if DB empty)
+    const { InstrumentMasterService } = await import('./marketData/InstrumentMasterService');
+    await InstrumentMasterService.getInstance().initializeOnStartup();
+
     // Initialize Market Data Engine
     await MarketDataEngine.getInstance().initialize();
+
+    // Start Price Feed Reconciliation Monitor (every 60s)
+    import('./services/ReconciliationMonitorService').then(({ reconciliationMonitor }) => {
+      reconciliationMonitor.start(60000);
+    });
+
+    // Start NSE Live Index & Dual-Feed Spot Guard (every 30s)
+    import('./marketData/NseOptionChainService').then(({ nseOptionChainService }) => {
+      nseOptionChainService.start();
+    });
+
+    // Start Automated Option Chain Pricing Accuracy Check (every 60s)
+    import('./services/AccuracyCheckService').then(({ accuracyCheckService }) => {
+      accuracyCheckService.start();
+    });
 
     // Start Simulated Execution Engine
     ExecutionEngine.start();

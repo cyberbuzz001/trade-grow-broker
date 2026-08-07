@@ -1,0 +1,349 @@
+import React, { useState, useEffect } from 'react';
+import { ArrowUpRight, ArrowDownRight, Layers, DollarSign, Activity, Zap, RefreshCw } from 'lucide-react';
+import { MarketTick } from '../types';
+
+export interface McxContract {
+  instrument: string;       // e.g. 'OPTFUT'
+  commodity: string;        // e.g. 'CRUDEOIL', 'GOLD', 'SILVERM', 'NATURALGAS', 'COPPER'
+  expiryDate: string;       // e.g. '17AUG2026'
+  optionType: 'CE' | 'PE';
+  strikePrice: number;
+  ltp: number;
+  volumeLots: number;
+  notionalToLakhs: number;
+  premiumToLakh: number;
+  oiLots: number;
+  ulProductLtp: number;
+  token: string;
+}
+
+interface McxCommodityViewProps {
+  ticks?: Map<string, MarketTick>;
+  onRefreshWallet?: () => void;
+}
+
+export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRefreshWallet }) => {
+  const [selectedCommodity, setSelectedCommodity] = useState<string>('ALL');
+  const [selectedOptionType, setSelectedOptionType] = useState<'ALL' | 'CE' | 'PE'>('ALL');
+  const [contracts, setContracts] = useState<McxContract[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [orderModal, setOrderModal] = useState<{ open: boolean; contract?: McxContract; side: 'BUY' | 'SELL' }>({ open: false, side: 'BUY' });
+  const [quantity, setQuantity] = useState<number>(1);
+  const [orderStatus, setOrderStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Fetch active MCX contracts sorted by Turnover (Value)
+  const fetchMcxContracts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/v1/market/mcx-active-contracts');
+      const data = await res.json();
+      if (data.success && data.contracts) {
+        setContracts(data.contracts);
+      }
+    } catch (err) {
+      console.warn('[McxCommodityView] Error fetching MCX active contracts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMcxContracts();
+  }, []);
+
+  const filteredContracts = contracts.filter(c => {
+    const matchComm = selectedCommodity === 'ALL' || c.commodity.startsWith(selectedCommodity);
+    const matchType = selectedOptionType === 'ALL' || c.optionType === selectedOptionType;
+    return matchComm && matchType;
+  });
+
+  const totalNotionalTo = filteredContracts.reduce((sum, c) => sum + c.notionalToLakhs, 0);
+  const totalPremiumTo = filteredContracts.reduce((sum, c) => sum + c.premiumToLakh, 0);
+
+  const handlePlaceOrder = async () => {
+    if (!orderModal.contract) return;
+    setOrderStatus(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/v1/orders/place', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          instrumentToken: orderModal.contract.token,
+          exchange: 'MCX',
+          symbol: `${orderModal.contract.commodity}${orderModal.contract.expiryDate}${orderModal.contract.strikePrice}${orderModal.contract.optionType}`,
+          side: orderModal.side,
+          quantity: quantity,
+          price: orderModal.contract.ltp,
+          orderType: 'MARKET',
+          productType: 'MIS'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOrderStatus({ type: 'success', text: `MCX Order Executed: ${orderModal.side} ${quantity} Lot(s) ${orderModal.contract.commodity} @ ₹${orderModal.contract.ltp}` });
+        if (onRefreshWallet) onRefreshWallet();
+        setTimeout(() => setOrderModal({ open: false, side: 'BUY' }), 1500);
+      } else {
+        setOrderStatus({ type: 'error', text: data.error?.message || 'Order execution failed' });
+      }
+    } catch (err: any) {
+      setOrderStatus({ type: 'error', text: err.message || 'Order failed' });
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 p-4 lg:p-8 max-w-7xl mx-auto">
+      
+      {/* 1. HEADER BANNER & KPI CARDS */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-6 rounded-3xl border border-amber-500/20 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-black uppercase tracking-wider">
+              MCX Derivatives
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">Active Options by Value (Turnover)</span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mt-1">
+            Commodities Options & Futures (MCX)
+          </h1>
+        </div>
+
+        <button
+          onClick={fetchMcxContracts}
+          className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-xs font-black hover:border-amber-500 transition-all"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh Quotes</span>
+        </button>
+      </div>
+
+      {/* KPI STATS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-color)] shadow-xs">
+          <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Notional Turnover</span>
+          <div className="text-xl font-black text-slate-900 dark:text-white mt-1 num-font">
+            ₹{totalNotionalTo.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Lakhs
+          </div>
+        </div>
+
+        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-color)] shadow-xs">
+          <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Premium Turnover</span>
+          <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1 num-font">
+            ₹{totalPremiumTo.toLocaleString('en-IN', { maximumFractionDigits: 2 })} Lakhs
+          </div>
+        </div>
+
+        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-color)] shadow-xs">
+          <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Top Commodity</span>
+          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+            CRUDEOIL (17AUG26)
+          </div>
+        </div>
+
+        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-color)] shadow-xs">
+          <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Strike Count</span>
+          <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1 num-font">
+            {filteredContracts.length} Contracts
+          </div>
+        </div>
+      </div>
+
+      {/* 2. FILTERS & CONTROLS */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-surface)] p-4 rounded-2xl border border-[var(--border-color)] shadow-xs">
+        
+        {/* Commodity Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          {['ALL', 'CRUDEOIL', 'GOLD', 'SILVER', 'NATURALGAS', 'COPPER'].map(comm => (
+            <button
+              key={comm}
+              onClick={() => setSelectedCommodity(comm)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all border ${
+                selectedCommodity === comm
+                  ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20 scale-105'
+                  : 'bg-[var(--bg-surface-elevated)] border-[var(--border-color)] text-slate-600 dark:text-slate-300 hover:border-amber-400'
+              }`}
+            >
+              {comm}
+            </button>
+          ))}
+        </div>
+
+        {/* Option Type Filter */}
+        <div className="flex items-center gap-2 bg-[var(--bg-surface-elevated)] p-1 rounded-xl border border-[var(--border-color)]">
+          {(['ALL', 'CE', 'PE'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setSelectedOptionType(type)}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
+                selectedOptionType === type
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              {type === 'ALL' ? 'All Types' : type === 'CE' ? 'Calls (CE)' : 'Puts (PE)'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. ACTIVE MCX OPTIONS TABLE (MATCHING USER SCREENSHOT EXACTLY) */}
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs font-bold border-collapse">
+            <thead>
+              <tr className="bg-[var(--bg-surface-elevated)] border-b border-[var(--border-color)] text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-extrabold">
+                <th className="py-3.5 px-4">Instrument</th>
+                <th className="py-3.5 px-4">Commodity</th>
+                <th className="py-3.5 px-4">Expiry Date</th>
+                <th className="py-3.5 px-4">Option Type</th>
+                <th className="py-3.5 px-4 text-right">Strike Price</th>
+                <th className="py-3.5 px-4 text-right">LTP</th>
+                <th className="py-3.5 px-4 text-right">Volume (Lots)</th>
+                <th className="py-3.5 px-4 text-right">Notional TO (Lakhs)</th>
+                <th className="py-3.5 px-4 text-right">Premium TO (Lakh)</th>
+                <th className="py-3.5 px-4 text-right">OI (Lots)</th>
+                <th className="py-3.5 px-4 text-right">UL Product LTP</th>
+                <th className="py-3.5 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-color)] num-font">
+              {filteredContracts.map((c, idx) => (
+                <tr key={idx} className="hover:bg-amber-500/5 transition-colors">
+                  <td className="py-3 px-4 font-black text-slate-700 dark:text-slate-300">{c.instrument}</td>
+                  <td className="py-3 px-4 font-black text-amber-600 dark:text-amber-400">{c.commodity}</td>
+                  <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{c.expiryDate}</td>
+                  <td className="py-3 px-4 font-black">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                      c.optionType === 'CE' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                    }`}>
+                      {c.optionType}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white">
+                    ₹{c.strikePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white">
+                    ₹{c.ltp.toFixed(2)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300">
+                    {c.volumeLots.toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3 px-4 text-right font-black text-slate-800 dark:text-slate-200">
+                    ₹{c.notionalToLakhs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-4 text-right font-black text-amber-600 dark:text-amber-400">
+                    ₹{c.premiumToLakh.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300">
+                    {c.oiLots.toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3 px-4 text-right font-bold text-slate-500 dark:text-slate-400">
+                    ₹{c.ulProductLtp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        onClick={() => setOrderModal({ open: true, contract: c, side: 'BUY' })}
+                        className="px-2.5 py-1 rounded bg-emerald-600 text-white font-black text-[11px] hover:bg-emerald-700 shadow-xs"
+                      >
+                        B
+                      </button>
+                      <button
+                        onClick={() => setOrderModal({ open: true, contract: c, side: 'SELL' })}
+                        className="px-2.5 py-1 rounded bg-rose-600 text-white font-black text-[11px] hover:bg-rose-700 shadow-xs"
+                      >
+                        S
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 4. QUICK ORDER MODAL FOR MCX DERIVATIVES */}
+      {orderModal.open && orderModal.contract && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] w-full max-w-md p-6 rounded-3xl shadow-xl flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-1 rounded-md text-xs font-black ${
+                  orderModal.side === 'BUY' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                }`}>
+                  {orderModal.side}
+                </span>
+                <span className="font-black text-base text-slate-900 dark:text-white">
+                  {orderModal.contract.commodity} {orderModal.contract.strikePrice} {orderModal.contract.optionType}
+                </span>
+              </div>
+              <button
+                onClick={() => setOrderModal({ open: false, side: 'BUY' })}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 text-xs font-bold">
+              <div className="flex justify-between py-1 border-b border-[var(--border-color)]/50">
+                <span className="text-slate-500">Expiry Date</span>
+                <span className="text-slate-900 dark:text-white font-black">{orderModal.contract.expiryDate}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[var(--border-color)]/50">
+                <span className="text-slate-500">LTP</span>
+                <span className="text-slate-900 dark:text-white font-black">₹{orderModal.contract.ltp.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[var(--border-color)]/50">
+                <span className="text-slate-500">Underlying Spot LTP</span>
+                <span className="text-slate-900 dark:text-white font-black">₹{orderModal.contract.ulProductLtp}</span>
+              </div>
+
+              <div className="flex flex-col gap-1.5 mt-2">
+                <label className="text-slate-500 font-extrabold uppercase text-[10px]">Lots Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="px-4 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface-elevated)] font-black text-sm text-slate-900 dark:text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            {orderStatus && (
+              <div className={`p-3 rounded-xl text-xs font-black ${
+                orderStatus.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
+              }`}>
+                {orderStatus.text}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setOrderModal({ open: false, side: 'BUY' })}
+                className="flex-1 py-3 rounded-2xl border border-[var(--border-color)] text-xs font-extrabold hover:bg-[var(--bg-surface-elevated)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePlaceOrder}
+                className={`flex-1 py-3 rounded-2xl text-xs font-black text-white shadow-md ${
+                  orderModal.side === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20' : 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
+                }`}
+              >
+                Confirm {orderModal.side} Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

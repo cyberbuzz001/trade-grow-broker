@@ -9,8 +9,16 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
   const [activeTab, setActiveTab] = useState<'CONFIG' | 'DOWNLOADER'>('CONFIG');
 
   // Config State
-  const [activeProvider, setActiveProvider] = useState<string>('ALPHAVANTAGE');
+  const [activeProvider, setActiveProvider] = useState<string>('DHAN');
   const [keys, setKeys] = useState({
+    DHAN_CLIENT_ID: '1113019677',
+    DHAN_ACCESS_TOKEN: '',
+    DHAN_API_KEY: '21483ef7',
+    DHAN_API_SECRET: 'e9730aa4-682c-4e75-a944-94f703449b09',
+    TRUEDATA_USERNAME: 'Trial208',
+    TRUEDATA_PASSWORD: 'nikhil208',
+    TRUEDATA_WS_PORT: '8086',
+    TRUEDATA_WS_URL: 'wss://push.truedata.in:8086',
     ALPHAVANTAGE_API_KEY: '',
     ANGELONE_API_KEY: '',
     ANGELONE_CLIENT_ID: '',
@@ -54,6 +62,14 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
         setActiveProvider(data.activeProvider);
         if (data.keys) {
           setKeys({
+            DHAN_CLIENT_ID: data.keys.DHAN_CLIENT_ID || '1113019677',
+            DHAN_ACCESS_TOKEN: data.keys.DHAN_ACCESS_TOKEN || '',
+            DHAN_API_KEY: data.keys.DHAN_API_KEY || '21483ef7',
+            DHAN_API_SECRET: data.keys.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09',
+            TRUEDATA_USERNAME: data.keys.TRUEDATA_USERNAME || 'Trial208',
+            TRUEDATA_PASSWORD: data.keys.TRUEDATA_PASSWORD || 'nikhil208',
+            TRUEDATA_WS_PORT: data.keys.TRUEDATA_WS_PORT || '8086',
+            TRUEDATA_WS_URL: data.keys.TRUEDATA_WS_URL || 'wss://push.truedata.in:8086',
             ALPHAVANTAGE_API_KEY: data.keys.ALPHAVANTAGE_API_KEY || '',
             ANGELONE_API_KEY: data.keys.ANGELONE_API_KEY || '',
             ANGELONE_CLIENT_ID: data.keys.ANGELONE_CLIENT_ID || '',
@@ -218,8 +234,10 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
               Select Primary Market Data Provider
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               {[
+                { id: 'DHAN', name: 'Dhan HQ API v2', desc: 'Live Market Feed & Order Placement', badge: 'Dhan Broker' },
+                { id: 'TRUEDATA', name: 'TrueData WebSocket', desc: 'Real-time Tick Stream & History', badge: 'Live Feed' },
                 { id: 'ALPHAVANTAGE', name: 'Alpha Vantage', desc: 'Global & Indian Equities API', badge: 'Production' },
                 { id: 'ANGELONE', name: 'Angel One SmartAPI', desc: 'Indian Stock & Derivatives Broker API', badge: 'Live Broker' },
                 { id: 'INDIAN_STOCK_MARKET_API', name: 'RapidAPI Indian Stocks', desc: 'NSE/BSE Real-time Data Feed', badge: 'REST API' },
@@ -270,6 +288,106 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Dhan HQ v2 Keys */}
+              <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
+                <h4 className="text-xs font-bold text-sky-500 uppercase tracking-wider flex items-center justify-between">
+                  <span>Dhan HQ API v2 Credentials</span>
+                  <span className="text-[10px] bg-sky-500/10 text-sky-600 px-2 py-0.5 rounded font-extrabold">Active Broker API</span>
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Dhan Client ID</label>
+                    <input
+                      type="text"
+                      value={keys.DHAN_CLIENT_ID}
+                      onChange={(e) => setKeys({ ...keys, DHAN_CLIENT_ID: e.target.value })}
+                      placeholder="1113019677"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">API Key</label>
+                    <input
+                      type="text"
+                      value={keys.DHAN_API_KEY}
+                      onChange={(e) => setKeys({ ...keys, DHAN_API_KEY: e.target.value })}
+                      placeholder="21483ef7"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Access Token (JWT)</label>
+                  <input
+                    type="password"
+                    value={keys.DHAN_ACCESS_TOKEN}
+                    onChange={(e) => setKeys({ ...keys, DHAN_ACCESS_TOKEN: e.target.value })}
+                    placeholder="Paste JWT Access Token from Dhan Console"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">API Secret</label>
+                  <input
+                    type="password"
+                    value={keys.DHAN_API_SECRET}
+                    onChange={(e) => setKeys({ ...keys, DHAN_API_SECRET: e.target.value })}
+                    placeholder="e9730aa4-682c-4e75-a944-94f703449b09"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+              {/* TrueData Keys */}
+              <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
+                <h4 className="text-xs font-bold text-emerald-500 uppercase tracking-wider flex items-center justify-between">
+                  <span>TrueData Credentials</span>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded font-extrabold">Active Feed</span>
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Username</label>
+                    <input
+                      type="text"
+                      value={keys.TRUEDATA_USERNAME}
+                      onChange={(e) => setKeys({ ...keys, TRUEDATA_USERNAME: e.target.value })}
+                      placeholder="e.g. Trial208"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Password</label>
+                    <input
+                      type="password"
+                      value={keys.TRUEDATA_PASSWORD}
+                      onChange={(e) => setKeys({ ...keys, TRUEDATA_PASSWORD: e.target.value })}
+                      placeholder="e.g. nikhil208"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Real-Time Port</label>
+                    <input
+                      type="text"
+                      value={keys.TRUEDATA_WS_PORT}
+                      onChange={(e) => setKeys({ ...keys, TRUEDATA_WS_PORT: e.target.value })}
+                      placeholder="8086"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">WebSocket URL</label>
+                    <input
+                      type="text"
+                      value={keys.TRUEDATA_WS_URL}
+                      onChange={(e) => setKeys({ ...keys, TRUEDATA_WS_URL: e.target.value })}
+                      placeholder="wss://push.truedata.in:8086"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
               {/* AlphaVantage Keys */}
               <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
                 <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Alpha Vantage Configuration</h4>

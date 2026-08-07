@@ -1,7 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { OptionChainItem, MarketTick } from '../types';
 import { OrderPreviewModal, OrderPreviewDetails } from './OrderPreviewModal';
-import { RefreshCw, Zap, Calendar, Filter, ShieldCheck, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { RefreshCw, Zap, Calendar, Filter, ShieldCheck, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
+import { useMarketSocket, useSubscribeTokens } from '../hooks/useMarketSocket';
+import { useTickFreshness, useMultiTickFreshness } from '../hooks/useTickFreshness';
+import { PriceBadge } from './PriceBadge';
+import { SpotPriceTicker, getSpotToken } from './SpotPriceTicker';
 
 interface OptionChainProps {
   token?: string;
@@ -9,7 +13,7 @@ interface OptionChainProps {
   onRefreshWallet?: () => void;
 }
 
-export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRefreshWallet }) => {
+export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWallet }) => {
   const [symbol, setSymbol] = useState<string>('NIFTY');
   const [expiries, setExpiries] = useState<string[]>([]);
   const [expiry, setExpiry] = useState<string>('');
@@ -23,15 +27,55 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
   const [lotSize, setLotSize] = useState<number>(65);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const [pcrRatio, setPcrRatio] = useState<number>(0.95);
-  const [maxPainStrike, setMaxPainStrike] = useState<number>(24500);
-
   // Order Preview Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderPreviewDetails | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // ── 1. Fetch Dynamic Expiries for Selected Index ─────────────────────────────
+  // ── 1. Spot Token & Freshness ──────────────────────────────────────────────
+  const spotToken = getSpotToken(symbol);
+  const spotFreshness = useTickFreshness(spotToken);
+  const liveSpotLtp = spotFreshness.tick ? spotFreshness.tick.ltp : spotPrice;
+
+  // ── 2. Collect visible tokens from active option chain ────────────────────
+  const visibleTokens = useMemo(() => {
+    const tokens: string[] = [spotToken];
+    chain.forEach(row => {
+      if (row.ce?.instrumentToken) tokens.push(row.ce.instrumentToken);
+      if (row.pe?.instrumentToken) tokens.push(row.pe.instrumentToken);
+    });
+    return tokens;
+  }, [spotToken, chain]);
+
+  // Subscribe to option chain visible tokens on WebSocket
+  useSubscribeTokens(visibleTokens);
+
+  // Multi-token freshness state map for all visible strikes
+  const freshnessMap = useMultiTickFreshness(visibleTokens);
+
+  // ── 3. Dynamic ATM Recalculation Safeguard ───────────────────────────────
+  // If spot price is LIVE, recalculate closest strike as ATM.
+  // If spot price is STALE or DISCONNECTED, freeze ATM calculation to prevent silent drift.
+  const isAtmPaused = spotFreshness.state === 'STALE' || spotFreshness.state === 'DISCONNECTED';
+  
+  useEffect(() => {
+    if (isAtmPaused || chain.length === 0) return;
+
+    let closestStrike = chain[0].strikePrice;
+    let minDiff = Math.abs(chain[0].strikePrice - liveSpotLtp);
+
+    chain.forEach(item => {
+      const diff = Math.abs(item.strikePrice - liveSpotLtp);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestStrike = item.strikePrice;
+      }
+    });
+
+    setAtmStrike(closestStrike);
+  }, [liveSpotLtp, chain, isAtmPaused]);
+
+  // ── 4. Fetch Dynamic Expiries for Selected Index ─────────────────────────
   const fetchExpiries = useCallback(() => {
     fetch(`/api/v1/market/option-expiries?symbol=${symbol}`)
       .then(r => r.json())
@@ -57,7 +101,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
     fetchExpiries();
   }, [fetchExpiries, symbol]);
 
-  // ── 2. Fetch Option Chain Data from Server ──────────────────────────────────
+  // ── 5. Fetch Option Chain Data from Server ──────────────────────────────────
   const fetchOptionChain = useCallback(() => {
     setLoading(true);
     const query = new URLSearchParams({
@@ -73,19 +117,19 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
           setChain(data.chain);
           if (data.spotPrice) setSpotPrice(data.spotPrice);
           if (data.futuresPrice) setFuturesPrice(data.futuresPrice);
-          if (data.atmStrike) setAtmStrike(data.atmStrike);
+          if (data.atmStrike && !isAtmPaused) setAtmStrike(data.atmStrike);
           if (data.lotSize) setLotSize(data.lotSize);
         }
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [symbol, expiry, strikeRange]);
+  }, [symbol, expiry, strikeRange, isAtmPaused]);
 
   useEffect(() => {
     fetchOptionChain();
   }, [fetchOptionChain]);
 
-  // ── 3. SSE Stream for Live Ticks ───────────────────────────────────────────
+  // ── 6. SSE Stream for Fallback Ticks ───────────────────────────────────────
   useEffect(() => {
     if (!expiry) return;
     const query = new URLSearchParams({ symbol, expiry, strikeRange });
@@ -98,7 +142,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
           setChain(data.chain);
           if (data.spotPrice) setSpotPrice(data.spotPrice);
           if (data.futuresPrice) setFuturesPrice(data.futuresPrice);
-          if (data.atmStrike) setAtmStrike(data.atmStrike);
+          if (data.atmStrike && !isAtmPaused) setAtmStrike(data.atmStrike);
           if (data.lotSize) setLotSize(data.lotSize);
           setLoading(false);
         }
@@ -107,9 +151,9 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
 
     sse.onerror = () => sse.close();
     return () => sse.close();
-  }, [symbol, expiry, strikeRange]);
+  }, [symbol, expiry, strikeRange, isAtmPaused]);
 
-  // ── 4. Open Order Preview Modal ─────────────────────────────────────────────
+  // ── 7. Open Order Preview Modal ─────────────────────────────────────────────
   const initiateOptionOrder = (
     strike: number,
     optionType: 'CE' | 'PE',
@@ -141,7 +185,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
     setIsPreviewOpen(true);
   };
 
-  // ── 5. Confirm Order Execution ──────────────────────────────────────────────
+  // ── 8. Confirm Order Execution ──────────────────────────────────────────────
   const handleConfirmOrder = async (confirmedDetails: OrderPreviewDetails) => {
     setIsPreviewOpen(false);
     setActionMessage(null);
@@ -203,28 +247,23 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
           ))}
         </div>
 
-        {/* Center: Live Spot & Lot Size Info */}
-        <div className="flex flex-wrap items-center gap-6 text-xs font-extrabold num-font">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">SPOT LTP</span>
-            <span className="text-base text-[var(--text-main)] font-black">
-              ₹{spotPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
+        {/* Center: Dedicated Spot Price Ticker with Animation & Freshness */}
+        <div className="flex flex-wrap items-center gap-4">
+          <SpotPriceTicker symbol={symbol} fallbackPrice={spotPrice} />
 
-          <div className="flex flex-col">
+          <div className="flex flex-col text-xs font-extrabold num-font">
             <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">FUTURES</span>
             <span className="text-sm text-[var(--text-main)] font-bold">
-              ₹{futuresPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{(spotFreshness.tick ? spotFreshness.tick.ltp + (symbol.includes('BANK') ? 140 : 65) : futuresPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col text-xs font-extrabold num-font">
             <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">LOT SIZE</span>
             <span className="text-sm text-indigo-500 font-black">{lotSize} QTY / LOT</span>
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col text-xs font-extrabold num-font">
             <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">BROKERAGE</span>
             <span className="text-sm text-emerald-500 font-black flex items-center gap-1">
               <ShieldCheck size={14} /> ₹0 FREE
@@ -233,6 +272,17 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
         </div>
 
       </div>
+
+      {/* ATM Pause Safeguard Banner */}
+      {isAtmPaused && (
+        <div className="px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-600 dark:text-amber-400 text-xs font-extrabold flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="animate-bounce" />
+            <span>ATM calculation paused — Spot feed state: <strong>{spotFreshness.state}</strong>. Highlighting locked at ₹{atmStrike}.</span>
+          </div>
+          <PriceBadge state={spotFreshness.state} timeSinceLastTick={spotFreshness.timeSinceLastTick} />
+        </div>
+      )}
 
       {/* 2. EXPIRY & STRIKE RANGE CONTROLS */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
@@ -351,7 +401,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
                 <th className="py-2.5 px-2 text-center">IV</th>
                 <th className="py-2.5 px-2 text-center">OI</th>
                 <th className="py-2.5 px-2 text-center">Volume</th>
-                <th className="py-2.5 px-2 text-center">LTP</th>
+                <th className="py-2.5 px-2 text-center">LTP & Status</th>
                 <th className="py-2.5 px-2 text-center">Buy / Sell</th>
                 <th className="py-2.5 px-2 text-center border-r border-[var(--border-color)]">Class</th>
 
@@ -359,7 +409,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
 
                 <th className="py-2.5 px-2 text-center border-r border-[var(--border-color)]">Class</th>
                 <th className="py-2.5 px-2 text-center">Buy / Sell</th>
-                <th className="py-2.5 px-2 text-center">LTP</th>
+                <th className="py-2.5 px-2 text-center">LTP & Status</th>
                 <th className="py-2.5 px-2 text-center">Volume</th>
                 <th className="py-2.5 px-2 text-center">OI</th>
                 <th className="py-2.5 px-2 text-center">IV</th>
@@ -371,6 +421,19 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
             <tbody className="divide-y divide-[var(--border-light)] num-font">
               {chain.map((row) => {
                 const isATM = row.strikePrice === atmStrike;
+
+                const ceToken = row.ce?.instrumentToken;
+                const peToken = row.pe?.instrumentToken;
+
+                const ceFreshness = ceToken ? freshnessMap.get(ceToken) : undefined;
+                const peFreshness = peToken ? freshnessMap.get(peToken) : undefined;
+
+                const ceLtp = ceFreshness?.tick ? ceFreshness.tick.ltp : row.ce.ltp;
+                const peLtp = peFreshness?.tick ? peFreshness.tick.ltp : row.pe.ltp;
+
+                // Display price if live WS tick has arrived OR initial REST payload has valid LTP > 0
+                const hasCeTickData = Boolean(ceFreshness?.hasReceivedTick || (row.ce && row.ce.ltp > 0));
+                const hasPeTickData = Boolean(peFreshness?.hasReceivedTick || (row.pe && row.pe.ltp > 0));
 
                 return (
                   <tr key={row.strikePrice} className={`hover:bg-[var(--bg-surface-elevated)] transition-colors ${
@@ -388,26 +451,43 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
 
                     {/* CALLS VOLUME */}
                     <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">
-                      {(row.ce.volume / 1000).toFixed(0)}k
+                      {(((ceFreshness?.tick?.volume) || row.ce.volume) / 1000).toFixed(0)}k
                     </td>
 
-                    {/* CALLS LTP */}
+                    {/* CALLS LTP & FRESHNESS BADGE */}
                     <td className="py-2.5 px-2 text-center font-black text-[var(--text-main)] text-xs">
-                      ₹{row.ce.ltp.toFixed(2)}
+                      {hasCeTickData ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span>₹{ceLtp.toFixed(2)}</span>
+                          {ceFreshness && (
+                            <PriceBadge
+                              state={ceFreshness.state}
+                              source={ceFreshness.source || row.ce?.source}
+                              timeSinceLastTick={ceFreshness.timeSinceLastTick}
+                              size="sm"
+                              showLabel={false}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[var(--text-tertiary)] font-bold text-xs" title="No live tick received (Instrument token mapping pending)">
+                          —
+                        </span>
+                      )}
                     </td>
 
                     {/* CALLS ACTION BUTTONS */}
                     <td className="py-2.5 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => initiateOptionOrder(row.strikePrice, 'CE', 'BUY', row.ce.ltp, row.ce.instrumentToken)}
+                          onClick={() => initiateOptionOrder(row.strikePrice, 'CE', 'BUY', ceLtp, row.ce.instrumentToken)}
                           className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] shadow-sm transition-transform active:scale-95"
                           title={`Buy ${symbol} ${row.strikePrice} CE`}
                         >
                           B
                         </button>
                         <button
-                          onClick={() => initiateOptionOrder(row.strikePrice, 'CE', 'SELL', row.ce.ltp, row.ce.instrumentToken)}
+                          onClick={() => initiateOptionOrder(row.strikePrice, 'CE', 'SELL', ceLtp, row.ce.instrumentToken)}
                           className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] shadow-sm transition-transform active:scale-95"
                           title={`Sell ${symbol} ${row.strikePrice} CE`}
                         >
@@ -445,14 +525,14 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
                     <td className="py-2.5 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => initiateOptionOrder(row.strikePrice, 'PE', 'BUY', row.pe.ltp, row.pe.instrumentToken)}
+                          onClick={() => initiateOptionOrder(row.strikePrice, 'PE', 'BUY', peLtp, row.pe.instrumentToken)}
                           className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] shadow-sm transition-transform active:scale-95"
                           title={`Buy ${symbol} ${row.strikePrice} PE`}
                         >
                           B
                         </button>
                         <button
-                          onClick={() => initiateOptionOrder(row.strikePrice, 'PE', 'SELL', row.pe.ltp, row.pe.instrumentToken)}
+                          onClick={() => initiateOptionOrder(row.strikePrice, 'PE', 'SELL', peLtp, row.pe.instrumentToken)}
                           className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] shadow-sm transition-transform active:scale-95"
                           title={`Sell ${symbol} ${row.strikePrice} PE`}
                         >
@@ -461,14 +541,31 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, ticks, onRe
                       </div>
                     </td>
 
-                    {/* PUTS LTP */}
+                    {/* PUTS LTP & FRESHNESS BADGE */}
                     <td className="py-2.5 px-2 text-center font-black text-[var(--text-main)] text-xs">
-                      ₹{row.pe.ltp.toFixed(2)}
+                      {hasPeTickData ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span>₹{peLtp.toFixed(2)}</span>
+                          {peFreshness && (
+                            <PriceBadge
+                              state={peFreshness.state}
+                              source={peFreshness.source || row.pe?.source}
+                              timeSinceLastTick={peFreshness.timeSinceLastTick}
+                              size="sm"
+                              showLabel={false}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[var(--text-tertiary)] font-bold text-xs" title="No live tick received (Instrument token mapping pending)">
+                          —
+                        </span>
+                      )}
                     </td>
 
                     {/* PUTS VOLUME */}
                     <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">
-                      {(row.pe.volume / 1000).toFixed(0)}k
+                      {(((peFreshness?.tick?.volume) || row.pe.volume) / 1000).toFixed(0)}k
                     </td>
 
                     {/* PUTS OI */}

@@ -4,6 +4,7 @@ export interface IMarketDataProvider {
   name: string;
   isHealthy(): boolean;
   initialize(): Promise<void>;
+  stop?(): void;
   subscribe(instrumentTokens: string[], callback: TickCallback): void;
   unsubscribe(instrumentTokens: string[]): void;
   getQuote(instrumentToken: string): Promise<MarketTick | null>;

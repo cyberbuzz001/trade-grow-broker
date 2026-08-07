@@ -96,28 +96,27 @@ export class ExpiryCalendarService {
       [cleanSym, `${cleanSym}%`, todayStr]
     );
 
-    let rawExpiries = rows.map(r => typeof r.expiry === 'object' ? (r.expiry as any).toISOString().slice(0, 10) : String(r.expiry).slice(0, 10)).filter(Boolean);
+    let dbExpiries = rows.map(r => {
+      if (!r.expiry) return '';
+      const d = new Date(r.expiry);
+      return isNaN(d.getTime()) ? '' : this.formatYYYYMMDD(d);
+    }).filter(Boolean);
+    const calculatedExpiries = await this.generateCalculatedExpiries(cleanSym);
 
-    // If exchange instrument master has expiries, filter & sort
-    if (rawExpiries.length === 0) {
-      // Fallback: Generate dynamic expiries based on Expiry Calendar config
-      rawExpiries = await this.generateCalculatedExpiries(cleanSym);
-    }
+    // Combine DB expiries with calculated calendar expiries
+    const allExpiriesCombined = Array.from(new Set([...dbExpiries, ...calculatedExpiries])).filter(e => e >= todayStr).sort();
 
-    // Deduplicate and ensure ascending order
-    const sortedExpiries = Array.from(new Set(rawExpiries)).sort();
+    const nearestExpiry = allExpiriesCombined[0] || null;
+    const nextExpiry = allExpiriesCombined[1] || null;
 
-    const nearestExpiry = sortedExpiries[0] || null;
-    const nextExpiry = sortedExpiries[1] || null;
-
-    // Monthly expiry resolution: find the last expiry in the current month (or nearest month)
-    const monthlyExpiry = this.resolveMonthlyExpiry(sortedExpiries) || nearestExpiry;
+    // Monthly expiry resolution: find the last expiry in the target month
+    const monthlyExpiry = this.resolveMonthlyExpiry(allExpiriesCombined) || nearestExpiry;
 
     return {
       nearestExpiry,
       nextExpiry,
       monthlyExpiry,
-      allExpiries: sortedExpiries,
+      allExpiries: allExpiriesCombined,
     };
   }
 
@@ -134,15 +133,52 @@ export class ExpiryCalendarService {
   }
 
   /**
+   * Helper to format Date object to local YYYY-MM-DD string without UTC offset shifts
+   */
+  private formatYYYYMMDD(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  /**
    * Helper to calculate dynamic upcoming expiry dates based on calendar rules
    */
   private async generateCalculatedExpiries(symbol: string): Promise<string[]> {
     const config = await this.getCalendarConfig(symbol);
-    const targetWeekday = config ? config.expiryWeekday : 2; // Default Tuesday (2) for NIFTY
+    const isWeeklySupported = config ? config.weeklyExpirySupported : true;
+    const targetWeekday = config ? config.expiryWeekday : (symbol.toUpperCase().includes('SENSEX') ? 4 : 2);
+    const todayStr = this.formatYYYYMMDD(new Date());
 
     const expiries: string[] = [];
     const now = new Date();
 
+    if (!isWeeklySupported) {
+      // Monthly Expiry Only (BANKNIFTY, FINNIFTY, MIDCPNIFTY -> Last Tuesday of target month)
+      for (let m = 0; m < 6; m++) {
+        const year = now.getFullYear();
+        const month = now.getMonth() + m;
+        const lastDayOfMonth = new Date(year, month + 1, 0);
+        let lastTargetDay = new Date(lastDayOfMonth);
+
+        while (lastTargetDay.getDay() !== targetWeekday) {
+          lastTargetDay.setDate(lastTargetDay.getDate() - 1);
+        }
+
+        // Holiday adjustment if Sat/Sun
+        if (lastTargetDay.getDay() === 6) lastTargetDay.setDate(lastTargetDay.getDate() - 1);
+        if (lastTargetDay.getDay() === 0) lastTargetDay.setDate(lastTargetDay.getDate() - 2);
+
+        const expStr = this.formatYYYYMMDD(lastTargetDay);
+        if (expStr >= todayStr && !expiries.includes(expStr)) {
+          expiries.push(expStr);
+        }
+      }
+      return expiries.sort();
+    }
+
+    // Weekly Expiries (NIFTY -> Tuesday, SENSEX -> Thursday)
     for (let w = 0; w < 6; w++) {
       const d = new Date(now);
       const currentDay = d.getDay();
@@ -156,10 +192,13 @@ export class ExpiryCalendarService {
       if (d.getDay() === 6) d.setDate(d.getDate() - 1); // Sat -> Fri
       if (d.getDay() === 0) d.setDate(d.getDate() - 2); // Sun -> Fri
 
-      expiries.push(d.toISOString().slice(0, 10));
+      const expStr = this.formatYYYYMMDD(d);
+      if (!expiries.includes(expStr)) {
+        expiries.push(expStr);
+      }
     }
 
-    return expiries;
+    return expiries.sort();
   }
 
   /**
@@ -182,7 +221,7 @@ export class ExpiryCalendarService {
     if (lastTuesday.getDay() === 6) lastTuesday.setDate(lastTuesday.getDate() - 1);
     if (lastTuesday.getDay() === 0) lastTuesday.setDate(lastTuesday.getDate() - 2);
 
-    const lastTuesdayStr = lastTuesday.toISOString().slice(0, 10);
+    const lastTuesdayStr = this.formatYYYYMMDD(lastTuesday);
 
     const monthStr = firstExp.slice(0, 7);
     const currentMonthExpiries = expiries.filter(e => e.startsWith(monthStr));

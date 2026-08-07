@@ -18,12 +18,12 @@ export class AngelOneAdapter implements IMarketDataProvider {
   private callbacks: Set<TickCallback> = new Set();
   private tickCache: Map<string, MarketTick> = new Map();
 
-  // Live option chain data from angel_option_chain.py
   private optionChainData: any = null;
   private chainFilePath: string = '';
+  private lastTickTime: number = 0;
 
   public isHealthy(): boolean {
-    return this.healthy;
+    return this.healthy && this.lastTickTime > 0 && (Date.now() - this.lastTickTime < 15000);
   }
 
   public async initialize(): Promise<void> {
@@ -40,18 +40,22 @@ export class AngelOneAdapter implements IMarketDataProvider {
       chainScript = path.resolve(__dirname, '../../src/marketData/angel_option_chain.py');
     }
 
-    // Resolve angel_ticks.json path
-    let ticksFilePath = path.resolve(__dirname, '../../data/angel_ticks.json');
-    if (!fs.existsSync(ticksFilePath)) ticksFilePath = path.resolve(__dirname, '../data/angel_ticks.json');
-    if (!fs.existsSync(ticksFilePath)) ticksFilePath = path.resolve(process.cwd(), 'server/data/angel_ticks.json');
+    // Resolve angel_ticks.json path dynamically across multiple locations
+    const possibleTicksPaths = [
+      path.resolve(process.cwd(), 'server/data/angel_ticks.json'),
+      path.resolve(__dirname, '../../server/data/angel_ticks.json'),
+      path.resolve(__dirname, '../../data/angel_ticks.json'),
+      path.resolve(__dirname, '../data/angel_ticks.json'),
+    ];
 
-    // Resolve angel_option_chain.json path
+    // Resolve angel_option_chain.json path dynamically across multiple locations
     const possibleChainPaths = [
+      path.resolve(process.cwd(), 'server/data/angel_option_chain.json'),
+      path.resolve(__dirname, '../../server/data/angel_option_chain.json'),
       path.resolve(__dirname, '../../data/angel_option_chain.json'),
       path.resolve(__dirname, '../data/angel_option_chain.json'),
-      path.resolve(process.cwd(), 'server/data/angel_option_chain.json'),
     ];
-    this.chainFilePath = possibleChainPaths[0]; // will create dir if needed
+    this.chainFilePath = possibleChainPaths.find(p => fs.existsSync(p)) || possibleChainPaths[0];
     try {
       fs.mkdirSync(path.dirname(this.chainFilePath), { recursive: true });
     } catch (_) {}
@@ -63,14 +67,20 @@ export class AngelOneAdapter implements IMarketDataProvider {
 
       // Poll angel_ticks.json for real-time Angel One quotes
       this.timer = setInterval(() => {
-        if (fs.existsSync(ticksFilePath)) {
+        const fp = possibleTicksPaths.find(p => fs.existsSync(p));
+        if (fp) {
           try {
-            const raw = fs.readFileSync(ticksFilePath, 'utf-8');
+            const raw = fs.readFileSync(fp, 'utf-8');
             if (raw) {
               const data = JSON.parse(raw);
-              for (const [token, tick] of Object.entries<MarketTick>(data)) {
-                this.tickCache.set(token, tick);
-                this.callbacks.forEach(cb => cb(tick));
+              const entries = Object.entries<MarketTick>(data);
+              if (entries.length > 0) {
+                this.lastTickTime = Date.now();
+                this.healthy = true;
+                for (const [token, tick] of entries) {
+                  this.tickCache.set(token, tick);
+                  this.callbacks.forEach(cb => cb(tick));
+                }
               }
             }
           } catch (e) { /* read race condition ignored */ }
@@ -100,11 +110,15 @@ export class AngelOneAdapter implements IMarketDataProvider {
 
       // Poll angel_option_chain.json every 500ms (written by angel_option_ws.py)
       this.chainTimer = setInterval(() => {
-        const fp = this.chainFilePath;
+        const fp = possibleChainPaths.find(p => fs.existsSync(p)) || this.chainFilePath;
         if (fs.existsSync(fp)) {
           try {
             const raw = fs.readFileSync(fp, 'utf-8');
-            if (raw) this.optionChainData = JSON.parse(raw);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              this.optionChainData = parsed;
+              this.processOptionChainTicks(parsed);
+            }
           } catch (_) {}
         }
       }, 500);  // 500ms matches the write interval in angel_option_ws.py
@@ -172,11 +186,17 @@ export class AngelOneAdapter implements IMarketDataProvider {
     SafetyLock.assertSimulationOnly('AngelOneAdapter.getOptionChain');
 
     const sym = (symbol || 'NIFTY').toUpperCase();
-    const niftyTick = this.tickCache.get('NSE_NIFTY50');
-    const bankTick  = this.tickCache.get('NSE_BANKNIFTY');
-    const spotPrice = sym.includes('BANK')
-      ? (bankTick?.ltp  || 52000)
-      : (niftyTick?.ltp || 24500);
+    const niftyTick  = this.tickCache.get('NSE_NIFTY50');
+    const bankTick   = this.tickCache.get('NSE_BANKNIFTY');
+    const sensexTick = this.tickCache.get('BSE_SENSEX');
+    const finTick    = this.tickCache.get('NSE_FINNIFTY');
+    const spotPrice  = (sym.includes('SENSEX') || sym.includes('BSX'))
+      ? (sensexTick?.ltp  || 78710)
+      : sym.includes('BANK')
+      ? (bankTick?.ltp    || 52000)
+      : sym.includes('FIN')
+      ? (finTick?.ltp     || 23500)
+      : (niftyTick?.ltp   || 24500);
 
     // ── If live option chain data is available, use it ──────────────────────
     if (this.optionChainData?.chains?.[sym]?.[expiry]) {
@@ -194,15 +214,19 @@ export class AngelOneAdapter implements IMarketDataProvider {
         // Merge NSE OI & IV if available (refreshed every 60s)
         const nseData = nseSummary ? nseOptionChainService.getOiForStrike(sym, strike) : null;
 
-        const ceLtp = row.ce?.ltp || 0;
-        const peLtp = row.pe?.ltp || 0;
-
         // Use NSE IV when available (more accurate), fallback to smile approximation
-        const ceIv = (nseData?.ceIv && nseData.ceIv > 0) ? nseData.ceIv : 14.5 + Math.abs(strike - Math.round(spot / 50) * 50) / 50 * 0.2;
+        const step = sym === 'SENSEX' ? 100 : 50;
+        const ceIv = (nseData?.ceIv && nseData.ceIv > 0) ? nseData.ceIv : (sym === 'SENSEX' ? 21.0 : 14.5) + Math.abs(strike - Math.round(spot / step) * step) / step * 0.2;
         const peIv = (nseData?.peIv && nseData.peIv > 0) ? nseData.peIv : ceIv + 0.5;
 
         const ceGreeks = GreeksEngine.calculateGreeks(spot, strike, timeToExpiry, true,  ceIv / 100);
         const peGreeks = GreeksEngine.calculateGreeks(spot, strike, timeToExpiry, false, peIv / 100);
+
+        const ceBsPrice = GreeksEngine.calculateOptionPrice(spot, strike, timeToExpiry, true,  ceIv / 100);
+        const peBsPrice = GreeksEngine.calculateOptionPrice(spot, strike, timeToExpiry, false, peIv / 100);
+
+        const ceLtp = (row.ce?.ltp && row.ce.ltp > 0) ? row.ce.ltp : Math.max(0.05, Number(ceBsPrice.toFixed(2)));
+        const peLtp = (row.pe?.ltp && row.pe.ltp > 0) ? row.pe.ltp : Math.max(0.05, Number(peBsPrice.toFixed(2)));
 
         // Use NSE OI when available, otherwise use WS oi field, then synthetic
         const ceOi = nseData?.ceOi || row.ce?.oi || Math.floor(Math.random() * 1800000) + 300000;
@@ -214,7 +238,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
           strikePrice: strike,
           expiry,
           ce: {
-            instrumentToken: row.ce?.token || `NFO_${sym}_${strike}_CE`,
+            instrumentToken: row.ce?.token || `${sym === 'SENSEX' ? 'BFO' : 'NFO'}_${sym}_${strike}_CE`,
             ltp:   ceLtp,
             change: row.ce?.change || 0,
             volume: ceVol,
@@ -226,7 +250,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
             vega:  ceGreeks.vega,
           },
           pe: {
-            instrumentToken: row.pe?.token || `NFO_${sym}_${strike}_PE`,
+            instrumentToken: row.pe?.token || `${sym === 'SENSEX' ? 'BFO' : 'NFO'}_${sym}_${strike}_PE`,
             ltp:   peLtp,
             change: row.pe?.change || 0,
             volume: peVol,
@@ -271,6 +295,85 @@ export class AngelOneAdapter implements IMarketDataProvider {
   public placeBrokerOrder(): void {
     SafetyLock.assertSimulationOnly('AngelOneAdapter.placeBrokerOrder');
     throw new Error('REAL-MONEY TRADING IS DISABLED. Real broker order placement is forbidden.');
+  }
+
+  private processOptionChainTicks(chainData: any): void {
+    if (!chainData?.chains) return;
+    const ts = chainData.updatedAt || Date.now();
+
+    for (const [sym, expiries] of Object.entries<any>(chainData.chains)) {
+      for (const [exp, expObj] of Object.entries<any>(expiries || {})) {
+        if (!expObj?.rows) continue;
+        for (const row of expObj.rows) {
+          const segment = sym === 'SENSEX' ? 'BFO' : 'NFO';
+          const strike = row.strikePrice;
+
+          // CE
+          if (row.ce && row.ce.token && row.ce.ltp > 0) {
+            const tokenStr = String(row.ce.token);
+            const ltp = parseFloat(row.ce.ltp);
+            const tsSym = row.ce.tradingSymbol || `${sym}${strike}CE`;
+            const tick: MarketTick = {
+              instrumentToken: `${segment}_${tokenStr}`,
+              exchange: segment,
+              symbol: tsSym,
+              ltp,
+              open: ltp,
+              high: ltp,
+              low: ltp,
+              close: ltp,
+              volume: parseInt(row.ce.volume || '0', 10),
+              change: parseFloat(row.ce.change || '0'),
+              changePercent: parseFloat(row.ce.change || '0'),
+              bid: Number((ltp * 0.995).toFixed(2)),
+              ask: Number((ltp * 1.005).toFixed(2)),
+              bidQty: 100,
+              askQty: 100,
+              timestamp: ts,
+            };
+
+            this.tickCache.set(`${segment}_${tokenStr}`, tick);
+            this.tickCache.set(tokenStr, tick);
+            this.tickCache.set(`${segment}_${sym}_${strike}_CE`, tick);
+            this.tickCache.set(tsSym, tick);
+
+            this.callbacks.forEach(cb => cb(tick));
+          }
+
+          // PE
+          if (row.pe && row.pe.token && row.pe.ltp > 0) {
+            const tokenStr = String(row.pe.token);
+            const ltp = parseFloat(row.pe.ltp);
+            const tsSym = row.pe.tradingSymbol || `${sym}${strike}PE`;
+            const tick: MarketTick = {
+              instrumentToken: `${segment}_${tokenStr}`,
+              exchange: segment,
+              symbol: tsSym,
+              ltp,
+              open: ltp,
+              high: ltp,
+              low: ltp,
+              close: ltp,
+              volume: parseInt(row.pe.volume || '0', 10),
+              change: parseFloat(row.pe.change || '0'),
+              changePercent: parseFloat(row.pe.change || '0'),
+              bid: Number((ltp * 0.995).toFixed(2)),
+              ask: Number((ltp * 1.005).toFixed(2)),
+              bidQty: 100,
+              askQty: 100,
+              timestamp: ts,
+            };
+
+            this.tickCache.set(`${segment}_${tokenStr}`, tick);
+            this.tickCache.set(tokenStr, tick);
+            this.tickCache.set(`${segment}_${sym}_${strike}_PE`, tick);
+            this.tickCache.set(tsSym, tick);
+
+            this.callbacks.forEach(cb => cb(tick));
+          }
+        }
+      }
+    }
   }
 
   public destroy(): void {

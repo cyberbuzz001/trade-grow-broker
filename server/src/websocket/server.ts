@@ -43,6 +43,11 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
           const allowedAdds = 50 - (ws.subscriptions?.size ?? 0);
           const tokensToAdd = data.tokens.slice(0, Math.max(0, allowedAdds));
           tokensToAdd.forEach((t: string) => ws.subscriptions?.add(t));
+
+          // Forward token subscriptions to MarketDataEngine so market provider emits live ticks
+          if (tokensToAdd.length > 0) {
+            MarketDataEngine.getInstance().subscribe(tokensToAdd);
+          }
         } else if (data.action === 'UNSUBSCRIBE' && Array.isArray(data.tokens)) {
           data.tokens.forEach((t: string) => ws.subscriptions?.delete(t));
         } else if (data.action === 'PING') {

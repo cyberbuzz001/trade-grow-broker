@@ -29,6 +29,8 @@ export class AlphaVantageAdapter implements IMarketDataProvider {
     this.apiKey = process.env.ALPHAVANTAGE_API_KEY || 'CC23XT2DVHARWKAU';
   }
 
+  private timer: NodeJS.Timeout | null = null;
+
   public isHealthy(): boolean {
     return this.healthy;
   }
@@ -45,7 +47,8 @@ export class AlphaVantageAdapter implements IMarketDataProvider {
       'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK', 'NSE_ICICIBANK', 'NSE_TATAMOTORS'
     ];
 
-    setInterval(async () => {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = setInterval(async () => {
       for (const token of tokens) {
         const tick = await this.getQuote(token);
         if (tick) {
@@ -55,6 +58,14 @@ export class AlphaVantageAdapter implements IMarketDataProvider {
     }, 1500);
 
     console.log('[AlphaVantageAdapter] ✅ Alpha Vantage Adapter Active (Rate Throttled 1req/sec, FNO Enabled)!');
+  }
+
+  public stop(): void {
+    console.log('[AlphaVantageAdapter] Stopping Alpha Vantage Adapter...');
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
   }
 
   public subscribe(instrumentTokens: string[], callback: TickCallback): void {

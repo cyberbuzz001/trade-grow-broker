@@ -1,3 +1,5 @@
+export type TickSource = 'live' | 'guard_feed' | 'synthetic_skew' | 'cached_stale' | 'market_closed';
+
 export interface MarketTick {
   instrumentToken: string;
   exchange: string;
@@ -15,6 +17,8 @@ export interface MarketTick {
   bidQty: number;
   askQty: number;
   timestamp: number;
+  source?: TickSource;
+  isSynthetic?: boolean;
 }
 
 export interface Candle {
@@ -42,6 +46,8 @@ export interface OptionContractDetails {
   theta: number;
   vega: number;
   classification?: 'ITM' | 'ATM' | 'OTM';
+  source?: TickSource;
+  isSynthetic?: boolean;
 }
 
 export interface OptionChainItem {

@@ -11,7 +11,8 @@
     "start": "node server/dist/index.js",
     "dev:server": "ts-node-dev --project server/tsconfig.json --respawn --transpile-only server/src/index.ts",
     "dev:client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:python": "cd python_engine && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:python\"",
     "test": "jest --detectOpenHandles --forceExit"
   },
   "dependencies": {

@@ -16,6 +16,7 @@ import { VirtualWalletLedger } from '../trading/VirtualWalletLedger';
 import { OMS } from '../trading/OMS';
 import { PortfolioService } from '../trading/PortfolioService';
 import { MarketDataEngine } from '../marketData/MarketDataEngine';
+import { GreeksEngine } from '../marketData/GreeksEngine';
 import { MarketDataStorageService } from '../services/MarketDataStorageService';
 import { InstrumentMasterService } from '../marketData/InstrumentMasterService';
 import { generateUUID } from '../utils/crypto';
@@ -85,6 +86,11 @@ router.get('/health/ready', async (req, res) => {
   const db = await checkDatabaseHealth();
   if (!db.healthy) return res.status(503).json({ ready: false, reason: 'Database not ready' });
   res.status(200).json({ ready: true });
+});
+
+router.get('/health/instruments', (req, res) => {
+  const status = InstrumentMasterService.getInstance().getHealthStatus();
+  res.status(status.isReady ? 200 : 503).json({ success: true, ...status });
 });
 
 // ============================================================
@@ -334,6 +340,81 @@ router.get('/market/option-chain', async (req, res) => {
   }
 });
 
+// OpenAlgo Standard Option Chain Endpoint (POST /api/v1/optionchain)
+router.post('/optionchain', async (req, res) => {
+  try {
+    const underlying   = req.body.underlying || req.body.symbol || 'NIFTY';
+    const expiry_date  = req.body.expiry_date || req.body.expiry || '';
+    const strike_count = req.body.strike_count ? String(req.body.strike_count) : '10';
+
+    const { OptionChainEngine } = await import('../marketData/OptionChainEngine');
+    const result = await OptionChainEngine.generateOptionChain({
+      symbol: underlying,
+      expiry: expiry_date,
+      strikeRange: (strike_count as any),
+    });
+
+    const formattedChain = result.chain.map((item, idx) => {
+      const dist = Math.abs(item.strikePrice - result.atmStrike);
+      const stepIdx = Math.round(dist / (item.strikePrice > result.atmStrike ? (underlying.includes('SENSEX') || underlying.includes('BANK') ? 100 : 50) : 1));
+      
+      const getLabel = (isCE: boolean) => {
+        if (item.strikePrice === result.atmStrike) return 'ATM';
+        if (isCE) {
+          return item.strikePrice < result.atmStrike ? `ITM${stepIdx}` : `OTM${stepIdx}`;
+        } else {
+          return item.strikePrice > result.atmStrike ? `ITM${stepIdx}` : `OTM${stepIdx}`;
+        }
+      };
+
+      return {
+        strike: item.strikePrice,
+        ce: {
+          symbol: `${underlying}${expiry_date}${item.strikePrice}CE`,
+          label: getLabel(true),
+          ltp: item.ce.ltp,
+          bid: item.ce.bid,
+          ask: item.ce.ask,
+          open: item.ce.ltp * 0.98,
+          high: item.ce.ltp * 1.05,
+          low: item.ce.ltp * 0.95,
+          prev_close: item.ce.ltp - item.ce.change,
+          volume: item.ce.volume,
+          oi: item.ce.openInterest,
+          lotsize: result.lotSize,
+          tick_size: 0.05
+        },
+        pe: {
+          symbol: `${underlying}${expiry_date}${item.strikePrice}PE`,
+          label: getLabel(false),
+          ltp: item.pe.ltp,
+          bid: item.pe.bid,
+          ask: item.pe.ask,
+          open: item.pe.ltp * 0.98,
+          high: item.pe.ltp * 1.05,
+          low: item.pe.ltp * 0.95,
+          prev_close: item.pe.ltp - item.pe.change,
+          volume: item.pe.volume,
+          oi: item.pe.openInterest,
+          lotsize: result.lotSize,
+          tick_size: 0.05
+        }
+      };
+    });
+
+    res.json({
+      status: 'success',
+      underlying: result.underlying,
+      underlying_ltp: result.spotPrice,
+      expiry_date: result.expiry,
+      atm_strike: result.atmStrike,
+      chain: formattedChain
+    });
+  } catch (err: any) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
 router.get('/market/option-expiries', async (req, res) => {
   try {
     const symbol = (req.query.symbol as string) || 'NIFTY';
@@ -350,6 +431,29 @@ router.get('/market/option-expiries', async (req, res) => {
     });
   } catch (err: any) {
     res.json({ success: false, symbol: req.query.symbol, expiries: [] });
+  }
+});
+
+router.get('/market/mcx-active-contracts', async (req, res) => {
+  try {
+    const contracts = [
+      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7400.00, ltp: 354.20, volumeLots: 36723, notionalToLakhs: 283735.27, premiumToLakh: 11984.92, oiLots: 4403, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7400_PE' },
+      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7000.00, ltp: 155.20, volumeLots: 36197, notionalToLakhs: 258521.13, premiumToLakh: 5141.78, oiLots: 14480, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7000_PE' },
+      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7300.00, ltp: 297.00, volumeLots: 31333, notionalToLakhs: 237457.64, premiumToLakh: 8726.55, oiLots: 7780, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7300_PE' },
+      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7200.00, ltp: 244.50, volumeLots: 28798, notionalToLakhs: 213779.73, premiumToLakh: 6434.05, oiLots: 8648, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7200_PE' },
+      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7500.00, ltp: 419.20, volumeLots: 19850, notionalToLakhs: 156397.82, premiumToLakh: 7522.75, oiLots: 5488, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7500_PE' },
+      { instrument: 'OPTFUT', commodity: 'GOLD', expiryDate: '31AUG2026', optionType: 'PE', strikePrice: 140000.00, ltp: 424.00, volumeLots: 1042, notionalToLakhs: 146350.08, premiumToLakh: 470.08, oiLots: 656, ulProductLtp: 151198.00, token: 'MCX_GOLD_140000_PE' },
+      { instrument: 'OPTFUT', commodity: 'GOLDM', expiryDate: '28AUG2026', optionType: 'PE', strikePrice: 140000.00, ltp: 452.00, volumeLots: 10134, notionalToLakhs: 142349.84, premiumToLakh: 473.84, oiLots: 5473, ulProductLtp: 149710.00, token: 'MCX_GOLDM_140000_PE' },
+      { instrument: 'OPTFUT', commodity: 'GOLD', expiryDate: '31AUG2026', optionType: 'PE', strikePrice: 145000.00, ltp: 1064.00, volumeLots: 901, notionalToLakhs: 131658.96, premiumToLakh: 1013.96, oiLots: 555, ulProductLtp: 151198.00, token: 'MCX_GOLD_145000_PE' },
+      { instrument: 'OPTFUT', commodity: 'SILVERM', expiryDate: '24AUG2026', optionType: 'PE', strikePrice: 210000.00, ltp: 838.00, volumeLots: 12211, notionalToLakhs: 128774.01, premiumToLakh: 558.51, oiLots: 3500, ulProductLtp: 235000.00, token: 'MCX_SILVERM_210000_PE' },
+      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 6500.00, ltp: 40.20, volumeLots: 18564, notionalToLakhs: 121313.14, premiumToLakh: 647.14, oiLots: 13817, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_6500_PE' },
+      { instrument: 'OPTFUT', commodity: 'NATURALGAS', expiryDate: '25AUG2026', optionType: 'CE', strikePrice: 220.00, ltp: 14.80, volumeLots: 15420, notionalToLakhs: 98450.10, premiumToLakh: 420.50, oiLots: 8900, ulProductLtp: 215.50, token: 'MCX_NATURALGAS_220_CE' },
+      { instrument: 'OPTFUT', commodity: 'COPPER', expiryDate: '28AUG2026', optionType: 'CE', strikePrice: 850.00, ltp: 22.40, volumeLots: 8430, notionalToLakhs: 85600.30, premiumToLakh: 310.20, oiLots: 4120, ulProductLtp: 845.00, token: 'MCX_COPPER_850_CE' }
+    ];
+
+    res.json({ success: true, contracts });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -395,58 +499,139 @@ router.get('/market/option-summary', async (req, res) => {
   }
 });
 
+// Real-time Top Movers API: Gainers, Losers, Volume Shockers for F&O Stocks
+router.get('/market/top-movers', async (req, res) => {
+  try {
+    const { fnOStockService } = await import('../services/FnOStockService');
+    const { MarketDataEngine } = await import('../marketData/MarketDataEngine');
+    const engine = MarketDataEngine.getInstance();
+
+    const data = fnOStockService.getTopMovers();
+
+    const updateStockWithTick = (stock: any) => {
+      const liveTick = engine.getCachedTick(stock.internalToken) || engine.getCachedTick(stock.symbol);
+      if (liveTick) {
+        return {
+          ...stock,
+          price: liveTick.ltp,
+          open: liveTick.open,
+          high: liveTick.high,
+          low: liveTick.low,
+          close: liveTick.close,
+          change: liveTick.change,
+          changePercent: liveTick.changePercent,
+          volume: liveTick.volume || stock.volume,
+        };
+      }
+      return stock;
+    };
+
+    res.json({
+      success: true,
+      gainers: data.gainers.map(updateStockWithTick),
+      losers: data.losers.map(updateStockWithTick),
+      volumeShockers: data.volumeShockers.map(updateStockWithTick),
+      allStocks: data.allStocks.map(updateStockWithTick),
+      timestamp: Date.now(),
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Market Candlestick Chart API (for Equities, Indices, and NIFTY/SENSEX Option Strike Prices)
 router.get('/market/candles', async (req: Request, res: Response) => {
   try {
-    const symbol = (req.query.symbol as string) || 'NIFTY';
+    const rawSym = ((req.query.symbol as string) || 'NIFTY').toUpperCase().trim();
     const timeframe = (req.query.timeframe as string) || '5m';
     const limit = Math.min(parseInt(req.query.limit as string || '80', 10), 300);
 
-    const isOption = symbol.includes('CE') || symbol.includes('PE') || symbol.includes('CALL') || symbol.includes('PUT');
-    let basePrice = 125.0;
+    const isOption = rawSym.includes('CE') || rawSym.includes('PE') || rawSym.includes('CALL') || rawSym.includes('PUT');
+    const isSensex = rawSym.includes('SENSEX');
+    const isBanknifty = rawSym.includes('BANKNIFTY');
 
-    if (isOption) {
-      const numbers = symbol.match(/\d+/g);
-      if (numbers && numbers.length > 0) {
-        const strike = parseInt(numbers[numbers.length - 1], 10);
-        basePrice = symbol.includes('SENSEX') ? Math.max(45, (strike % 500) + 95) : Math.max(30, (strike % 100) + 75);
-      }
-    } else if (symbol.includes('NIFTY')) {
-      basePrice = 24550.0;
-    } else if (symbol.includes('SENSEX')) {
-      basePrice = 80100.0;
-    } else {
-      basePrice = 2550.0;
-    }
-
-    const candles = [];
     const now = Math.floor(Date.now() / 1000);
     const intervalSec = timeframe === '1m' ? 60 : timeframe === '15m' ? 900 : timeframe === '1h' ? 3600 : 300;
 
-    let currentPrice = basePrice;
-    for (let i = limit; i >= 0; i--) {
-      const time = now - (i * intervalSec);
-      const volatility = isOption ? 0.025 : 0.003;
-      const change = (Math.random() - 0.49) * currentPrice * volatility;
-      const open = currentPrice;
-      const close = Math.max(1.0, parseFloat((open + change).toFixed(2)));
-      const high = Math.max(open, close) + Math.abs(change) * (0.2 + Math.random() * 0.5);
-      const low = Math.max(0.5, Math.min(open, close) - Math.abs(change) * (0.2 + Math.random() * 0.5));
-      const volume = Math.floor(Math.random() * 15000 + 1200);
+    const candles = [];
 
-      candles.push({
-        time,
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(low.toFixed(2)),
-        close: Number(close.toFixed(2)),
-        volume,
-      });
+    if (isOption) {
+      // 1. Parse Strike & Option Type
+      const numbers = rawSym.match(/\d+/g);
+      const strike = (numbers && numbers.length > 0) ? parseInt(numbers[numbers.length - 1], 10) : (isSensex ? 78400 : 24500);
+      const isCall = !rawSym.includes('PE') && !rawSym.includes('PUT');
 
-      currentPrice = close;
+      // 2. Underlying Spot Index Baseline & IV
+      const underlyingSpot = isSensex ? 78338.89 : (isBanknifty ? 52200.0 : 24508.90);
+      const baseIV = isSensex ? 0.212 : (isBanknifty ? 0.165 : 0.123);
+      const timeToExpiryYears = 1.0 / 365.0; // 1 day to expiry
+
+      // Generate underlying index historical OHLC movement
+      let indexSpot = underlyingSpot * 0.992;
+      const indexCandles = [];
+      for (let i = limit; i >= 0; i--) {
+        const time = now - (i * intervalSec);
+        const change = (Math.random() - 0.485) * indexSpot * 0.0018;
+        const open = indexSpot;
+        const close = parseFloat((open + change).toFixed(2));
+        const high = Math.max(open, close) + Math.abs(change) * 0.3;
+        const low = Math.min(open, close) - Math.abs(change) * 0.3;
+
+        indexCandles.push({ time, open, high, low, close });
+        indexSpot = close;
+      }
+
+      // 3. Transform index OHLC to exact Black-Scholes Option OHLC
+      for (const ic of indexCandles) {
+        const oOpen  = GreeksEngine.calculateOptionPrice(ic.open, strike, timeToExpiryYears, isCall, baseIV);
+        const oClose = GreeksEngine.calculateOptionPrice(ic.close, strike, timeToExpiryYears, isCall, baseIV);
+        const oP1    = GreeksEngine.calculateOptionPrice(ic.high, strike, timeToExpiryYears, isCall, baseIV);
+        const oP2    = GreeksEngine.calculateOptionPrice(ic.low, strike, timeToExpiryYears, isCall, baseIV);
+
+        const oHigh  = Math.max(oOpen, oClose, oP1, oP2);
+        const oLow   = Math.max(0.05, Math.min(oOpen, oClose, oP1, oP2));
+        const volume = Math.floor(Math.random() * 25000 + 3500);
+
+        candles.push({
+          time: ic.time,
+          open: Number(oOpen.toFixed(2)),
+          high: Number(oHigh.toFixed(2)),
+          low: Number(oLow.toFixed(2)),
+          close: Number(oClose.toFixed(2)),
+          volume
+        });
+      }
+    } else {
+      // Equity / Index Spot Candle Generator
+      let basePrice = 2550.0;
+      if (rawSym.includes('NIFTY')) basePrice = 24508.90;
+      else if (rawSym.includes('SENSEX')) basePrice = 78338.89;
+      else if (rawSym.includes('RELIANCE')) basePrice = 1284.70;
+
+      let currentPrice = basePrice * 0.995;
+      for (let i = limit; i >= 0; i--) {
+        const time = now - (i * intervalSec);
+        const change = (Math.random() - 0.485) * currentPrice * 0.0018;
+        const open = currentPrice;
+        const close = Math.max(1.0, parseFloat((open + change).toFixed(2)));
+        const high = Math.max(open, close) + Math.abs(change) * 0.3;
+        const low = Math.max(0.5, Math.min(open, close) - Math.abs(change) * 0.3);
+        const volume = Math.floor(Math.random() * 15000 + 1200);
+
+        candles.push({
+          time,
+          open: Number(open.toFixed(2)),
+          high: Number(high.toFixed(2)),
+          low: Number(low.toFixed(2)),
+          close: Number(close.toFixed(2)),
+          volume,
+        });
+
+        currentPrice = close;
+      }
     }
 
-    res.json({ success: true, symbol, timeframe, candles });
+    res.json({ success: true, symbol: rawSym, timeframe, candles });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

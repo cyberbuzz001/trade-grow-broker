@@ -20,14 +20,15 @@ export class MockMarketDataProvider implements IMarketDataProvider {
   private callbacks: Map<string, Set<TickCallback>> = new Map();
 
   private stockStates: Map<string, InternalStockState> = new Map([
-    ['NSE_NIFTY50', { token: 'NSE_NIFTY50', exchange: 'NSE', symbol: 'NIFTY 50', ltp: 24550.0, open: 24480.0, high: 24600.0, low: 24450.0, close: 24470.0, volume: 1548000 }],
-    ['NSE_BANKNIFTY', { token: 'NSE_BANKNIFTY', exchange: 'NSE', symbol: 'BANKNIFTY', ltp: 52300.0, open: 52100.0, high: 52450.0, low: 52050.0, close: 52120.0, volume: 920000 }],
-    ['NSE_RELIANCE', { token: 'NSE_RELIANCE', exchange: 'NSE', symbol: 'RELIANCE', ltp: 3050.0, open: 3030.0, high: 3075.0, low: 3020.0, close: 3035.0, volume: 3420000 }],
-    ['NSE_TCS', { token: 'NSE_TCS', exchange: 'NSE', symbol: 'TCS', ltp: 4280.0, open: 4250.0, high: 4310.0, low: 4240.0, close: 4260.0, volume: 1120000 }],
-    ['NSE_INFY', { token: 'NSE_INFY', exchange: 'NSE', symbol: 'INFY', ltp: 1850.0, open: 1840.0, high: 1865.0, low: 1835.0, close: 1842.0, volume: 2410000 }],
-    ['NSE_HDFCBANK', { token: 'NSE_HDFCBANK', exchange: 'NSE', symbol: 'HDFCBANK', ltp: 1640.0, open: 1630.0, high: 1652.0, low: 1625.0, close: 1632.0, volume: 5410000 }],
-    ['NSE_ICICIBANK', { token: 'NSE_ICICIBANK', exchange: 'NSE', symbol: 'ICICIBANK', ltp: 1220.0, open: 1210.0, high: 1228.0, low: 1205.0, close: 1212.0, volume: 3890000 }],
-    ['NSE_TATAMOTORS', { token: 'NSE_TATAMOTORS', exchange: 'NSE', symbol: 'TATAMOTORS', ltp: 1015.0, open: 1005.0, high: 1025.0, low: 1000.0, close: 1008.0, volume: 4120000 }],
+    ['NSE_NIFTY50', { token: 'NSE_NIFTY50', exchange: 'NSE', symbol: 'NIFTY 50', ltp: 24563.00, open: 24572.70, high: 24677.60, low: 24533.55, close: 24614.90, volume: 1548000 }],
+    ['NSE_BANKNIFTY', { token: 'NSE_BANKNIFTY', exchange: 'NSE', symbol: 'BANKNIFTY', ltp: 57500.0, open: 57400.0, high: 57800.0, low: 57200.0, close: 57350.0, volume: 920000 }],
+    ['BSE_SENSEX', { token: 'BSE_SENSEX', exchange: 'BSE', symbol: 'SENSEX', ltp: 80599.78, open: 80350.20, high: 80720.50, low: 80210.10, close: 80015.00, volume: 1200000 }],
+    ['NSE_RELIANCE', { token: 'NSE_RELIANCE', exchange: 'NSE', symbol: 'RELIANCE', ltp: 1284.70, open: 1285.70, high: 1299.00, low: 1284.40, close: 1290.90, volume: 3420000 }],
+    ['NSE_TCS', { token: 'NSE_TCS', exchange: 'NSE', symbol: 'TCS', ltp: 2426.30, open: 2415.00, high: 2440.00, low: 2410.00, close: 2420.00, volume: 1120000 }],
+    ['NSE_INFY', { token: 'NSE_INFY', exchange: 'NSE', symbol: 'INFY', ltp: 1170.90, open: 1165.00, high: 1180.00, low: 1160.00, close: 1168.00, volume: 2410000 }],
+    ['NSE_HDFCBANK', { token: 'NSE_HDFCBANK', exchange: 'NSE', symbol: 'HDFCBANK', ltp: 734.90, open: 732.00, high: 740.00, low: 730.00, close: 733.00, volume: 5410000 }],
+    ['NSE_ICICIBANK', { token: 'NSE_ICICIBANK', exchange: 'NSE', symbol: 'ICICIBANK', ltp: 1445.30, open: 1442.00, high: 1449.90, low: 1433.00, close: 1435.40, volume: 3890000 }],
+    ['NSE_TATAMOTORS', { token: 'NSE_TATAMOTORS', exchange: 'NSE', symbol: 'TATAMOTORS', ltp: 348.30, open: 344.50, high: 350.00, low: 343.50, close: 339.75, volume: 4120000 }],
     ['NFO_NIFTY_24500_CE', { token: 'NFO_NIFTY_24500_CE', exchange: 'NFO', symbol: 'NIFTY24500CE', ltp: 185.0, open: 160.0, high: 210.0, low: 145.0, close: 165.0, volume: 854000 }],
     ['NFO_NIFTY_24500_PE', { token: 'NFO_NIFTY_24500_PE', exchange: 'NFO', symbol: 'NIFTY24500PE', ltp: 110.0, open: 130.0, high: 145.0, low: 95.0, close: 128.0, volume: 620000 }]
   ]);
@@ -38,15 +39,73 @@ export class MockMarketDataProvider implements IMarketDataProvider {
 
   public async initialize(): Promise<void> {
     console.log('[MockMarketDataProvider] Starting simulated real-time market data stream (1 sec interval)...');
+    if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => this.generateTicks(), 1000);
+  }
+
+  public stop(): void {
+    console.log('[MockMarketDataProvider] Stopping simulated market data stream...');
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  private createDynamicState(token: string): void {
+    const parts = token.split('_');
+    if (parts.length >= 4) {
+      const exchange = parts[0];
+      const underlying = parts[1];
+      const strike = parseFloat(parts[2]);
+      const optionType = parts[3];
+
+      let spot = underlying === 'SENSEX' ? 80599.78 : underlying === 'BANKNIFTY' ? 57500 : 24563.0;
+      let dist = Math.abs(spot - strike);
+      let isITM = (optionType === 'CE' && strike < spot) || (optionType === 'PE' && strike > spot);
+      let ltp = isITM ? dist + (Math.random() * 50 + 20) : Math.max(5, 200 - (dist * 0.15) + (Math.random() * 10));
+      ltp = Number(ltp.toFixed(2));
+
+      this.stockStates.set(token, {
+        token,
+        exchange,
+        symbol: `${underlying}${strike}${optionType}`,
+        ltp,
+        open: ltp * 0.98,
+        high: ltp * 1.05,
+        low: ltp * 0.95,
+        close: ltp,
+        volume: Math.floor(Math.random() * 100000) + 10000,
+      });
+    } else {
+      this.stockStates.set(token, {
+        token,
+        exchange: 'NSE',
+        symbol: token,
+        ltp: 500.0,
+        open: 495.0,
+        high: 510.0,
+        low: 490.0,
+        close: 498.0,
+        volume: 50000,
+      });
+    }
   }
 
   public subscribe(instrumentTokens: string[], callback: TickCallback): void {
     for (const token of instrumentTokens) {
+      if (!token) continue;
+      if (!this.stockStates.has(token)) {
+        this.createDynamicState(token);
+      }
       if (!this.callbacks.has(token)) {
         this.callbacks.set(token, new Set());
       }
       this.callbacks.get(token)!.add(callback);
+
+      const state = this.stockStates.get(token);
+      if (state) {
+        callback(this.buildTick(state));
+      }
     }
   }
 

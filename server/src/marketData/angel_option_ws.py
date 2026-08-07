@@ -38,19 +38,20 @@ except ImportError:
 
 # ── Config ───────────────────────────────────────────────────────────────────
 SCRIP_MASTER_URL = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
-ATM_RANGE_STRIKES = 15   # ±15 strikes around ATM
+ATM_RANGE_STRIKES = 10   # ±10 strikes around ATM per symbol
 WRITE_INTERVAL    = 0.5  # write JSON every 500ms
-MAX_TOKENS_PER_WS = 50   # Angel One WS subscription limit per session
+MAX_TOKENS_PER_WS = 250  # Angel One WS subscription limit per session
 
-SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY"]
+SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "SENSEX"]
 
 SPOT_INSTRUMENTS = {
     "NIFTY":     {"exchange": "NSE", "tradingSymbol": "NIFTY 50",   "symbolToken": "99926000"},
     "BANKNIFTY": {"exchange": "NSE", "tradingSymbol": "BANKNIFTY",  "symbolToken": "99926009"},
     "FINNIFTY":  {"exchange": "NSE", "tradingSymbol": "FINNIFTY",   "symbolToken": "99926037"},
+    "SENSEX":    {"exchange": "BSE", "tradingSymbol": "SENSEX",     "symbolToken": "99919000"},
 }
 
-STEP = {"NIFTY": 50, "BANKNIFTY": 100, "FINNIFTY": 50}
+STEP = {"NIFTY": 50, "BANKNIFTY": 100, "FINNIFTY": 50, "SENSEX": 100}
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 _BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
@@ -108,17 +109,21 @@ def build_index(master: list) -> None:
         if not exp_date or exp_date < date.today():
             continue
         exp_str = exp_date.isoformat()
-        try:    strike = float(row["strike"]) / 100.0
+        try:
+            raw_s = float(row["strike"])
+            strike = raw_s / 100.0 if raw_s > 100000 else raw_s
         except: continue
         sym_code = row.get("symbol", "")
         opt_type = sym_code[-2:].upper()
         token    = row.get("token", "")
+        exch_seg = row.get("exch_seg", "NFO").upper()
         if not token or opt_type not in ("CE", "PE"):
             continue
 
         idx.setdefault(name, {}).setdefault(exp_str, []).append({
             "token": token, "tradingSymbol": sym_code,
             "strike": strike, "optionType": opt_type,
+            "exchange": exch_seg
         })
         tmeta[token] = {"symbol": name, "strike": strike,
                          "optionType": opt_type, "expiry": exp_str}
@@ -152,8 +157,9 @@ def get_atm_tokens(symbol: str, spot: float) -> list:
 
 def build_all_tokens(spot_dict: dict) -> list:
     all_tokens = []
+    defaults = {"NIFTY": 24500.0, "BANKNIFTY": 52000.0, "FINNIFTY": 23500.0, "SENSEX": 78400.0}
     for sym in SYMBOLS:
-        spot = spot_dict.get(sym, 24500 if sym == "NIFTY" else 52000)
+        spot = spot_dict.get(sym) or defaults.get(sym, 24500.0)
         all_tokens.extend(get_atm_tokens(sym, spot))
     # Deduplicate and cap at MAX_TOKENS_PER_WS
     seen = set()
@@ -169,21 +175,15 @@ def build_all_tokens(spot_dict: dict) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 def fetch_spot_prices(smart_api: SmartConnect) -> dict:
     spots = {}
-    # Wait up to 30s for angel_ticks.json to be populated by angel_ticker.py
-    for _ in range(20):
-        if os.path.exists(TICKS_FILE):
-            try:
-                raw = json.load(open(TICKS_FILE))
-                n = float(raw.get("NSE_NIFTY50",   {}).get("ltp", 0) or 0)
-                b = float(raw.get("NSE_BANKNIFTY", {}).get("ltp", 0) or 0)
-                if n > 0 and b > 0:
-                    spots["NIFTY"]     = n
-                    spots["BANKNIFTY"] = b
-                    break
-            except: pass
-        time.sleep(1.5)
+    if os.path.exists(TICKS_FILE):
+        try:
+            raw = json.load(open(TICKS_FILE))
+            if raw.get("NSE_NIFTY50", {}).get("ltp"):   spots["NIFTY"]     = float(raw["NSE_NIFTY50"]["ltp"])
+            if raw.get("NSE_BANKNIFTY", {}).get("ltp"): spots["BANKNIFTY"] = float(raw["NSE_BANKNIFTY"]["ltp"])
+            if raw.get("BSE_SENSEX", {}).get("ltp"):    spots["SENSEX"]    = float(raw["BSE_SENSEX"]["ltp"])
+        except: pass
 
-    # Fallback to ltpData if still no data
+    # Fetch missing spot prices directly via ltpData
     for sym, info in SPOT_INSTRUMENTS.items():
         if spots.get(sym, 0) > 0:
             continue
@@ -197,6 +197,7 @@ def fetch_spot_prices(smart_api: SmartConnect) -> dict:
     if spots.get("NIFTY", 0) == 0:     spots["NIFTY"]     = 24500.0
     if spots.get("BANKNIFTY", 0) == 0: spots["BANKNIFTY"] = 52000.0
     if spots.get("FINNIFTY", 0) == 0:  spots["FINNIFTY"]  = 23500.0
+    if spots.get("SENSEX", 0) == 0:    spots["SENSEX"]    = 78400.0
 
     return spots
 
@@ -216,10 +217,11 @@ def build_chain_output() -> dict:
         "chains":    {}
     }
 
+    defaults = {"NIFTY": 24500.0, "BANKNIFTY": 52000.0, "FINNIFTY": 23500.0, "SENSEX": 78400.0}
     for sym in SYMBOLS:
         if sym not in local_index: continue
         step = STEP.get(sym, 50)
-        spot = local_spots.get(sym, 24500)
+        spot = local_spots.get(sym) or defaults.get(sym, 24500.0)
         atm  = round(spot / step) * step
         low  = atm - ATM_RANGE_STRIKES * step
         high = atm + ATM_RANGE_STRIKES * step
@@ -275,8 +277,16 @@ def writer_thread():
         try:
             data = build_chain_output()
             tmp  = CHAIN_FILE + ".tmp"
-            with open(tmp, "w") as f: json.dump(data, f)
-            os.replace(tmp, CHAIN_FILE)   # atomic write
+            with open(tmp, "w") as f:
+                json.dump(data, f)
+            
+            # Windows file locking retry loop
+            for attempt in range(5):
+                try:
+                    os.replace(tmp, CHAIN_FILE)
+                    break
+                except PermissionError:
+                    time.sleep(0.05)
         except Exception as e:
             print(f"[OptionWS] Writer error: {e}", flush=True)
         time.sleep(WRITE_INTERVAL)
@@ -291,7 +301,7 @@ def on_data(wsapp, message):
         ltp   = message.get("last_traded_price", 0) / 100.0   # paise → ₹
         oi    = message.get("open_interest", 0)
         vol   = message.get("volume_trade_for_the_day", 0)
-        close = message.get("52_week_high_price", 0) / 100.0  # prev close approx
+        close = float(message.get("close_price") or message.get("close") or message.get("last_traded_price", 0)) / 100.0
         change_pct = round(((ltp - close) / close * 100), 2) if close > 0 else 0
 
         with _lock:
@@ -302,44 +312,60 @@ def on_data(wsapp, message):
                 "change": change_pct,
                 "ts":     int(time.time() * 1000),
             }
+        print(f"[OptionWS] Received tick: {token} -> ltp={ltp}", flush=True)
     except Exception as e:
-        pass
+        print(f"[OptionWS] Error in on_data: {e}", flush=True)
 
 def on_open(wsapp, subscriptions: list):
     """Called when WebSocket connection is established."""
     print(f"[OptionWS] WebSocket connected. Subscribing {len(subscriptions)} tokens…", flush=True)
-    token_list = [[{"exchangeType": 2, "tokens": [t["token"] for t in subscriptions]}]]
-    wsapp.subscribe("option-chain-session", 3, token_list[0])  # mode 3 = FULL
+    nfo_tokens = [t["token"] for t in subscriptions if t.get("exchange") != "BFO"]
+    bfo_tokens = [t["token"] for t in subscriptions if t.get("exchange") == "BFO"]
+
+    token_list = []
+    if nfo_tokens:
+        token_list.append({"exchangeType": 2, "tokens": nfo_tokens})
+    if bfo_tokens:
+        token_list.append({"exchangeType": 8, "tokens": bfo_tokens})
+
+    if token_list:
+        wsapp.subscribe("option-chain-session", 3, token_list)  # mode 3 = FULL
+
+_SMART_API_INSTANCE = None
+_TOKENS_TO_WATCH     = []
 
 def on_error(wsapp, error):
     print(f"[OptionWS] WebSocket error: {error}", flush=True)
 
 def on_close(wsapp):
-    print("[OptionWS] WebSocket closed.", flush=True)
+    print("[OptionWS] WebSocket closed — switching to REST polling fallback...", flush=True)
+    if _SMART_API_INSTANCE and _TOKENS_TO_WATCH:
+        threading.Thread(target=rest_poll_loop, args=(_SMART_API_INSTANCE, _TOKENS_TO_WATCH), daemon=True).start()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # REST POLLING FALLBACK (when SmartWebSocketV2 not available)
 # ─────────────────────────────────────────────────────────────────────────────
 def rest_poll_loop(smart_api: SmartConnect, tokens_to_watch: list):
     """Fallback: poll ltpData for each token every 2 seconds."""
-    print("[OptionWS] Using REST polling fallback (no WS)…", flush=True)
+    print(f"[OptionWS] Starting REST polling fallback for {len(tokens_to_watch)} contracts…", flush=True)
     while True:
         for contract in tokens_to_watch[:MAX_TOKENS_PER_WS]:
             try:
-                r = smart_api.ltpData("NFO", contract["tradingSymbol"], contract["token"])
+                exch = contract.get("exchange", "NFO")
+                r = smart_api.ltpData(exch, contract["tradingSymbol"], contract["token"])
                 if r and r.get("status") and r.get("data"):
                     d = r["data"]
                     ltp   = float(d.get("ltp", 0))
-                    close = float(d.get("close", ltp))
+                    close = float(d.get("close", ltp) or ltp)
                     with _lock:
                         tick_cache[contract["token"]] = {
                             "ltp":    ltp,
-                            "oi":     int(d.get("openInterest", 0)),
-                            "volume": int(d.get("tradedVolume", 0)),
+                            "oi":     int(d.get("openInterest", 0) or 0),
+                            "volume": int(d.get("tradedVolume", 0) or 0),
                             "change": round((ltp - close) / close * 100, 2) if close > 0 else 0,
                             "ts":     int(time.time() * 1000),
                         }
-                time.sleep(0.1)   # 100ms between calls → ~10 tokens/sec
+                time.sleep(0.15)   # ~6 tokens/sec
             except Exception as e:
                 time.sleep(0.5)
 
@@ -365,6 +391,9 @@ def main():
     auth_token = session["data"]["jwtToken"]
     feed_token = smart_api.getfeedToken()
 
+    global _SMART_API_INSTANCE, _TOKENS_TO_WATCH
+    _SMART_API_INSTANCE = smart_api
+
     # 2. Load scrip master & build index
     master = load_scrip_master()
     build_index(master)
@@ -376,6 +405,7 @@ def main():
 
     # 4. Determine tokens to subscribe
     tokens_to_watch = build_all_tokens(spots)
+    _TOKENS_TO_WATCH = tokens_to_watch
     print(f"[OptionWS] Subscribing to {len(tokens_to_watch)} option contracts…", flush=True)
 
     # 5. Start JSON writer thread
@@ -389,10 +419,11 @@ def main():
             if os.path.exists(TICKS_FILE):
                 try:
                     raw = json.load(open(TICKS_FILE))
-                    new_spots = {
-                        "NIFTY":     float(raw.get("NSE_NIFTY50", {}).get("ltp", 0) or 0),
-                        "BANKNIFTY": float(raw.get("NSE_BANKNIFTY", {}).get("ltp", 0) or 0),
-                    }
+                    new_spots = {}
+                    if raw.get("NSE_NIFTY50", {}).get("ltp"):   new_spots["NIFTY"]     = float(raw["NSE_NIFTY50"]["ltp"])
+                    if raw.get("NSE_BANKNIFTY", {}).get("ltp"): new_spots["BANKNIFTY"] = float(raw["NSE_BANKNIFTY"]["ltp"])
+                    if raw.get("BSE_SENSEX", {}).get("ltp"):    new_spots["SENSEX"]    = float(raw["BSE_SENSEX"]["ltp"])
+                    if raw.get("NSE_FINNIFTY", {}).get("ltp"):  new_spots["FINNIFTY"]  = float(raw["NSE_FINNIFTY"]["ltp"])
                     with _lock: spot_prices.update(new_spots)
                 except: pass
 
@@ -400,15 +431,19 @@ def main():
 
     # 7. Connect WebSocket OR fall back to REST polling
     if WS_AVAILABLE:
-        print("[OptionWS] Starting SmartWebSocketV2 stream…", flush=True)
-        sws = SmartWebSocketV2(auth_token, api_key, client_code, feed_token)
-        sws.on_data  = on_data
-        sws.on_open  = lambda wsapp: on_open(wsapp, tokens_to_watch)
-        sws.on_error = on_error
-        sws.on_close = on_close
-        sws.connect()   # blocking — reconnects automatically
-    else:
-        rest_poll_loop(smart_api, tokens_to_watch)
+        try:
+            print("[OptionWS] Starting SmartWebSocketV2 stream…", flush=True)
+            sws = SmartWebSocketV2(auth_token, api_key, client_code, feed_token)
+            sws.on_data  = on_data
+            sws.on_open  = lambda wsapp: on_open(wsapp, tokens_to_watch)
+            sws.on_error = on_error
+            sws.on_close = on_close
+            sws.connect()   # blocking until disconnect
+        except Exception as e:
+            print(f"[OptionWS] WebSocket exception: {e}", flush=True)
+
+    print("[OptionWS] WebSocket connection ended — starting REST polling fallback loop...", flush=True)
+    rest_poll_loop(smart_api, tokens_to_watch)
 
 if __name__ == "__main__":
     main()

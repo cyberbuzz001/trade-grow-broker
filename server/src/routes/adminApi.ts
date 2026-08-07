@@ -6,6 +6,7 @@ import { VirtualWalletLedger } from '../trading/VirtualWalletLedger';
 import { MarketDataEngine } from '../marketData/MarketDataEngine';
 import { MarketDataStorageService } from '../services/MarketDataStorageService';
 import { checkDatabaseHealth } from '../db/pool';
+import { redis } from '../db/redis';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 
@@ -577,7 +578,7 @@ router.get('/system/health', authenticateToken, checkRole(ADMIN_ROLES), async (r
       { name: 'Market Data', status: mdEngine.getAllCachedTicks().length > 0 ? 'OPERATIONAL' : 'IDLE', latencyMs: 0 },
       { name: 'WebSocket Gateway', status: 'OPERATIONAL', latencyMs: 0 },
       { name: 'PostgreSQL Database', status: dbHealth.healthy ? 'OPERATIONAL' : 'DEGRADED', latencyMs: dbHealth.latencyMs },
-      { name: 'Redis Cache', status: 'DEGRADED', latencyMs: 0 },
+      { name: 'Redis Cache', status: redis.isAvailable() ? 'OPERATIONAL' : 'DEGRADED', latencyMs: 0 },
       { name: 'Broker Gateway', status: mdEngine.getActiveProviderName() !== 'MOCK' ? 'CONNECTED' : 'DISCONNECTED', latencyMs: 0 }
     ]
   });
@@ -595,8 +596,16 @@ router.get('/market-data/config', authenticateToken, checkRole(ADMIN_ROLES), asy
     res.json({
       success: true,
       activeProvider,
-      availableProviders: ['ALPHAVANTAGE', 'ANGELONE', 'INDIAN_STOCK_MARKET_API', 'MOCK_ENGINE'],
+      availableProviders: ['DHAN', 'TRUEDATA', 'ALPHAVANTAGE', 'ANGELONE', 'INDIAN_STOCK_MARKET_API', 'MOCK_ENGINE'],
       keys: {
+        DHAN_CLIENT_ID: configs.DHAN_CLIENT_ID || process.env.DHAN_CLIENT_ID || '1113019677',
+        DHAN_ACCESS_TOKEN: configs.DHAN_ACCESS_TOKEN || process.env.DHAN_ACCESS_TOKEN || '',
+        DHAN_API_KEY: configs.DHAN_API_KEY || process.env.DHAN_API_KEY || '21483ef7',
+        DHAN_API_SECRET: configs.DHAN_API_SECRET || process.env.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09',
+        TRUEDATA_USERNAME: configs.TRUEDATA_USERNAME || process.env.TRUEDATA_USERNAME || 'Trial208',
+        TRUEDATA_PASSWORD: configs.TRUEDATA_PASSWORD || process.env.TRUEDATA_PASSWORD || 'nikhil208',
+        TRUEDATA_WS_PORT: configs.TRUEDATA_WS_PORT || process.env.TRUEDATA_WS_PORT || '8086',
+        TRUEDATA_WS_URL: configs.TRUEDATA_WS_URL || process.env.TRUEDATA_WS_URL || 'wss://push.truedata.in:8086',
         ALPHAVANTAGE_API_KEY: configs.ALPHAVANTAGE_API_KEY || process.env.ALPHAVANTAGE_API_KEY || '',
         ANGELONE_API_KEY: configs.ANGELONE_API_KEY || process.env.ANGELONE_API_KEY || '',
         ANGELONE_CLIENT_ID: configs.ANGELONE_CLIENT_ID || process.env.ANGELONE_CLIENT_ID || '',

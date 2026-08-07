@@ -16,6 +16,13 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
 
   if (!broker) return <div className="text-slate-400 text-sm p-8">Loading broker health...</div>;
 
+  const ProviderBadge = ({ name }: { name: string }) => (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-900/50 text-indigo-300 border border-indigo-800">
+      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+      {name}
+    </span>
+  );
+
   const StatusBadge = ({ status }: { status: string }) => (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
       ['CONNECTED', 'HEALTHY', 'LIVE'].includes(status) ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-800' :
@@ -39,7 +46,7 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
 
       <div className="grid grid-cols-2 gap-4">
         {[
-          { label: 'Provider', value: broker.provider, icon: <Wifi className="w-5 h-5" /> },
+          { label: 'Provider', value: broker.provider, icon: <Wifi className="w-5 h-5" />, isProvider: true },
           { label: 'API Connection', value: broker.apiStatus, icon: <Wifi className="w-5 h-5" /> },
           { label: 'WebSocket Feed', value: broker.wsStatus, icon: <Wifi className="w-5 h-5" /> },
           { label: 'Order API', value: broker.orderApiStatus, icon: <Zap className="w-5 h-5" /> },
@@ -49,7 +56,7 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
             <div className="text-slate-500">{s.icon}</div>
             <div className="flex-1">
               <span className="text-[10px] text-slate-500 uppercase font-semibold block">{s.label}</span>
-              <StatusBadge status={s.value} />
+              {s.isProvider ? <ProviderBadge name={s.value} /> : <StatusBadge status={s.value} />}
             </div>
           </div>
         ))}

@@ -5,7 +5,7 @@ interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectSymbol: (token: string, symbol: string) => void;
-  onSelectTab: (view: 'TERMINAL' | 'OPTION_CHAIN' | 'MARKET_DEPTH' | 'PORTFOLIO' | 'SCANNER' | 'ADMIN') => void;
+  onSelectTab: (view: 'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'TERMINAL' | 'OPTION_CHAIN' | 'MARKET_DEPTH' | 'PORTFOLIO' | 'SCANNER' | 'ADMIN') => void;
 }
 
 export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({

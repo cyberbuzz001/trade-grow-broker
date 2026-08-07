@@ -36,11 +36,6 @@ export class GreeksEngine {
 
   /**
    * Calculates Black-Scholes Option Greeks
-   * @param spot Current Spot Price S
-   * @param strike Strike Price K
-   * @param timeToExpiryYears Time to expiry in years T
-   * @param isCall True for Call (CE), False for Put (PE)
-   * @param iv Implied Volatility in decimal (e.g. 0.15 for 15%)
    */
   public static calculateGreeks(
     spot: number,
@@ -91,5 +86,87 @@ export class GreeksEngine {
       theta: Number(theta.toFixed(2)),
       vega: Number(vega.toFixed(2))
     };
+  }
+
+  /**
+   * Calculates exact Black-Scholes theoretical Call (CE) or Put (PE) Option Price
+   */
+  public static calculateOptionPrice(
+    spot: number,
+    strike: number,
+    timeToExpiryYears: number = 0.08,
+    isCall: boolean = true,
+    iv: number = 0.15,
+    rate: number = 0.07
+  ): number {
+    if (spot <= 0 || strike <= 0 || timeToExpiryYears <= 0 || iv <= 0) {
+      const intrinsic = isCall ? Math.max(0, spot - strike) : Math.max(0, strike - spot);
+      return Math.max(0.05, Number(intrinsic.toFixed(2)));
+    }
+
+    const sqrtT = Math.sqrt(timeToExpiryYears);
+    const d1 = (Math.log(spot / strike) + (rate + 0.5 * iv * iv) * timeToExpiryYears) / (iv * sqrtT);
+    const d2 = d1 - (iv * sqrtT);
+
+    if (isCall) {
+      const price = spot * this.CND(d1) - strike * Math.exp(-rate * timeToExpiryYears) * this.CND(d2);
+      return Math.max(0.05, Number(price.toFixed(2)));
+    } else {
+      const price = strike * Math.exp(-rate * timeToExpiryYears) * this.CND(-d2) - spot * this.CND(-d1);
+      return Math.max(0.05, Number(price.toFixed(2)));
+    }
+  }
+
+  /**
+   * Derives Implied Volatility (IV) from observed market LTP using Newton-Raphson iteration.
+   * Falls back to bisection if Newton-Raphson encounters non-derivative convergence.
+   */
+  public static impliedVolatilityFromPrice(
+    targetLtp: number,
+    spot: number,
+    strike: number,
+    timeToExpiryYears: number,
+    isCall: boolean,
+    fallbackIv: number = 0.15
+  ): number {
+    const intrinsic = isCall ? Math.max(0, spot - strike) : Math.max(0, strike - spot);
+    if (targetLtp <= intrinsic) return Math.max(0.01, fallbackIv);
+
+    let sigma = fallbackIv > 0 ? fallbackIv : 0.20;
+    const maxIterations = 25;
+    const tolerance = 1e-4;
+
+    for (let i = 0; i < maxIterations; i++) {
+      const price = this.calculateOptionPrice(spot, strike, timeToExpiryYears, isCall, sigma);
+      const diff = price - targetLtp;
+
+      if (Math.abs(diff) < tolerance) {
+        return Math.max(0.01, Number(sigma.toFixed(4)));
+      }
+
+      const greeks = this.calculateGreeks(spot, strike, timeToExpiryYears, isCall, sigma);
+      const vega = greeks.vega * 100.0; // Raw vega
+
+      if (Math.abs(vega) < 1e-5) break;
+
+      sigma = sigma - (diff / vega);
+      if (sigma <= 0.001 || sigma > 5.0) break;
+    }
+
+    // Bisection fallback
+    let low = 0.01;
+    let high = 3.0;
+    for (let i = 0; i < 15; i++) {
+      const mid = (low + high) / 2;
+      const price = this.calculateOptionPrice(spot, strike, timeToExpiryYears, isCall, mid);
+      if (Math.abs(price - targetLtp) < 0.1) return Math.max(0.01, Number(mid.toFixed(4)));
+      if (price > targetLtp) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    }
+
+    return Math.max(0.01, Number(((low + high) / 2).toFixed(4)));
   }
 }
