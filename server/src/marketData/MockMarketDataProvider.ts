@@ -30,7 +30,28 @@ export class MockMarketDataProvider implements IMarketDataProvider {
     ['NSE_ICICIBANK', { token: 'NSE_ICICIBANK', exchange: 'NSE', symbol: 'ICICIBANK', ltp: 1445.30, open: 1442.00, high: 1449.90, low: 1433.00, close: 1435.40, volume: 3890000 }],
     ['NSE_TATAMOTORS', { token: 'NSE_TATAMOTORS', exchange: 'NSE', symbol: 'TATAMOTORS', ltp: 348.30, open: 344.50, high: 350.00, low: 343.50, close: 339.75, volume: 4120000 }],
     ['NFO_NIFTY_24500_CE', { token: 'NFO_NIFTY_24500_CE', exchange: 'NFO', symbol: 'NIFTY24500CE', ltp: 185.0, open: 160.0, high: 210.0, low: 145.0, close: 165.0, volume: 854000 }],
-    ['NFO_NIFTY_24500_PE', { token: 'NFO_NIFTY_24500_PE', exchange: 'NFO', symbol: 'NIFTY24500PE', ltp: 110.0, open: 130.0, high: 145.0, low: 95.0, close: 128.0, volume: 620000 }]
+    ['NFO_NIFTY_24500_PE', { token: 'NFO_NIFTY_24500_PE', exchange: 'NFO', symbol: 'NIFTY24500PE', ltp: 110.0, open: 130.0, high: 145.0, low: 95.0, close: 128.0, volume: 620000 }],
+
+    // MCX Commodities Underlyings & Active Options
+    ['MCX_CRUDEOIL', { token: 'MCX_CRUDEOIL', exchange: 'MCX', symbol: 'CRUDEOIL', ltp: 7318.00, open: 7300.00, high: 7380.00, low: 7280.00, close: 7295.00, volume: 154200 }],
+    ['MCX_GOLD', { token: 'MCX_GOLD', exchange: 'MCX', symbol: 'GOLD', ltp: 151198.00, open: 150800.00, high: 151500.00, low: 150500.00, close: 150900.00, volume: 42000 }],
+    ['MCX_GOLDM', { token: 'MCX_GOLDM', exchange: 'MCX', symbol: 'GOLDM', ltp: 149710.00, open: 149500.00, high: 150200.00, low: 149000.00, close: 149200.00, volume: 84000 }],
+    ['MCX_SILVERM', { token: 'MCX_SILVERM', exchange: 'MCX', symbol: 'SILVERM', ltp: 235000.00, open: 234000.00, high: 236500.00, low: 233500.00, close: 234200.00, volume: 68000 }],
+    ['MCX_NATURALGAS', { token: 'MCX_NATURALGAS', exchange: 'MCX', symbol: 'NATURALGAS', ltp: 215.50, open: 212.00, high: 218.00, low: 210.00, close: 213.20, volume: 240000 }],
+    ['MCX_COPPER', { token: 'MCX_COPPER', exchange: 'MCX', symbol: 'COPPER', ltp: 845.00, open: 841.00, high: 849.00, low: 839.00, close: 842.50, volume: 92000 }],
+
+    ['MCX_CRUDEOIL_7400_PE', { token: 'MCX_CRUDEOIL_7400_PE', exchange: 'MCX', symbol: 'CRUDEOIL7400PE', ltp: 354.20, open: 340.00, high: 380.00, low: 320.00, close: 348.00, volume: 36723 }],
+    ['MCX_CRUDEOIL_7000_PE', { token: 'MCX_CRUDEOIL_7000_PE', exchange: 'MCX', symbol: 'CRUDEOIL7000PE', ltp: 155.20, open: 140.00, high: 175.00, low: 130.00, close: 148.00, volume: 36197 }],
+    ['MCX_CRUDEOIL_7300_PE', { token: 'MCX_CRUDEOIL_7300_PE', exchange: 'MCX', symbol: 'CRUDEOIL7300PE', ltp: 297.00, open: 280.00, high: 320.00, low: 270.00, close: 290.00, volume: 31333 }],
+    ['MCX_CRUDEOIL_7200_PE', { token: 'MCX_CRUDEOIL_7200_PE', exchange: 'MCX', symbol: 'CRUDEOIL7200PE', ltp: 244.50, open: 230.00, high: 265.00, low: 220.00, close: 238.00, volume: 28798 }],
+    ['MCX_CRUDEOIL_7500_PE', { token: 'MCX_CRUDEOIL_7500_PE', exchange: 'MCX', symbol: 'CRUDEOIL7500PE', ltp: 419.20, open: 400.00, high: 440.00, low: 385.00, close: 410.00, volume: 19850 }],
+    ['MCX_GOLD_140000_PE', { token: 'MCX_GOLD_140000_PE', exchange: 'MCX', symbol: 'GOLD140000PE', ltp: 424.00, open: 410.00, high: 450.00, low: 395.00, close: 415.00, volume: 1042 }],
+    ['MCX_GOLDM_140000_PE', { token: 'MCX_GOLDM_140000_PE', exchange: 'MCX', symbol: 'GOLDM140000PE', ltp: 452.00, open: 435.00, high: 475.00, low: 420.00, close: 440.00, volume: 10134 }],
+    ['MCX_GOLD_145000_PE', { token: 'MCX_GOLD_145000_PE', exchange: 'MCX', symbol: 'GOLD145000PE', ltp: 1064.00, open: 1020.00, high: 1110.00, low: 990.00, close: 1040.00, volume: 901 }],
+    ['MCX_SILVERM_210000_PE', { token: 'MCX_SILVERM_210000_PE', exchange: 'MCX', symbol: 'SILVERM210000PE', ltp: 838.00, open: 800.00, high: 880.00, low: 780.00, close: 820.00, volume: 12211 }],
+    ['MCX_CRUDEOIL_6500_PE', { token: 'MCX_CRUDEOIL_6500_PE', exchange: 'MCX', symbol: 'CRUDEOIL6500PE', ltp: 40.20, open: 35.00, high: 52.00, low: 30.00, close: 38.00, volume: 18564 }],
+    ['MCX_NATURALGAS_220_CE', { token: 'MCX_NATURALGAS_220_CE', exchange: 'MCX', symbol: 'NATURALGAS220CE', ltp: 14.80, open: 12.00, high: 18.00, low: 10.00, close: 13.50, volume: 15420 }],
+    ['MCX_COPPER_850_CE', { token: 'MCX_COPPER_850_CE', exchange: 'MCX', symbol: 'COPPER850CE', ltp: 22.40, open: 19.00, high: 26.00, low: 16.00, close: 21.00, volume: 8430 }]
   ]);
 
   public isHealthy(): boolean {
