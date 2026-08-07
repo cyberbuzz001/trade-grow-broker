@@ -225,25 +225,29 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
                       {c.optionType}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white text-sm font-mono opacity-100">
-                    ₹{c.strikePrice ? c.strikePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
+                  <td className="py-3 px-4 text-right">
+                    <span className="inline-block font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg text-xs font-mono border border-indigo-200 dark:border-indigo-800/60 shadow-2xs">
+                      ₹{(c.strikePrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm font-mono opacity-100">
-                    ₹{c.ltp ? c.ltp.toFixed(2) : '0.00'}
+                  <td className="py-3 px-4 text-right">
+                    <span className="inline-block font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg text-xs font-mono border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+                      ₹{(c.ltp || 0).toFixed(2)}
+                    </span>
                   </td>
-                  <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300">
+                  <td className="py-3 px-4 text-right text-slate-800 dark:text-slate-200 font-bold">
                     {c.volumeLots.toLocaleString('en-IN')}
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-slate-800 dark:text-slate-200">
+                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-slate-100">
                     ₹{c.notionalToLakhs.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-amber-600 dark:text-amber-400">
+                  <td className="py-3 px-4 text-right font-black text-amber-700 dark:text-amber-400">
                     ₹{c.premiumToLakh.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300">
+                  <td className="py-3 px-4 text-right text-slate-800 dark:text-slate-200 font-bold">
                     {c.oiLots.toLocaleString('en-IN')}
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-slate-500 dark:text-slate-400">
+                  <td className="py-3 px-4 text-right font-bold text-slate-700 dark:text-slate-300">
                     ₹{c.ulProductLtp.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="py-3 px-4 text-center">
