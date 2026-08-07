@@ -49,6 +49,8 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
 
   useEffect(() => {
     fetchMcxContracts();
+    const interval = setInterval(fetchMcxContracts, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const filteredContracts = contracts.filter(c => {
@@ -223,11 +225,11 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
                       {c.optionType}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white">
-                    ₹{c.strikePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white text-sm font-mono opacity-100">
+                    ₹{c.strikePrice ? c.strikePrice.toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00'}
                   </td>
-                  <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white">
-                    ₹{c.ltp.toFixed(2)}
+                  <td className="py-3 px-4 text-right font-black text-emerald-600 dark:text-emerald-400 text-sm font-mono opacity-100">
+                    ₹{c.ltp ? c.ltp.toFixed(2) : '0.00'}
                   </td>
                   <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300">
                     {c.volumeLots.toLocaleString('en-IN')}

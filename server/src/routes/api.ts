@@ -437,40 +437,69 @@ router.get('/market/option-expiries', async (req, res) => {
 router.get('/market/mcx-active-contracts', async (req, res) => {
   try {
     const { MarketDataEngine } = await import('../marketData/MarketDataEngine');
+    const { GreeksEngine } = await import('../marketData/GreeksEngine');
     const engine = MarketDataEngine.getInstance();
 
-    const baseContracts = [
-      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7400.00, ltp: 354.20, volumeLots: 36723, notionalToLakhs: 283735.27, premiumToLakh: 11984.92, oiLots: 4403, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7400_PE', ulToken: 'MCX_CRUDEOIL' },
-      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7000.00, ltp: 155.20, volumeLots: 36197, notionalToLakhs: 258521.13, premiumToLakh: 5141.78, oiLots: 14480, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7000_PE', ulToken: 'MCX_CRUDEOIL' },
-      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7300.00, ltp: 297.00, volumeLots: 31333, notionalToLakhs: 237457.64, premiumToLakh: 8726.55, oiLots: 7780, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7300_PE', ulToken: 'MCX_CRUDEOIL' },
-      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7200.00, ltp: 244.50, volumeLots: 28798, notionalToLakhs: 213779.73, premiumToLakh: 6434.05, oiLots: 8648, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7200_PE', ulToken: 'MCX_CRUDEOIL' },
-      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 7500.00, ltp: 419.20, volumeLots: 19850, notionalToLakhs: 156397.82, premiumToLakh: 7522.75, oiLots: 5488, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_7500_PE', ulToken: 'MCX_CRUDEOIL' },
-      { instrument: 'OPTFUT', commodity: 'GOLD', expiryDate: '31AUG2026', optionType: 'PE', strikePrice: 140000.00, ltp: 424.00, volumeLots: 1042, notionalToLakhs: 146350.08, premiumToLakh: 470.08, oiLots: 656, ulProductLtp: 151198.00, token: 'MCX_GOLD_140000_PE', ulToken: 'MCX_GOLD' },
-      { instrument: 'OPTFUT', commodity: 'GOLDM', expiryDate: '28AUG2026', optionType: 'PE', strikePrice: 140000.00, ltp: 452.00, volumeLots: 10134, notionalToLakhs: 142349.84, premiumToLakh: 473.84, oiLots: 5473, ulProductLtp: 149710.00, token: 'MCX_GOLDM_140000_PE', ulToken: 'MCX_GOLDM' },
-      { instrument: 'OPTFUT', commodity: 'GOLD', expiryDate: '31AUG2026', optionType: 'PE', strikePrice: 145000.00, ltp: 1064.00, volumeLots: 901, notionalToLakhs: 131658.96, premiumToLakh: 1013.96, oiLots: 555, ulProductLtp: 151198.00, token: 'MCX_GOLD_145000_PE', ulToken: 'MCX_GOLD' },
-      { instrument: 'OPTFUT', commodity: 'SILVERM', expiryDate: '24AUG2026', optionType: 'PE', strikePrice: 210000.00, ltp: 838.00, volumeLots: 12211, notionalToLakhs: 128774.01, premiumToLakh: 558.51, oiLots: 3500, ulProductLtp: 235000.00, token: 'MCX_SILVERM_210000_PE', ulToken: 'MCX_SILVERM' },
-      { instrument: 'OPTFUT', commodity: 'CRUDEOIL', expiryDate: '17AUG2026', optionType: 'PE', strikePrice: 6500.00, ltp: 40.20, volumeLots: 18564, notionalToLakhs: 121313.14, premiumToLakh: 647.14, oiLots: 13817, ulProductLtp: 7318.00, token: 'MCX_CRUDEOIL_6500_PE', ulToken: 'MCX_CRUDEOIL' },
-      { instrument: 'OPTFUT', commodity: 'NATURALGAS', expiryDate: '25AUG2026', optionType: 'CE', strikePrice: 220.00, ltp: 14.80, volumeLots: 15420, notionalToLakhs: 98450.10, premiumToLakh: 420.50, oiLots: 8900, ulProductLtp: 215.50, token: 'MCX_NATURALGAS_220_CE', ulToken: 'MCX_NATURALGAS' },
-      { instrument: 'OPTFUT', commodity: 'COPPER', expiryDate: '28AUG2026', optionType: 'CE', strikePrice: 850.00, ltp: 22.40, volumeLots: 8430, notionalToLakhs: 85600.30, premiumToLakh: 310.20, oiLots: 4120, ulProductLtp: 845.00, token: 'MCX_COPPER_850_CE', ulToken: 'MCX_COPPER' }
+    const commodityMeta = [
+      { commodity: 'CRUDEOIL', defaultSpot: 7318.00, step: 100, expiryDate: '17AUG2026', ulToken: 'MCX_CRUDEOIL' },
+      { commodity: 'GOLD', defaultSpot: 151198.00, step: 1000, expiryDate: '31AUG2026', ulToken: 'MCX_GOLD' },
+      { commodity: 'GOLDM', defaultSpot: 149710.00, step: 1000, expiryDate: '28AUG2026', ulToken: 'MCX_GOLDM' },
+      { commodity: 'SILVERM', defaultSpot: 235000.00, step: 1000, expiryDate: '24AUG2026', ulToken: 'MCX_SILVERM' },
+      { commodity: 'NATURALGAS', defaultSpot: 215.50, step: 5, expiryDate: '25AUG2026', ulToken: 'MCX_NATURALGAS' },
+      { commodity: 'COPPER', defaultSpot: 845.00, step: 5, expiryDate: '28AUG2026', ulToken: 'MCX_COPPER' },
     ];
 
-    const contracts = baseContracts.map(item => {
-      const liveTick = engine.getCachedTick(item.token);
-      const ulTick = engine.getCachedTick(item.ulToken);
-      
-      const currentLtp = liveTick && liveTick.ltp > 0 ? liveTick.ltp : item.ltp;
-      const currentUlLtp = ulTick && ulTick.ltp > 0 ? ulTick.ltp : item.ulProductLtp;
-      const currentVol = liveTick && liveTick.volume > 0 ? liveTick.volume : item.volumeLots;
+    const contracts: any[] = [];
 
-      return {
-        ...item,
-        ltp: Number(currentLtp.toFixed(2)),
-        ulProductLtp: Number(currentUlLtp.toFixed(2)),
-        volumeLots: currentVol,
-        notionalToLakhs: Number((item.notionalToLakhs * (currentLtp / item.ltp)).toFixed(2)),
-        premiumToLakh: Number((item.premiumToLakh * (currentLtp / item.ltp)).toFixed(2))
-      };
-    });
+    for (const meta of commodityMeta) {
+      const ulTick = engine.getCachedTick(meta.ulToken);
+      const spot = ulTick && ulTick.ltp > 0 ? ulTick.ltp : meta.defaultSpot;
+      const atmStrike = Math.round(spot / meta.step) * meta.step;
+
+      // 5 Strikes nearest to spot: -2, -1, 0 (ATM), +1, +2
+      const offsets = [-2, -1, 0, 1, 2];
+
+      for (const offset of offsets) {
+        const strikePrice = atmStrike + (offset * meta.step);
+        
+        for (const optionType of ['PE', 'CE'] as const) {
+          const token = `MCX_${meta.commodity}_${strikePrice}_${optionType}`;
+          const liveTick = engine.getCachedTick(token);
+
+          const isCall = optionType === 'CE';
+          const dist = Math.abs(spot - strikePrice);
+          const isITM = (isCall && strikePrice < spot) || (!isCall && strikePrice > spot);
+          
+          let ltp = liveTick && liveTick.ltp > 0
+            ? liveTick.ltp
+            : isITM
+            ? Math.max(10, dist + 25)
+            : Math.max(5, (meta.step * 0.4) - (dist * 0.15));
+          
+          ltp = Number(ltp.toFixed(2));
+          const vol = liveTick && liveTick.volume > 0 ? liveTick.volume : Math.floor(Math.random() * 25000) + 5000;
+          const oi = Math.floor(Math.random() * 12000) + 2000;
+          const notionalTo = Number(((strikePrice * vol * 0.01) / 100).toFixed(2));
+          const premiumTo = Number(((ltp * vol * 0.01) / 100).toFixed(2));
+
+          contracts.push({
+            instrument: 'OPTFUT',
+            commodity: meta.commodity,
+            expiryDate: meta.expiryDate,
+            optionType,
+            strikePrice,
+            ltp,
+            volumeLots: vol,
+            notionalToLakhs: notionalTo,
+            premiumToLakh: premiumTo,
+            oiLots: oi,
+            ulProductLtp: spot,
+            token,
+            ulToken: meta.ulToken
+          });
+        }
+      }
+    }
 
     res.json({ success: true, contracts });
   } catch (err: any) {
