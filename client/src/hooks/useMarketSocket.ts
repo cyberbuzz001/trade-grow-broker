@@ -191,19 +191,24 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          const storeTick = (t: MarketTick) => {
+            if (!t || !t.instrumentToken) return;
+            pendingTicksRef.current.set(t.instrumentToken, t);
+            if (t.symbol) {
+              const cleanSym = t.symbol.trim();
+              pendingTicksRef.current.set(cleanSym, t);
+              pendingTicksRef.current.set(`NSE_${cleanSym}`, t);
+              pendingTicksRef.current.set(`MCX_${cleanSym}`, t);
+              pendingTicksRef.current.set(`BSE_${cleanSym}`, t);
+            }
+          };
+
           if (message.type === 'TICK_SNAPSHOT' && Array.isArray(message.data)) {
-            message.data.forEach((t: MarketTick) => {
-              if (t && t.instrumentToken) {
-                pendingTicksRef.current.set(t.instrumentToken, t);
-              }
-            });
+            message.data.forEach((t: MarketTick) => storeTick(t));
             scheduleBatchUpdate();
           } else if (message.type === 'MARKET_TICK' && message.data) {
-            const tick: MarketTick = message.data;
-            if (tick && tick.instrumentToken) {
-              pendingTicksRef.current.set(tick.instrumentToken, tick);
-              scheduleBatchUpdate();
-            }
+            storeTick(message.data as MarketTick);
+            scheduleBatchUpdate();
           }
         } catch (_) {}
       };

@@ -107,16 +107,28 @@ export function App() {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          const storeTickInMap = (map: Map<string, MarketTick>, t: MarketTick) => {
+            if (!t || !t.instrumentToken) return;
+            map.set(t.instrumentToken, t);
+            if (t.symbol) {
+              const clean = t.symbol.trim();
+              map.set(clean, t);
+              map.set(`NSE_${clean}`, t);
+              map.set(`MCX_${clean}`, t);
+              map.set(`BSE_${clean}`, t);
+            }
+          };
+
           if (message.type === 'TICK_SNAPSHOT' && Array.isArray(message.data)) {
             setTicks(prev => {
               const next = new Map(prev);
-              message.data.forEach((t: MarketTick) => next.set(t.instrumentToken, t));
+              message.data.forEach((t: MarketTick) => storeTickInMap(next, t));
               return next;
             });
           } else if (message.type === 'MARKET_TICK' && message.data) {
             setTicks(prev => {
               const next = new Map(prev);
-              next.set(message.data.instrumentToken, message.data);
+              storeTickInMap(next, message.data as MarketTick);
               return next;
             });
           }

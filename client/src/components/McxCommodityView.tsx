@@ -28,8 +28,21 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
   const [contracts, setContracts] = useState<McxContract[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [orderModal, setOrderModal] = useState<{ open: boolean; contract?: McxContract; side: 'BUY' | 'SELL' }>({ open: false, side: 'BUY' });
-  const [quantity, setQuantity] = useState<number>(1);
+  const [quantity, setQuantity] = useState<number | string>(1);
   const [orderStatus, setOrderStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const getMcxLotSize = (commodity: string): number => {
+    if (!commodity) return 100;
+    const comm = commodity.toUpperCase();
+    if (comm.startsWith('CRUDEOIL')) return 100;
+    if (comm === 'GOLD') return 100;
+    if (comm === 'GOLDM') return 10;
+    if (comm === 'SILVER') return 30;
+    if (comm === 'SILVERM') return 5;
+    if (comm === 'NATURALGAS') return 1250;
+    if (comm === 'COPPER') return 2500;
+    return 100;
+  };
 
   // Fetch active MCX contracts sorted by Turnover (Value)
   const fetchMcxContracts = async () => {
@@ -67,7 +80,11 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
     setOrderStatus(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/v1/orders/place', {
+      const lotSize = getMcxLotSize(orderModal.contract.commodity);
+      const numLots = Math.max(1, Number(quantity) || 1);
+      const totalQty = numLots * lotSize;
+
+      const res = await fetch('/api/v1/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +95,7 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
           exchange: 'MCX',
           symbol: `${orderModal.contract.commodity}${orderModal.contract.expiryDate}${orderModal.contract.strikePrice}${orderModal.contract.optionType}`,
           side: orderModal.side,
-          quantity: quantity,
+          quantity: totalQty,
           price: orderModal.contract.ltp,
           orderType: 'MARKET',
           productType: 'MIS'
@@ -86,7 +103,7 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
       });
       const data = await res.json();
       if (data.success) {
-        setOrderStatus({ type: 'success', text: `MCX Order Executed: ${orderModal.side} ${quantity} Lot(s) ${orderModal.contract.commodity} @ ₹${orderModal.contract.ltp}` });
+        setOrderStatus({ type: 'success', text: `MCX Order Executed: ${orderModal.side} ${numLots} Lot(s) (${totalQty} Qty) ${orderModal.contract.commodity} @ ₹${orderModal.contract.ltp}` });
         if (onRefreshWallet) onRefreshWallet();
         setTimeout(() => setOrderModal({ open: false, side: 'BUY' }), 1500);
       } else {
@@ -310,15 +327,55 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
                 <span className="text-slate-900 dark:text-white font-black">₹{orderModal.contract.ulProductLtp}</span>
               </div>
 
-              <div className="flex flex-col gap-1.5 mt-2">
-                <label className="text-slate-500 font-extrabold uppercase text-[10px]">Lots Quantity</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="px-4 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface-elevated)] font-black text-sm text-slate-900 dark:text-white outline-none focus:border-emerald-500"
-                />
+              <div className="flex flex-col gap-1.5 mt-2 bg-[var(--bg-surface-elevated)] p-3.5 rounded-2xl border border-[var(--border-color)]">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-500 dark:text-slate-400 font-extrabold uppercase text-[10px]">EDIT LOTS</label>
+                  <span className="text-[10px] font-black text-amber-600 dark:text-amber-400">
+                    {getMcxLotSize(orderModal.contract.commodity)} Qty/Lot
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(prev => Math.max(1, (Number(prev) || 1) - 1))}
+                    className="w-10 h-10 rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-slate-900 dark:text-white font-black text-lg flex items-center justify-center hover:border-amber-500 hover:text-amber-500 transition-all active:scale-95 shadow-xs"
+                  >
+                    -
+                  </button>
+
+                  <input
+                    type="number"
+                    min="1"
+                    value={quantity}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setQuantity('' as any);
+                      } else {
+                        const num = parseInt(val, 10);
+                        if (!isNaN(num)) setQuantity(Math.max(1, num));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!quantity || isNaN(Number(quantity))) setQuantity(1);
+                    }}
+                    className="flex-1 text-center py-2 rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] font-black text-base text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all shadow-xs"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(prev => (Number(prev) || 1) + 1)}
+                    className="w-10 h-10 rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-slate-900 dark:text-white font-black text-lg flex items-center justify-center hover:border-amber-500 hover:text-amber-500 transition-all active:scale-95 shadow-xs"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1 px-1">
+                  <span>= {(Number(quantity) || 1) * getMcxLotSize(orderModal.contract.commodity)} Total Qty</span>
+                  <span>Required: ₹{((Number(quantity) || 1) * getMcxLotSize(orderModal.contract.commodity) * orderModal.contract.ltp).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                </div>
               </div>
             </div>
 

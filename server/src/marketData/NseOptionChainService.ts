@@ -135,19 +135,27 @@ export class NseOptionChainService extends EventEmitter {
     return raw.split(',').map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
   }
 
+  private lastCookieRefreshTime: number = 0;
+
   private async refreshCookies(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastCookieRefreshTime < 60_000) {
+      return;
+    }
+    this.lastCookieRefreshTime = now;
+
     // Step 1: hit homepage
     try {
       const res1 = await fetch(NSE_BASE, {
         headers: { ...NSE_HEADERS, 'Referer': NSE_BASE },
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(5000),
       });
       const cookies1 = this.parseCookies(res1);
 
       // Step 2: hit the option-chain page with homepage cookies (builds session)
       const res2 = await fetch(NSE_OC_PAGE, {
         headers: { ...NSE_HEADERS, 'Referer': NSE_BASE, 'Cookie': cookies1 },
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(5000),
       });
       const cookies2 = this.parseCookies(res2);
       // Merge both sets

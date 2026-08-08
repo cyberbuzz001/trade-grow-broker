@@ -11,6 +11,13 @@ node_modules/
 client/node_modules/
 server/node_modules/
 
+# Python & Databases
+__pycache__/
+*.pyc
+dump.rdb
+*.rdb
+
+
 # Build outputs
 dist/
 build/

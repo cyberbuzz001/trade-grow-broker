@@ -143,14 +143,11 @@ export class InstrumentMasterService {
 
       this.totalTokensLoaded = rows.length;
       console.log(`[InstrumentMasterService] Loaded ${rows.length} existing active tokens into lookup cache.`);
+      this.isReady = true;
 
       if (rows.length === 0) {
         console.log('[InstrumentMasterService] No instruments found in database. Performing initial blocking sync...');
         await this.syncMasterData();
-      } else {
-        // Trigger background sync to ensure latest expiries/strikes are fresh
-        this.isReady = true;
-        void this.syncMasterData();
       }
 
       // Schedule daily recurring scrip master sync (runs every 24 hours to keep strike IDs fresh)
@@ -291,6 +288,8 @@ export class InstrumentMasterService {
           }
         }
       });
+      // Yield to event loop to allow incoming HTTP auth / API requests to execute freely
+      await new Promise(r => setTimeout(r, 10));
     }
 
     // Deactivate expired instruments

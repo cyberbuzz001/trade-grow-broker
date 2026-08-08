@@ -1,4 +1,4 @@
-import os
+import time
 import json
 import asyncio
 import logging
@@ -54,7 +54,7 @@ def health_check():
         "engine": "FastAPI (Python 3.11+)",
         "py_vollib": PY_VOLLIB_AVAILABLE,
         "angel_feed_healthy": angel_feed.is_healthy(),
-        "timestamp": int(asyncio.get_event_loop().time() * 1000)
+        "timestamp": int(time.time() * 1000)
     }
 
 

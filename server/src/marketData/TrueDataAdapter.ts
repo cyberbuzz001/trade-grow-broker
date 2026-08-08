@@ -34,6 +34,13 @@ export class TrueDataAdapter implements IMarketDataProvider {
     'NSE_HDFCBANK': { ltp: 753.65, open: 753.05, high: 756.85, low: 750.25, close: 748.15 },
     'NSE_ICICIBANK': { ltp: 1445.30, open: 1442.00, high: 1449.90, low: 1433.00, close: 1435.40 },
     'NSE_TATAMOTORS': { ltp: 348.30, open: 344.50, high: 350.00, low: 343.50, close: 339.75 },
+    'MCX_CRUDEOIL': { ltp: 7318.00, open: 7300.00, high: 7350.00, low: 7280.00, close: 7295.00 },
+    'MCX_GOLD': { ltp: 151198.00, open: 151000.00, high: 151500.00, low: 150800.00, close: 150900.00 },
+    'MCX_GOLDM': { ltp: 149710.00, open: 149500.00, high: 150000.00, low: 149200.00, close: 149400.00 },
+    'MCX_SILVER': { ltp: 235000.00, open: 234000.00, high: 236000.00, low: 233500.00, close: 234200.00 },
+    'MCX_SILVERM': { ltp: 235000.00, open: 234000.00, high: 236000.00, low: 233500.00, close: 234200.00 },
+    'MCX_NATURALGAS': { ltp: 215.50, open: 214.00, high: 218.00, low: 213.50, close: 214.80 },
+    'MCX_COPPER': { ltp: 845.00, open: 842.00, high: 848.00, low: 840.00, close: 843.50 },
   };
 
   constructor() {
@@ -76,8 +83,8 @@ export class TrueDataAdapter implements IMarketDataProvider {
   private initFallbackCache(): void {
     const now = Date.now();
     for (const [token, ref] of Object.entries(TrueDataAdapter.REFERENCE_PRICES)) {
-      const exchange = token.startsWith('BSE_') ? 'BSE' : 'NSE';
-      const symbol = token.replace(/^(NSE_|BSE_|NFO_)/, '');
+      const exchange = token.startsWith('BSE_') ? 'BSE' : (token.startsWith('MCX_') ? 'MCX' : 'NSE');
+      const symbol = token.replace(/^(NSE_|BSE_|NFO_|MCX_)/, '');
       const tick: MarketTick = {
         instrumentToken: token,
         exchange,
@@ -224,6 +231,49 @@ export class TrueDataAdapter implements IMarketDataProvider {
     for (const item of items) {
       if (!item || typeof item !== 'object') continue;
 
+      // Handle TrueData Replay trade array format: {"trade":["symbol_or_id","timestamp","ltp","volume", ...]}
+      if (item.trade && Array.isArray(item.trade)) {
+        const tr = item.trade;
+        const sym = tr[0];
+        const token = this.trueDataSymbolToToken(sym);
+        const ltp = parseFloat(tr[2]) || 0;
+        if (ltp > 0) {
+          const open = parseFloat(tr[6]) || ltp;
+          const high = parseFloat(tr[7]) || ltp;
+          const low = parseFloat(tr[8]) || ltp;
+          const close = parseFloat(tr[9]) || ltp;
+          const volume = parseFloat(tr[3]) || parseFloat(tr[5]) || 0;
+          const change = Number((ltp - close).toFixed(2));
+          const changePercent = close > 0 ? Number(((change / close) * 100).toFixed(2)) : 0;
+          const timestamp = tr[1] ? new Date(tr[1]).getTime() : Date.now();
+          const exchange = token.startsWith('BSE_') ? 'BSE' : (token.startsWith('MCX_') ? 'MCX' : (token.startsWith('NFO_') ? 'NFO' : 'NSE'));
+          const symbol = token.replace(/^(NSE_|BSE_|NFO_|MCX_)/, '');
+
+          const tick: MarketTick = {
+            instrumentToken: token,
+            exchange,
+            symbol,
+            ltp,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            change,
+            changePercent,
+            bid: Number((ltp - 0.05).toFixed(2)),
+            ask: Number((ltp + 0.05).toFixed(2)),
+            bidQty: 100,
+            askQty: 100,
+            timestamp,
+          };
+
+          this.tickCache.set(token, tick);
+          this.callbacks.forEach(cb => cb(tick));
+        }
+        continue;
+      }
+
       const trueSymbol = item.symbol || item.Symbol || item.symbol_name || item.name;
       if (!trueSymbol) continue;
 
@@ -245,8 +295,8 @@ export class TrueDataAdapter implements IMarketDataProvider {
       const changePercent = close > 0 ? Number(((change / close) * 100).toFixed(2)) : 0;
       const timestamp = item.timestamp ? new Date(item.timestamp).getTime() : Date.now();
 
-      const exchange = token.startsWith('BSE_') ? 'BSE' : (token.startsWith('NFO_') ? 'NFO' : 'NSE');
-      const symbol = token.replace(/^(NSE_|BSE_|NFO_)/, '');
+      const exchange = token.startsWith('BSE_') ? 'BSE' : (token.startsWith('MCX_') ? 'MCX' : (token.startsWith('NFO_') ? 'NFO' : 'NSE'));
+      const symbol = token.replace(/^(NSE_|BSE_|NFO_|MCX_)/, '');
 
       const tick: MarketTick = {
         instrumentToken: token,
@@ -313,8 +363,8 @@ export class TrueDataAdapter implements IMarketDataProvider {
     if (ref) {
       return {
         instrumentToken,
-        exchange: instrumentToken.startsWith('BSE_') ? 'BSE' : 'NSE',
-        symbol: instrumentToken.replace(/^(NSE_|BSE_|NFO_)/, ''),
+        exchange: instrumentToken.startsWith('BSE_') ? 'BSE' : (instrumentToken.startsWith('MCX_') ? 'MCX' : 'NSE'),
+        symbol: instrumentToken.replace(/^(NSE_|BSE_|NFO_|MCX_)/, ''),
         ltp: ref.ltp,
         open: ref.open,
         high: ref.high,
@@ -478,7 +528,14 @@ export class TrueDataAdapter implements IMarketDataProvider {
       'NSE_INFY': 'INFY',
       'NSE_HDFCBANK': 'HDFCBANK',
       'NSE_ICICIBANK': 'ICICIBANK',
-      'NSE_TATAMOTORS': 'TATAMOTORS'
+      'NSE_TATAMOTORS': 'TATAMOTORS',
+      'MCX_CRUDEOIL': 'CRUDEOIL',
+      'MCX_GOLD': 'GOLD',
+      'MCX_GOLDM': 'GOLDM',
+      'MCX_SILVER': 'SILVER',
+      'MCX_SILVERM': 'SILVERM',
+      'MCX_NATURALGAS': 'NATURALGAS',
+      'MCX_COPPER': 'COPPER'
     };
 
     if (map[token]) return map[token];
@@ -488,6 +545,10 @@ export class TrueDataAdapter implements IMarketDataProvider {
   private trueDataSymbolToToken(symbol: string): string {
     const clean = symbol.trim();
     const map: Record<string, string> = {
+      '200000001': 'NSE_NIFTY50',
+      '200000002': 'NSE_BANKNIFTY',
+      '200000003': 'BSE_SENSEX',
+      '100001262': 'NSE_RELIANCE',
       'NIFTY 50': 'NSE_NIFTY50',
       'NIFTY BANK': 'NSE_BANKNIFTY',
       'SENSEX': 'BSE_SENSEX',
@@ -496,11 +557,21 @@ export class TrueDataAdapter implements IMarketDataProvider {
       'INFY': 'NSE_INFY',
       'HDFCBANK': 'NSE_HDFCBANK',
       'ICICIBANK': 'NSE_ICICIBANK',
-      'TATAMOTORS': 'NSE_TATAMOTORS'
+      'TATAMOTORS': 'NSE_TATAMOTORS',
+      'CRUDEOIL': 'MCX_CRUDEOIL',
+      'GOLD': 'MCX_GOLD',
+      'GOLDM': 'MCX_GOLDM',
+      'SILVER': 'MCX_SILVER',
+      'SILVERM': 'MCX_SILVERM',
+      'NATURALGAS': 'MCX_NATURALGAS',
+      'COPPER': 'MCX_COPPER'
     };
 
     if (map[clean]) return map[clean];
     if (clean.includes('_BSE')) return `BSE_${clean.replace('_BSE', '')}`;
+    if (clean.startsWith('MCX_') || ['CRUDEOIL', 'GOLD', 'SILVER', 'NATURALGAS', 'COPPER'].some(c => clean.includes(c))) {
+      return clean.startsWith('MCX_') ? clean : `MCX_${clean}`;
+    }
     return `NSE_${clean}`;
   }
 }

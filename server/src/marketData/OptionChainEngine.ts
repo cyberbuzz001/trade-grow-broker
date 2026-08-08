@@ -69,26 +69,101 @@ export class OptionChainEngine {
       expiry = categorization.nearestExpiry || new Date().toISOString().slice(0, 10);
     }
 
+    const atmStrike = Math.round(spotPrice / step) * step;
+
+    // Strike Range Filter: '5' -> ±5, '10' -> ±10 (default), '20' -> ±20, 'ALL' -> ±50
+    const rangeCount = params.strikeRange === '5' ? 5 : params.strikeRange === '20' ? 20 : params.strikeRange === 'ALL' ? 50 : 10;
+    const isAll = params.strikeRange === 'ALL';
+
+    const expiryDate = new Date(expiry.includes('T') ? expiry : `${expiry}T23:59:59Z`);
+    const now = new Date();
+    const diffMs = expiryDate.getTime() - now.getTime();
+    const diffDays = Math.max(0.5, diffMs / (1000 * 60 * 60 * 24));
+    const timeToExpiryYears = diffDays / 365.0;
+
+    const filterAndSanitizeChain = (rawChain: OptionChainItem[]): OptionChainItem[] => {
+      if (!rawChain || rawChain.length === 0) return [];
+      let filtered = rawChain;
+      if (!isAll) {
+        const minStrike = atmStrike - (rangeCount * step);
+        const maxStrike = atmStrike + (rangeCount * step);
+        filtered = rawChain.filter(item => item.strikePrice >= minStrike && item.strikePrice <= maxStrike);
+        if (filtered.length === 0) filtered = rawChain;
+      }
+      filtered.sort((a, b) => a.strikePrice - b.strikePrice);
+
+      return filtered.map(item => {
+        const isATM = item.strikePrice === atmStrike;
+        const dist = Math.abs(item.strikePrice - atmStrike);
+        const skewIvDecimal = Math.max(0.05, 0.14 + (dist * 0.00008));
+
+        let ceLtp = item.ce?.ltp ?? 0;
+        if (ceLtp <= 0) {
+          const bsPrice = GreeksEngine.calculateOptionPrice(spotPrice, item.strikePrice, timeToExpiryYears, true, skewIvDecimal);
+          ceLtp = Math.max(0.05, Number(bsPrice.toFixed(2)));
+        }
+        let peLtp = item.pe?.ltp ?? 0;
+        if (peLtp <= 0) {
+          const bsPrice = GreeksEngine.calculateOptionPrice(spotPrice, item.strikePrice, timeToExpiryYears, false, skewIvDecimal);
+          peLtp = Math.max(0.05, Number(bsPrice.toFixed(2)));
+        }
+
+        const ceIv = item.ce?.iv ? Number(Number(item.ce.iv).toFixed(1)) : Number((skewIvDecimal * 100).toFixed(1));
+        const peIv = item.pe?.iv ? Number(Number(item.pe.iv).toFixed(1)) : Number((skewIvDecimal * 100).toFixed(1));
+
+        const ceGreeks = GreeksEngine.calculateGreeks(spotPrice, item.strikePrice, timeToExpiryYears, true, ceIv / 100);
+        const peGreeks = GreeksEngine.calculateGreeks(spotPrice, item.strikePrice, timeToExpiryYears, false, peIv / 100);
+
+        return {
+          strikePrice: item.strikePrice,
+          expiry: item.expiry || expiry,
+          isAtm: isATM,
+          ce: {
+            ...item.ce,
+            ltp: Number(ceLtp.toFixed(2)),
+            iv: ceIv,
+            delta: item.ce?.delta ?? Number(ceGreeks.delta.toFixed(2)),
+            gamma: item.ce?.gamma ?? Number(ceGreeks.gamma.toFixed(4)),
+            theta: item.ce?.theta ?? Number(ceGreeks.theta.toFixed(2)),
+            vega: item.ce?.vega ?? Number(ceGreeks.vega.toFixed(2)),
+            classification: item.strikePrice < spotPrice ? 'ITM' : isATM ? 'ATM' : 'OTM',
+            openInterest: item.ce?.openInterest || Math.floor(Math.random() * 500000) + 100000,
+            volume: item.ce?.volume || Math.floor(Math.random() * 100000) + 20000,
+          },
+          pe: {
+            ...item.pe,
+            ltp: Number(peLtp.toFixed(2)),
+            iv: peIv,
+            delta: item.pe?.delta ?? Number(peGreeks.delta.toFixed(2)),
+            gamma: item.pe?.gamma ?? Number(peGreeks.gamma.toFixed(4)),
+            theta: item.pe?.theta ?? Number(peGreeks.theta.toFixed(2)),
+            vega: item.pe?.vega ?? Number(peGreeks.vega.toFixed(2)),
+            classification: item.strikePrice > spotPrice ? 'ITM' : isATM ? 'ATM' : 'OTM',
+            openInterest: item.pe?.openInterest || Math.floor(Math.random() * 500000) + 100000,
+            volume: item.pe?.volume || Math.floor(Math.random() * 100000) + 20000,
+          }
+        };
+      });
+    };
+
     // Tier 1: Try Dhan HQ REST option chain first (independent of WebSocket status)
     try {
       const { DhanAdapter } = await import('./DhanAdapter');
       const dhanAdapter = new DhanAdapter();
       const dhanChain = await dhanAdapter.getOptionChain(underlying, expiry);
       if (dhanChain && dhanChain.length > 0) {
-        const atmItem = dhanChain.reduce((prev, curr) => 
-          Math.abs(curr.strikePrice - spotPrice) < Math.abs(prev.strikePrice - spotPrice) ? curr : prev
-        , dhanChain[0]);
+        const filteredDhanChain = filterAndSanitizeChain(dhanChain);
 
         return {
           underlying,
           exchange,
           spotPrice,
           futuresPrice,
-          atmStrike: atmItem ? atmItem.strikePrice : Math.round(spotPrice / step) * step,
+          atmStrike,
           expiry,
           lotSize,
           spotSource,
-          chain: dhanChain
+          chain: filteredDhanChain
         };
       }
     } catch (err: any) {
@@ -102,40 +177,24 @@ export class OptionChainEngine {
       if (angelAdapter.isHealthy()) {
         const angelChain = await angelAdapter.getOptionChain(underlying, expiry);
         if (angelChain && angelChain.length > 0) {
-          const atmItem = angelChain.reduce((prev, curr) => 
-            Math.abs(curr.strikePrice - spotPrice) < Math.abs(prev.strikePrice - spotPrice) ? curr : prev
-          , angelChain[0]);
+          const filteredAngelChain = filterAndSanitizeChain(angelChain);
 
           return {
             underlying,
             exchange,
             spotPrice,
             futuresPrice,
-            atmStrike: atmItem ? atmItem.strikePrice : Math.round(spotPrice / step) * step,
+            atmStrike,
             expiry,
             lotSize,
             spotSource,
-            chain: angelChain
+            chain: filteredAngelChain
           };
         }
       }
     } catch (err: any) {
       console.warn('[OptionChainEngine] Tier 2 Angel One option chain fetch failed:', err.message);
     }
-
-    const atmStrike = Math.round(spotPrice / step) * step;
-
-    // Strike Range Filter: '5' -> ±5, '10' -> ±10 (default), '20' -> ±20
-    const rangeCount = params.strikeRange === '5' ? 5 : params.strikeRange === '20' ? 20 : params.strikeRange === 'ALL' ? 30 : 10;
-    const expiryDate = new Date(expiry.includes('T') ? expiry : `${expiry}T23:59:59Z`);
-    const now = new Date();
-    const diffMs = expiryDate.getTime() - now.getTime();
-    const diffDays = Math.max(0.5, diffMs / (1000 * 60 * 60 * 24));
-    const timeToExpiryYears = diffDays / 365.0;
-
-    // Index Volatility Baselines matching Sensibull benchmarks
-    const baseIV = isSensex ? 0.212 : isBanknifty ? 0.165 : isFinnifty ? 0.148 : 0.123;
-    const SKEW_COEFFICIENT = 0.00008; // Volatility skew adjustment per point strike distance
 
     // Tier 3: Fetch database instruments WITH STRICT EXPIRY FILTER to avoid cross-expiry token mismatch
     const dbInstruments = await query<any>(
@@ -184,7 +243,7 @@ export class OptionChainEngine {
                      engine.getCachedTick(peTokenFallback);
 
       const distance = Math.abs(strike - atmStrike);
-      const skewIvDecimal = Math.max(0.05, baseIV + (distance * SKEW_COEFFICIENT));
+      const skewIvDecimal = Math.max(0.05, (isSensex ? 0.212 : isBanknifty ? 0.165 : isFinnifty ? 0.148 : 0.123) + (distance * 0.00008));
 
       // ── CALLS (CE) LTP, IV, and Source Determination ───────────────────────
       let ceIvDecimal = skewIvDecimal;
@@ -194,7 +253,6 @@ export class OptionChainEngine {
       if (ceTick && ceTick.ltp > 0) {
         ceLtp = ceTick.ltp;
         ceSource = ceTick.source || 'live';
-        // Infer implied vol from live market premium when available
         ceIvDecimal = GreeksEngine.impliedVolatilityFromPrice(ceLtp, spotPrice, strike, timeToExpiryYears, true, skewIvDecimal);
       } else {
         const bsPrice = GreeksEngine.calculateOptionPrice(spotPrice, strike, timeToExpiryYears, true, skewIvDecimal);
@@ -241,8 +299,8 @@ export class OptionChainEngine {
           volume: ceTick ? ceTick.volume : Math.floor(Math.random() * 450000) + 120000,
           openInterest: Math.floor(Math.random() * 2500000) + 500000,
           openInterestChange: Math.floor((Math.random() - 0.4) * 80000),
-          iv: Number(ceGreeks.iv.toFixed(2)),
-          delta: Number(ceGreeks.delta.toFixed(4)),
+          iv: Number(ceGreeks.iv.toFixed(1)),
+          delta: Number(ceGreeks.delta.toFixed(2)),
           gamma: Number(ceGreeks.gamma.toFixed(4)),
           theta: Number(ceGreeks.theta.toFixed(2)),
           vega: Number(ceGreeks.vega.toFixed(2)),
@@ -260,8 +318,8 @@ export class OptionChainEngine {
           volume: peTick ? peTick.volume : Math.floor(Math.random() * 420000) + 100000,
           openInterest: Math.floor(Math.random() * 2200000) + 400000,
           openInterestChange: Math.floor((Math.random() - 0.4) * 75000),
-          iv: Number(peGreeks.iv.toFixed(2)),
-          delta: Number(peGreeks.delta.toFixed(4)),
+          iv: Number(peGreeks.iv.toFixed(1)),
+          delta: Number(peGreeks.delta.toFixed(2)),
           gamma: Number(peGreeks.gamma.toFixed(4)),
           theta: Number(peGreeks.theta.toFixed(2)),
           vega: Number(peGreeks.vega.toFixed(2)),

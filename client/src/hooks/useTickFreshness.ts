@@ -71,7 +71,12 @@ export function evaluateTickState(
     return { state: 'DISCONNECTED', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: false, source: tickSource };
   }
 
-  // Outside market hours check
+  // If a tick was received recently within stale threshold (e.g., TrueData Replay stream), mark as LIVE
+  if (lastTickAt && (now - lastTickAt) <= staleThresholdMs) {
+    return { state: 'LIVE', timeSinceLastTick: now - lastTickAt, isSynthetic: false, source: tickSource || 'live' };
+  }
+
+  // Outside market hours check if no recent tick
   const marketOpen = isNSEMarketOpen(new Date(now));
   if (!marketOpen) {
     return { state: 'MARKET_CLOSED', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: false, source: tickSource };

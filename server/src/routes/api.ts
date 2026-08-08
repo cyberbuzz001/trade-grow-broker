@@ -250,7 +250,7 @@ router.get('/market/instruments', async (req, res) => {
 });
 
 router.get('/market/quote/:token', async (req, res) => {
-  const tick = MarketDataEngine.getInstance().getCachedTick(req.params.token);
+  const tick = await MarketDataEngine.getInstance().getQuote(req.params.token);
   res.json({ success: true, tick: tick || null });
 });
 
@@ -691,6 +691,29 @@ router.get('/market/candles', async (req: Request, res: Response) => {
 // 4. ORDERS & SIMULATED TRADING API
 // ============================================================
 router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { instrumentToken, exchange, symbol, side, quantity, price, triggerPrice, orderType, productType } = req.body;
+    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+
+    const result = await OMS.submitOrder({
+      userId: req.user!.userId, instrumentToken, exchange, symbol, side,
+      quantity: parseInt(quantity, 10), price: parseFloat(price || 0),
+      triggerPrice: parseFloat(triggerPrice || 0), orderType, productType,
+      idempotencyKey
+    });
+
+    if (!result.success) {
+      res.status(400).json({ success: false, error: { code: 'ORDER_REJECTED', message: result.error } });
+      return;
+    }
+
+    res.json({ success: true, orderId: result.orderId, message: 'Simulated Order Accepted' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/orders/place', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
   try {
     const { instrumentToken, exchange, symbol, side, quantity, price, triggerPrice, orderType, productType } = req.body;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;

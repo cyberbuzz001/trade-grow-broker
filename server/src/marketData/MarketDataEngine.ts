@@ -85,13 +85,14 @@ export class MarketDataEngine {
 
   public async initialize(): Promise<void> {
     const inMarketHours = MarketDataEngine.isMarketHours();
+    const allowOffMarketLive = process.env.ALLOW_OFF_MARKET_LIVE_DATA === 'true';
     const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'DHAN';
 
     console.log(`[MarketDataEngine] System Startup | IST Market Hours: ${inMarketHours ? 'OPEN (9:15 AM - 3:30 PM IST)' : 'CLOSED (Off-Market / Weekend)'}`);
 
-    if (inMarketHours) {
-      console.log(`[MarketDataEngine] Initializing primary market data provider '${configuredProvider}' in FULL Quote Mode...`);
-      const primary = this.providers.get(configuredProvider.toUpperCase()) || this.providers.get('DHAN')!;
+    if (inMarketHours || allowOffMarketLive) {
+      console.log(`[MarketDataEngine] Initializing primary market data provider '${configuredProvider}' in FULL Quote Mode (Off-Market Override: ${allowOffMarketLive})...`);
+      const primary = this.providers.get(configuredProvider.toUpperCase()) || this.providers.get('TRUEDATA')!;
       this.activeProvider = primary;
       await this.activeProvider.initialize();
 
@@ -116,6 +117,7 @@ export class MarketDataEngine {
     const defaultTokens = [
       'NSE_NIFTY50', 'NSE_BANKNIFTY', 'BSE_SENSEX', 'NSE_FINNIFTY', 'NSE_MIDCPNIFTY',
       'NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK', 'NSE_ICICIBANK', 'NSE_TATAMOTORS',
+      'MCX_CRUDEOIL', 'MCX_GOLD', 'MCX_GOLDM', 'MCX_SILVERM', 'MCX_NATURALGAS', 'MCX_COPPER',
       'NFO_NIFTY_24500_CE', 'NFO_NIFTY_24500_PE'
     ];
 
@@ -133,15 +135,16 @@ export class MarketDataEngine {
     // Continuous Monitor: Manages market hours transitions & provider health failovers
     setInterval(async () => {
       const currentlyInMarketHours = MarketDataEngine.isMarketHours();
+      const allowOffMarketLiveCheck = process.env.ALLOW_OFF_MARKET_LIVE_DATA === 'true';
 
-      if (!currentlyInMarketHours && this.activeProvider.name !== 'MOCK_ENGINE') {
+      if (!currentlyInMarketHours && !allowOffMarketLiveCheck && this.activeProvider.name !== 'MOCK_ENGINE') {
         console.log(`[MarketDataEngine] Market Hours Closed (IST). Transitioning to MOCK_ENGINE for off-market simulation.`);
         const mock = this.providers.get('MOCK_ENGINE')!;
         await mock.initialize();
         this.activeProvider = mock;
         this.stopInactiveProviders();
         attachSubscriber();
-      } else if (currentlyInMarketHours && !this.activeProvider.isHealthy() && this.activeProvider.name !== 'MOCK_ENGINE') {
+      } else if ((currentlyInMarketHours || allowOffMarketLiveCheck) && !this.activeProvider.isHealthy() && this.activeProvider.name !== 'MOCK_ENGINE') {
         console.warn(`[MarketDataEngine] Active provider ${this.activeProvider.name} lost connection. Switching to MOCK_ENGINE simulation fallback.`);
         const mock = this.providers.get('MOCK_ENGINE')!;
         await mock.initialize();

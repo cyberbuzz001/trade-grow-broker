@@ -442,7 +442,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                     
                     {/* CALLS GREEKS & METRICS */}
                     <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">{row.ce.delta.toFixed(2)}</td>
-                    <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">{row.ce.iv}%</td>
+                    <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">{typeof row.ce.iv === 'number' ? row.ce.iv.toFixed(1) : row.ce.iv}%</td>
 
                     {/* CALLS OI */}
                     <td className="py-2.5 px-2 text-center text-[var(--text-main)] font-bold text-[11px]">
@@ -573,7 +573,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                       {(row.pe.openInterest / 1000).toFixed(0)}k
                     </td>
 
-                    <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">{row.pe.iv}%</td>
+                    <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">{typeof row.pe.iv === 'number' ? row.pe.iv.toFixed(1) : row.pe.iv}%</td>
                     <td className="py-2.5 px-2 text-center text-[var(--text-muted)] text-[11px]">{row.pe.delta.toFixed(2)}</td>
 
                   </tr>

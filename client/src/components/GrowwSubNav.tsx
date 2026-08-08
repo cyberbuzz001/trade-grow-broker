@@ -17,11 +17,11 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   onToggleTerminal,
   ticks,
 }) => {
-  const getNifty = () => ticks?.get('NSE_NIFTY50');
-  const getSensex = () => ticks?.get('BSE_SENSEX');
-  const getBankNifty = () => ticks?.get('NSE_BANKNIFTY');
-  const getMidcap = () => ticks?.get('NSE_MIDCPNIFTY');
-  const getFinNifty = () => ticks?.get('NSE_FINNIFTY');
+  const getNifty = () => ticks?.get('NSE_NIFTY50') || ticks?.get('NIFTY50') || ticks?.get('NIFTY 50');
+  const getSensex = () => ticks?.get('BSE_SENSEX') || ticks?.get('SENSEX');
+  const getBankNifty = () => ticks?.get('NSE_BANKNIFTY') || ticks?.get('NIFTY BANK') || ticks?.get('BANKNIFTY');
+  const getMidcap = () => ticks?.get('NSE_MIDCPNIFTY') || ticks?.get('MIDCPNIFTY');
+  const getFinNifty = () => ticks?.get('NSE_FINNIFTY') || ticks?.get('FINNIFTY');
 
   const formatLtp = (tick?: MarketTick, fallback: number = 0) => {
     const val = tick ? tick.ltp : fallback;
