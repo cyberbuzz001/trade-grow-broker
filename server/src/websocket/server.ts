@@ -39,10 +39,23 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
         const data = JSON.parse(message.toString());
 
         if (data.action === 'SUBSCRIBE' && Array.isArray(data.tokens)) {
-          // Limit subscription size to prevent abuse
-          const allowedAdds = 50 - (ws.subscriptions?.size ?? 0);
-          const tokensToAdd = data.tokens.slice(0, Math.max(0, allowedAdds));
-          tokensToAdd.forEach((t: string) => ws.subscriptions?.add(t));
+          // Limit subscription size to prevent abuse (1000 max for active option chains & watchlists)
+          const MAX_SUBS = 1000;
+          const currentSize = ws.subscriptions?.size ?? 0;
+          const allowedAdds = Math.max(0, MAX_SUBS - currentSize);
+          const tokensToAdd = data.tokens.slice(0, allowedAdds);
+
+          tokensToAdd.forEach((t: string) => {
+            if (!t) return;
+            ws.subscriptions?.add(t);
+            // Also register common aliases for spot tickers
+            const clean = t.trim();
+            ws.subscriptions?.add(clean);
+            if (!clean.startsWith('NSE_') && !clean.startsWith('BSE_') && !clean.startsWith('NFO_') && !clean.startsWith('MCX_')) {
+              ws.subscriptions?.add(`NSE_${clean}`);
+              ws.subscriptions?.add(`BSE_${clean}`);
+            }
+          });
 
           // Forward token subscriptions to MarketDataEngine so market provider emits live ticks
           if (tokensToAdd.length > 0) {
@@ -76,12 +89,26 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     let sentCount = 0;
 
     wss.clients.forEach((client: ExtendedWebSocket) => {
-      if (client.readyState === WebSocket.OPEN && client.subscriptions?.has(tick.instrumentToken)) {
-        try {
-          client.send(payload);
-          sentCount++;
-        } catch (err: any) {
-          // Suppress send errors for dead connections
+      if (client.readyState === WebSocket.OPEN && client.subscriptions) {
+        const subs = client.subscriptions;
+        const sym = tick.symbol ? tick.symbol.trim() : '';
+        const isSubscribed = subs.has(tick.instrumentToken) ||
+          (sym && (
+            subs.has(sym) ||
+            subs.has(`NSE_${sym}`) ||
+            subs.has(`BSE_${sym}`) ||
+            subs.has(`MCX_${sym}`) ||
+            subs.has(`NFO_${sym}`) ||
+            subs.has(`BFO_${sym}`)
+          ));
+
+        if (isSubscribed) {
+          try {
+            client.send(payload);
+            sentCount++;
+          } catch (err: any) {
+            // Suppress send errors for dead connections
+          }
         }
       }
     });

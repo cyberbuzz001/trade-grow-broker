@@ -1,144 +1,313 @@
 import React from 'react';
-import { ChevronLeft, Gift, CreditCard, Languages, Settings, HelpCircle, Headset, ChevronRight, LogOut } from 'lucide-react';
-import { User } from '../../types';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  User as UserIcon, 
+  ShieldCheck, 
+  Wallet, 
+  Lock, 
+  HelpCircle, 
+  LogOut, 
+  Sun, 
+  Moon, 
+  CheckCircle2, 
+  Zap, 
+  RefreshCw, 
+  PlusCircle, 
+  ArrowUpRight,
+  Sliders,
+  Bell
+} from 'lucide-react';
+import { User, Wallet as WalletType } from '../../types';
 
 interface MobileProfileViewProps {
-  user: User;
+  user: User | null;
+  wallet: WalletType | null;
+  token?: string | null;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
   onBack: () => void;
   onLogout: () => void;
+  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY') => void;
+  onOpenSupportModal?: () => void;
+  onOpenAdmin?: () => void;
+  onRefreshWallet?: () => void;
 }
 
 export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
   user,
+  wallet,
+  token,
+  theme = 'dark',
+  onToggleTheme,
   onBack,
   onLogout,
+  onOpenProfileModal,
+  onOpenSupportModal,
+  onOpenAdmin,
+  onRefreshWallet,
 }) => {
+  const username = user?.username || 'Trader';
+  const email = user?.email || 'user@broker.sim';
+  const role = user?.role || 'USER';
+  const isAdminStaff = ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT'].includes(role);
+
+  const availableBalance = wallet?.cashBalance ?? 1000000;
+  const netWorth = (wallet?.cashBalance ?? 1000000) + (wallet?.unrealizedPnl ?? 0) + (wallet?.realizedPnl ?? 0);
+
   return (
-    <div className="pb-24 pt-4 px-5 space-y-6">
+    <div className="pb-24 pt-4 px-4 space-y-4 select-none bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] font-sans">
       
-      {/* 1. TOP HEADER (MATCHING 19_PREVIEW19.PNG) */}
+      {/* 1. TOP HEADER */}
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="w-10 h-10 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-slate-600 dark:text-slate-300"
+          className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-main)] active:scale-95 transition-all"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        <h2 className="text-xl font-black text-slate-900 dark:text-white">
-          Profile
+        <h2 className="text-base font-black text-[var(--text-main)] font-headline tracking-tight">
+          Profile & Settings
         </h2>
 
-        <div className="w-10" /> {/* Spacer */}
+        {onToggleTheme ? (
+          <button
+            onClick={onToggleTheme}
+            className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-amber-400 active:scale-95 transition-all"
+            title="Toggle Light/Dark Theme"
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+          </button>
+        ) : (
+          <div className="w-9" />
+        )}
       </div>
 
-      {/* 2. USER PROFILE HEADER CARD (MATCHING 19_PREVIEW19.PNG) */}
-      <div className="flex items-center justify-between p-2">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-blue-600 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-            {user.username ? user.username.charAt(0).toUpperCase() : 'S'}
+      {/* 2. USER PROFILE HEADER CARD */}
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#00E676]/5 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="flex items-center gap-3.5 relative z-10">
+          <div className="relative">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00E676] to-emerald-600 text-[#0D1117] font-black text-2xl flex items-center justify-center shadow-lg shadow-[#00E676]/20 font-headline">
+              {username.charAt(0).toUpperCase()}
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#00E676] border-2 border-[var(--bg-surface)]" title="Active" />
           </div>
-          <div>
-            <h3 className="font-black text-lg text-[var(--text-main)] capitalize">
-              {user.username || 'Sunder Pichai'}
-            </h3>
-            <p className="text-xs text-slate-400 font-bold">
-              {user.email || 'SunderPichai@yahoo.com'}
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-[var(--text-main)] capitalize truncate font-headline">
+                {username}
+              </h3>
+              <span className="text-[10px] font-black bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> VERIFIED
+              </span>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] font-semibold truncate mt-0.5">
+              {email}
             </p>
+            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[var(--text-tertiary)] font-mono">
+              <span>ID: {user?.id?.slice(0, 10) || '1113019677'}</span>
+              <span>•</span>
+              <span className="font-bold text-indigo-400 bg-indigo-500/10 px-1.5 py-0.2 rounded uppercase">{role}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. VIRTUAL WALLET & CAPITAL CARD */}
+      <div className="bg-gradient-to-br from-[#161B22] to-[#0D1117] border border-[#30363D] rounded-2xl p-4 text-white shadow-md space-y-3">
+        <div className="flex items-center justify-between text-xs text-[#8B949E] font-bold">
+          <span className="flex items-center gap-1.5 uppercase tracking-wider">
+            <Wallet className="w-4 h-4 text-[#00E676]" /> Available Virtual Balance
+          </span>
+          {onRefreshWallet && (
+            <button 
+              onClick={onRefreshWallet} 
+              className="text-xs text-[#00E676] hover:underline flex items-center gap-1 active:scale-95"
+            >
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-2xl font-black tabular-nums text-white font-label">
+            ₹{availableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </h2>
+          <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+            Net: ₹{netWorth.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+          </span>
+        </div>
+
+        {/* Quick Action Buttons */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
+            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#00E676] hover:bg-[#00C853] text-[#0D1117] font-black text-xs shadow-md active:scale-95 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" /> Add Capital
+          </button>
+          <button
+            onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
+            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#1C2128] hover:bg-[#30363D] text-white border border-[#30363D] font-extrabold text-xs active:scale-95 transition-all"
+          >
+            <RefreshCw className="w-4 h-4 text-amber-400" /> Reset Margin
+          </button>
+        </div>
+      </div>
+
+      {/* 4. ADMIN QUICK ACTION BANNER (If Admin / Staff) */}
+      {isAdminStaff && (
+        <div 
+          onClick={onOpenAdmin}
+          className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-xs text-amber-300 font-headline">Admin Control Center</h4>
+              <p className="text-[10px] text-amber-400/80 font-semibold">Staff Dashboard, User Management & Risk Control</p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-amber-400" />
+        </div>
+      )}
+
+      {/* 5. ACCOUNT & TRADING OPTIONS MENU */}
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-2 shadow-xs space-y-1 font-headline">
+        
+        {/* Personal Profile Details */}
+        <div
+          onClick={() => onOpenProfileModal && onOpenProfileModal('PROFILE')}
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+              <UserIcon className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-xs text-[var(--text-main)] block">Personal & Profile Details</span>
+              <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">Name, Email, Mobile & Client ID</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+        </div>
+
+        {/* KYC Verification Status */}
+        <div
+          onClick={() => onOpenProfileModal && onOpenProfileModal('KYC')}
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-[#00E676] flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-xs text-[var(--text-main)] block">KYC & Document Status</span>
+              <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">Aadhaar, PAN & Bank Verification</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-[#00E676] bg-[#00E676]/10 px-2 py-0.5 rounded-md border border-[#00E676]/20">Approved</span>
+            <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
           </div>
         </div>
 
-        <button className="text-sm font-extrabold text-[var(--gogrow-blue)] hover:underline">
-          Edit
+        {/* Funds & Wallet Manager */}
+        <div
+          onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+              <Wallet className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-xs text-[var(--text-main)] block">Virtual Wallet & Capital</span>
+              <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">Margin allocation & Capital ledger</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+        </div>
+
+        {/* Security & Password */}
+        <div
+          onClick={() => onOpenProfileModal && onOpenProfileModal('SECURITY')}
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-xs text-[var(--text-main)] block">Security & Password</span>
+              <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">Password reset & 2FA security</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+        </div>
+
+        {/* Customer Support & Help */}
+        <div
+          onClick={onOpenSupportModal}
+          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <HelpCircle className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-xs text-[var(--text-main)] block">Customer Support & Help</span>
+              <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">24/7 Desk, Support tickets & FAQs</span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+        </div>
+
+        {/* App Theme Switcher */}
+        {onToggleTheme && (
+          <div
+            onClick={onToggleTheme}
+            className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+              </div>
+              <div>
+                <span className="font-bold text-xs text-[var(--text-main)] block">App Theme Mode</span>
+                <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">Toggle Light / Dark aesthetic</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#00E676]">
+              <span>{theme === 'dark' ? 'Dark 🌙' : 'Light ☀️'}</span>
+              <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* 6. LOGOUT BUTTON */}
+      <div className="pt-2">
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-[#FF5252] border border-rose-500/20 font-bold text-xs active:scale-98 transition-all"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Logout Account</span>
         </button>
       </div>
 
-      {/* 3. REFERRAL CODE GIFT CARD (MATCHING 19_PREVIEW19.PNG) */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-4 rounded-2xl shadow-xs flex items-center justify-between">
-        <div>
-          <h4 className="font-black text-sm text-[var(--text-main)]">Referral Code</h4>
-          <p className="text-xs text-slate-400 font-bold mt-0.5">
-            Share your love and get $10 of free stocks
-          </p>
-        </div>
-        <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-[var(--gogrow-blue)] flex items-center justify-center text-xl">
-          <Gift className="w-6 h-6" />
-        </div>
+      {/* Version Footer */}
+      <div className="text-center pt-2 text-[10px] text-[var(--text-tertiary)] font-mono font-semibold">
+        Trade Grow v2.4.0 • Live Dhan HQ Feed
       </div>
-
-      {/* 4. MENU ITEMS LIST (MATCHING 19_PREVIEW19.PNG) */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl p-2 shadow-xs space-y-1">
-        {/* Billing/Payment */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-[var(--gogrow-blue)] flex items-center justify-center">
-              <CreditCard className="w-5 h-5" />
-            </div>
-            <span className="font-extrabold text-sm text-[var(--text-main)]">Billing/Payment</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-400" />
-        </div>
-
-        {/* Language */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-[var(--gogrow-blue)] flex items-center justify-center">
-              <Languages className="w-5 h-5" />
-            </div>
-            <span className="font-extrabold text-sm text-[var(--text-main)]">Language</span>
-          </div>
-          <div className="flex items-center gap-1 text-xs text-slate-400 font-bold">
-            <span>English</span>
-            <ChevronRight className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Settings */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-[var(--gogrow-blue)] flex items-center justify-center">
-              <Settings className="w-5 h-5" />
-            </div>
-            <span className="font-extrabold text-sm text-[var(--text-main)]">Settings</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-400" />
-        </div>
-
-        {/* FAQ */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-[var(--gogrow-blue)] flex items-center justify-center">
-              <HelpCircle className="w-5 h-5" />
-            </div>
-            <span className="font-extrabold text-sm text-[var(--text-main)]">FAQ</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-400" />
-        </div>
-      </div>
-
-      {/* 5. FEEDBACK BLUE BANNER CARD (MATCHING 19_PREVIEW19.PNG) */}
-      <div className="rounded-3xl bg-[var(--gogrow-blue)] p-4 text-white flex items-center justify-between shadow-lg shadow-blue-500/20">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-white text-[var(--gogrow-blue)] flex items-center justify-center">
-            <Headset className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="font-extrabold text-xs">We'd love to hear your feedback!</div>
-            <div className="text-[10px] text-blue-100 font-medium">We are always looking to improve.</div>
-          </div>
-        </div>
-
-        <ChevronRight className="w-6 h-6 text-white" />
-      </div>
-
-      {/* Log out action */}
-      <button
-        onClick={onLogout}
-        className="w-full py-3 rounded-2xl border border-rose-500/20 text-rose-500 font-extrabold text-sm flex items-center justify-center gap-2 hover:bg-rose-500/10 transition-colors"
-      >
-        <LogOut className="w-4 h-4" />
-        <span>Log out</span>
-      </button>
 
     </div>
   );

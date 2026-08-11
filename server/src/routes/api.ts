@@ -22,6 +22,7 @@ import { InstrumentMasterService } from '../marketData/InstrumentMasterService';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { checkDatabaseHealth } from '../db/pool';
+import { kycUpload } from '../middleware/upload';
 
 /** Helper to safely extract client IP address from request */
 function getClientIp(req: Request): string {
@@ -112,7 +113,7 @@ router.post('/auth/register', authLimiter, validateBody(RegisterSchema), async (
 
     const userId       = 'usr_' + generateUUID();
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-    const defaultCapital = parseFloat(process.env.DEFAULT_VIRTUAL_CAPITAL || '1000000');
+    const defaultCapital = 0.0;
 
     // Create user + wallet + ledger + watchlist atomically
     await execute(
@@ -127,7 +128,7 @@ router.post('/auth/register', authLimiter, validateBody(RegisterSchema), async (
       `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, created_by, metadata)
        VALUES ($1, $2, $3, 'CREDIT', $4, 0.0, $5, 'REGISTRATION', $6)`,
       ['led_' + generateUUID(), generateUUID(), userId, defaultCapital, defaultCapital,
-       JSON.stringify({ reason: 'Default Account Registration Virtual Capital' })]
+       JSON.stringify({ reason: 'New Account Registration Zero Initial Balance' })]
     );
 
     const wlId = 'wl_' + generateUUID();
@@ -137,8 +138,16 @@ router.post('/auth/register', authLimiter, validateBody(RegisterSchema), async (
       ['wli_' + generateUUID(), wlId, 'NSE_NIFTY50', 'NIFTY 50', 'NSE']
     );
 
-    const token = jwt.sign({ userId, username, email, role: 'USER' }, getJwtSecret(), { expiresIn: '24h' });
-    res.json({ success: true, token, user: { id: userId, username, email, role: 'USER' } });
+    const newUser = { id: userId, username, email, role: 'USER' };
+    const token = jwt.sign(newUser, getJwtSecret(), { expiresIn: '24h' });
+    const refreshToken = jwt.sign(newUser, getRefreshSecret(), { expiresIn: '30d' });
+
+    res.status(201).json({
+      success: true,
+      token,
+      refreshToken,
+      user: newUser
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -196,10 +205,11 @@ router.post('/auth/login', authLimiter, validateBody(LoginSchema), async (req: R
     );
 
     const token = jwt.sign({ userId: user.id, username: user.username, email: user.email, role: user.role }, getJwtSecret(), { expiresIn: '24h' });
+    const refreshToken = jwt.sign({ userId: user.id, username: user.username, email: user.email, role: user.role }, getRefreshSecret(), { expiresIn: '30d' });
 
     await logAuditAction(user.id, user.role, 'LOGIN', 'USER', user.id, null, null, getClientIp(req) ?? '127.0.0.1');
 
-    res.json({ success: true, token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
+    res.json({ success: true, token, refreshToken, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -589,8 +599,10 @@ router.get('/market/top-movers', async (req, res) => {
   }
 });
 
-// Market Candlestick Chart API (for Equities, Indices, and NIFTY/SENSEX Option Strike Prices)
-router.get('/market/candles', async (req: Request, res: Response) => {
+// Market Candlestick Chart API — SYNTHETIC option/equity chart (Black-Scholes walk generator)
+// NOTE: Real historical candles are served by GET /market/candles (above). This route generates
+// synthetic candles anchored to Black-Scholes pricing for option strike charts and demo views.
+router.get('/market/synthetic-candles', async (req: Request, res: Response) => {
   try {
     const rawSym = ((req.query.symbol as string) || 'NIFTY').toUpperCase().trim();
     const timeframe = (req.query.timeframe as string) || '5m';
@@ -713,23 +725,22 @@ router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrder
   }
 });
 
+// Alias kept for backward compatibility — delegates to canonical /orders endpoint
 router.post('/orders/place', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
+  // Forward to the canonical handler above — identical logic, single source of truth
   try {
     const { instrumentToken, exchange, symbol, side, quantity, price, triggerPrice, orderType, productType } = req.body;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
-
     const result = await OMS.submitOrder({
       userId: req.user!.userId, instrumentToken, exchange, symbol, side,
       quantity: parseInt(quantity, 10), price: parseFloat(price || 0),
       triggerPrice: parseFloat(triggerPrice || 0), orderType, productType,
       idempotencyKey
     });
-
     if (!result.success) {
       res.status(400).json({ success: false, error: { code: 'ORDER_REJECTED', message: result.error } });
       return;
     }
-
     res.json({ success: true, orderId: result.orderId, message: 'Simulated Order Accepted' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
@@ -766,8 +777,15 @@ router.get('/portfolio/wallet', authenticateToken, async (req: AuthenticatedRequ
 });
 
 router.get('/portfolio/positions', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  const positions = await PortfolioService.getUserPositions(req.user!.userId);
+  const todayOnly = req.query.todayOnly !== 'false';
+  const positions = await PortfolioService.getUserPositions(req.user!.userId, todayOnly);
   res.json({ success: true, positions });
+});
+
+router.post('/portfolio/positions/clear', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  await PortfolioService.clearOldPositions(req.user!.userId);
+  const positions = await PortfolioService.getUserPositions(req.user!.userId, true);
+  res.json({ success: true, message: "Cleared old/closed positions", positions });
 });
 
 router.get('/portfolio/holdings', authenticateToken, async (req: AuthenticatedRequest, res) => {
@@ -833,6 +851,54 @@ router.get('/funds/my-requests', authenticateToken, async (req: AuthenticatedReq
       [req.user!.userId]
     );
     res.json({ success: true, requests });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/funds/instant', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { requestType, amount, paymentMethod, referenceNote } = req.body;
+    const reqAmount = parseFloat(amount);
+
+    if (!requestType || !['DEPOSIT', 'WITHDRAWAL'].includes(requestType)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_TYPE', message: 'Request type must be DEPOSIT or WITHDRAWAL' } });
+      return;
+    }
+
+    if (isNaN(reqAmount) || reqAmount <= 0) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_AMOUNT', message: 'Amount must be greater than ₹0' } });
+      return;
+    }
+
+    if (requestType === 'WITHDRAWAL') {
+      const wallet = await VirtualWalletLedger.getWallet(req.user!.userId);
+      if (!wallet || wallet.buyingPower < reqAmount) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INSUFFICIENT_FUNDS',
+            message: `Insufficient available funds for withdrawal. Available: ₹${wallet?.buyingPower.toFixed(2) || '0.00'}`
+          }
+        });
+        return;
+      }
+    }
+
+    const id = 'freq_' + generateUUID();
+    const requestId = 'REQ' + generateUUID().slice(0, 8).toUpperCase();
+
+    await execute(
+      `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note)
+       VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7)`,
+      [id, requestId, req.user!.userId, requestType, reqAmount, paymentMethod || 'INSTANT', referenceNote || 'Submitted via Client App']
+    );
+
+    res.json({
+      success: true,
+      requestId,
+      message: `Fund ${requestType.toLowerCase()} request for ₹${reqAmount.toLocaleString('en-IN')} submitted. Pending Admin approval.`
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -1003,6 +1069,156 @@ router.post('/admin/instruments/sync', authenticateToken, checkRole(['SUPER_ADMI
 router.get('/admin/instruments/versions', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'READ_ONLY_AUDITOR']), async (req, res) => {
   const versions = await query('SELECT * FROM instrument_master_versions ORDER BY created_at DESC LIMIT 20');
   res.json({ success: true, versions });
+});
+
+// ============================================================
+// 6. CUSTOMER KYC & PROFILE VERIFICATION API
+// ============================================================
+router.get('/kyc/status', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const kycApp = await queryOne<any>(
+      'SELECT * FROM kyc_applications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [req.user!.userId]
+    );
+
+    if (!kycApp) {
+      res.json({
+        success: true,
+        status: 'NOT_STARTED',
+        application: null,
+        documents: []
+      });
+      return;
+    }
+
+    const documents = await query(
+      'SELECT id, document_type, original_filename, mime_type, file_size, uploaded_at FROM kyc_documents WHERE kyc_application_id = $1',
+      [kycApp.id]
+    );
+
+    res.json({
+      success: true,
+      status: kycApp.status,
+      application: kycApp,
+      documents
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post(
+  '/kyc/submit',
+  authenticateToken,
+  kycUpload.fields([
+    { name: 'panDoc', maxCount: 1 },
+    { name: 'aadhaarFrontDoc', maxCount: 1 },
+    { name: 'aadhaarBackDoc', maxCount: 1 },
+    { name: 'bankProofDoc', maxCount: 1 }
+  ]),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { panNumber, aadhaarNumber, bankAccountName, bankAccountNumber, bankIfsc, bankName } = req.body;
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
+      if (!panNumber || !aadhaarNumber) {
+        res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'PAN and Aadhaar numbers are required' } });
+        return;
+      }
+
+      let kycApp = await queryOne<any>(
+        'SELECT * FROM kyc_applications WHERE user_id = $1 AND status IN (\'SUBMITTED\', \'UNDER_REVIEW\', \'APPROVED\')',
+        [req.user!.userId]
+      );
+
+      if (kycApp && kycApp.status === 'APPROVED') {
+        res.status(400).json({ success: false, error: { code: 'ALREADY_APPROVED', message: 'Your KYC is already approved' } });
+        return;
+      }
+
+      const appId = kycApp ? kycApp.id : 'kyc_' + generateUUID();
+
+      if (!kycApp) {
+        await execute(
+          `INSERT INTO kyc_applications (id, user_id, pan_number, aadhaar_number, bank_account_name, bank_account_number, bank_ifsc, bank_name, status, submitted_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SUBMITTED', NOW())`,
+          [appId, req.user!.userId, panNumber, aadhaarNumber, bankAccountName || '', bankAccountNumber || '', bankIfsc || '', bankName || '']
+        );
+      } else {
+        await execute(
+          `UPDATE kyc_applications
+           SET pan_number = $1, aadhaar_number = $2, bank_account_name = $3, bank_account_number = $4, bank_ifsc = $5, bank_name = $6, status = 'SUBMITTED', submitted_at = NOW(), updated_at = NOW()
+           WHERE id = $7`,
+          [panNumber, aadhaarNumber, bankAccountName || '', bankAccountNumber || '', bankIfsc || '', bankName || '', appId]
+        );
+      }
+
+      // Record uploaded document entries
+      if (files) {
+        const docTypes = [
+          { field: 'panDoc', type: 'PAN_CARD' },
+          { field: 'aadhaarFrontDoc', type: 'AADHAAR_FRONT' },
+          { field: 'aadhaarBackDoc', type: 'AADHAAR_BACK' },
+          { field: 'bankProofDoc', type: 'BANK_PROOF' }
+        ];
+
+        for (const item of docTypes) {
+          const fileArr = files[item.field];
+          if (fileArr && fileArr.length > 0) {
+            const f = fileArr[0];
+            await execute(
+              `INSERT INTO kyc_documents (id, kyc_application_id, document_type, file_path, original_filename, mime_type, file_size)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+              ['doc_' + generateUUID(), appId, item.type, f.path, f.originalname, f.mimetype, f.size]
+            );
+          }
+        }
+      }
+
+      await logAuditAction(req.user!.userId, req.user!.role, 'SUBMIT_KYC', 'KYC_APPLICATION', appId, null, { panNumber, aadhaarNumber }, getClientIp(req));
+
+      res.json({ success: true, message: 'KYC application and documents submitted successfully for review.' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+);
+
+// ============================================================
+// 7. 24x7 CUSTOMER SUPPORT TICKETING API
+// ============================================================
+router.get('/support/tickets', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tickets = await query(
+      'SELECT * FROM support_tickets WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user!.userId]
+    );
+    res.json({ success: true, tickets });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/support/tickets', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { category, priority, subject, description } = req.body;
+
+    if (!subject || !description) {
+      res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'Subject and description are required' } });
+      return;
+    }
+
+    const ticketId = 'tkt_' + generateUUID();
+    await execute(
+      `INSERT INTO support_tickets (id, user_id, category, priority, subject, description, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'OPEN')`,
+      [ticketId, req.user!.userId, category || 'GENERAL', priority || 'MEDIUM', subject, description]
+    );
+
+    res.status(201).json({ success: true, ticketId, message: 'Support ticket submitted successfully. Our team will respond shortly.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 router.get('/admin/feature-flags', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {

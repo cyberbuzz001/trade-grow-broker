@@ -5,64 +5,39 @@ networks:
 volumes:
   pg_data:
   redis_data:
+  kyc_uploads:
 
 services:
   # ============================================================
-  # PostgreSQL — Primary Database
+  # PostgreSQL — Primary Database (TimescaleDB for time-series)
   # ============================================================
   postgres:
     image: timescale/timescaledb:latest-pg16
-    container_name: stocksharp_postgres
-    ports:
-      - "5433:5432"
+    container_name: tradegrow_postgres
     environment:
-      POSTGRES_DB:       stocksharp
-      POSTGRES_USER:     stocksharp
-      POSTGRES_PASSWORD: stocksharp_pg_pw_2026
+      POSTGRES_DB:       ${PG_DATABASE:-tradegrow}
+      POSTGRES_USER:     ${PG_USER:-tradegrow}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
       - trading-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stocksharp -d stocksharp"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-tradegrow} -d ${PG_DATABASE:-tradegrow}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
-
-  # ============================================================
-  # Python 3.11+ FastAPI Options Math & Angel One Engine
-  # ============================================================
-  python-engine:
-    build:
-      context: ./python_engine
-      dockerfile: Dockerfile
-    container_name: stocksharp_python_engine
-    ports:
-      - "8000:8000"
-    environment:
-      PYTHON_PORT: 8000
-      REDIS_URL: redis://redis:6379
-      ANGELONE_API_KEY: ${ANGELONE_API_KEY}
-      ANGELONE_CLIENT_ID: ${ANGELONE_CLIENT_ID}
-      ANGELONE_CLIENT_SECRET: ${ANGELONE_CLIENT_SECRET}
-      ANGELONE_TOTP_SECRET: ${ANGELONE_TOTP_SECRET}
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - trading-net
-    restart: unless-stopped
+    # PostgreSQL is NOT exposed on host — only accessible internally
+    # No `ports:` — intentional security measure
 
   # ============================================================
   # Redis — Cache, Pub/Sub, Rate Limiting
   # ============================================================
   redis:
     image: redis:7-alpine
-    container_name: stocksharp_redis
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    ports:
-      - "6379:6379"
+    container_name: tradegrow_redis
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --save ""
     volumes:
       - redis_data:/data
     networks:
@@ -73,38 +48,93 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # Redis is NOT exposed on host — only accessible internally
 
   # ============================================================
-  # StockSharp Application Server
+  # Python FastAPI Options Math Engine
   # ============================================================
-  brokerage-platform:
+  python-engine:
+    build:
+      context: ./python_engine
+      dockerfile: Dockerfile
+    container_name: tradegrow_python_engine
+    environment:
+      PYTHON_PORT: 8000
+      REDIS_URL:   redis://redis:6379
+      ANGELONE_API_KEY:      ${ANGELONE_API_KEY}
+      ANGELONE_CLIENT_ID:    ${ANGELONE_CLIENT_ID}
+      ANGELONE_CLIENT_SECRET: ${ANGELONE_CLIENT_SECRET}
+      ANGELONE_TOTP_SECRET:  ${ANGELONE_TOTP_SECRET}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - trading-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # ============================================================
+  # Trade Grow — Main Application Server (Node.js + React SPA)
+  # ============================================================
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: stocksharp_brokerage_platform
+    container_name: tradegrow_app
+    env_file:
+      - .env
+    environment:
+      PORT:                         5000
+      NODE_ENV:                     production
+      REAL_MONEY_TRADING:           "false"
+      PRIMARY_MARKET_DATA_PROVIDER: ${PRIMARY_MARKET_DATA_PROVIDER:-DHAN}
+      # Secrets from .env file (uploaded to VPS, never in Git)
+      JWT_SECRET:                   ${JWT_SECRET}
+      JWT_REFRESH_SECRET:           ${JWT_REFRESH_SECRET}
+      DEFAULT_VIRTUAL_CAPITAL:      "1000000"
+      # Dhan API
+      DHAN_CLIENT_ID:               ${DHAN_CLIENT_ID}
+      DHAN_ACCESS_TOKEN:            ${DHAN_ACCESS_TOKEN}
+      DHAN_API_KEY:                 ${DHAN_API_KEY}
+      DHAN_API_SECRET:              ${DHAN_API_SECRET}
+      # Telegram Alerts
+      TELEGRAM_BOT_TOKEN:           ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID:             ${TELEGRAM_CHAT_ID}
+      # Angel One (fallback)
+      ANGELONE_API_KEY:             ${ANGELONE_API_KEY}
+      ANGELONE_CLIENT_ID:           ${ANGELONE_CLIENT_ID}
+      ANGELONE_CLIENT_SECRET:       ${ANGELONE_CLIENT_SECRET}
+      ANGELONE_TOTP_SECRET:         ${ANGELONE_TOTP_SECRET}
+      SMARTAPI_API_KEY:             ${SMARTAPI_API_KEY}
+      SMARTAPI_CLIENT_CODE:         ${SMARTAPI_CLIENT_CODE}
+      SMARTAPI_PASSWORD:            ${SMARTAPI_PASSWORD}
+      SMARTAPI_TOTP_SECRET:         ${SMARTAPI_TOTP_SECRET}
+      # Alpha Vantage
+      ALPHAVANTAGE_API_KEY:         ${ALPHAVANTAGE_API_KEY}
+      # TrueData
+      TRUEDATA_USERNAME:            ${TRUEDATA_USERNAME}
+      TRUEDATA_PASSWORD:            ${TRUEDATA_PASSWORD}
+      TRUEDATA_WS_URL:              ${TRUEDATA_WS_URL:-wss://replay.truedata.in:8082}
+      ALLOW_OFF_MARKET_LIVE_DATA:   "true"
+      # PostgreSQL
+      DATABASE_URL:                 ${DATABASE_URL}
+      PG_HOST:                      postgres
+      PG_PORT:                      "5432"
+      PG_DATABASE:                  ${PG_DATABASE:-tradegrow}
+      PG_USER:                      ${PG_USER:-tradegrow}
+      PG_PASSWORD:                  ${PG_PASSWORD}
+      PG_POOL_MAX:                  "20"
+      # Redis
+      REDIS_URL:                    redis://redis:6379
+      REDIS_HOST:                   redis
+      REDIS_PORT:                   "6379"
+      # CORS — set to your actual domain
+      ALLOWED_ORIGINS:              ${ALLOWED_ORIGINS:-http://localhost:5000}
     ports:
       - "5000:5000"
-    environment:
-      PORT:                          5000
-      NODE_ENV:                      production
-      REAL_MONEY_TRADING:            "false"
-      # CRITICAL: Set a strong JWT_SECRET before deploying to production
-      JWT_SECRET:                    stocksharp_jwt_s3cr3t_2026_virtual_trading_platform_secure_key_minimum_32_chars
-      DEFAULT_VIRTUAL_CAPITAL:       "1000000"
-      PRIMARY_MARKET_DATA_PROVIDER:  ALPHAVANTAGE
-      ALPHAVANTAGE_API_KEY:          CC23XT2DVHARWKAU
-      # PostgreSQL
-      PG_HOST:                       postgres
-      PG_PORT:                       "5432"
-      PG_DATABASE:                   stocksharp
-      PG_USER:                       stocksharp
-      PG_PASSWORD:                   stocksharp_pg_pw_2026
-      PG_POOL_MAX:                   "20"
-      # Redis
-      REDIS_HOST:                    redis
-      REDIS_PORT:                    "6379"
-      # CORS
-      ALLOWED_ORIGINS:               "http://localhost:5000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,4 +147,18 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
+    volumes:
+      - kyc_uploads:/app/server/uploads/kyc
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+        reservations:
+          memory: 512m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"

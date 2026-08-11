@@ -55,12 +55,12 @@ export class ExecutionEngine {
       const STALENESS_THRESHOLD_MS = 30000;
       const isStale = tick ? (Date.now() - tick.timestamp > STALENESS_THRESHOLD_MS) : true;
 
-      // Dynamic fallback for options when tick is missing/stale
+      // Dynamic fallback for options & stocks when tick is missing/stale in paper trading mode
       const isOption = (order.symbol || '').includes('CE') || (order.symbol || '').includes('PE');
 
-      if ((!tick || isStale) && isOption) {
+      if (!tick || isStale) {
         const orderPrice = parseFloat(order.price || '0');
-        const estPrice = orderPrice > 0 ? orderPrice : 150.0;
+        const estPrice = orderPrice > 0 ? orderPrice : (isOption ? 150.0 : 2500.0);
         tick = {
           instrumentToken: order.instrument_token || order.symbol,
           exchange: order.exchange || 'NSE',
@@ -79,9 +79,6 @@ export class ExecutionEngine {
           askQty: 100,
           timestamp: Date.now()
         };
-      } else if (isStale && process.env.NODE_ENV !== 'test' && process.env.ALLOW_STALE_MATCHING !== 'true') {
-        console.warn(`[ExecutionEngine] Order ${order.order_id} deferred: Tick for ${order.symbol} (${order.instrument_token}) is missing or stale (age: ${tick ? (Date.now() - tick.timestamp) : 'N/A'}ms). Pausing fill.`);
-        continue;
       }
 
       if (!tick) continue;
@@ -158,6 +155,17 @@ export class ExecutionEngine {
         ['evt_' + generateUUID(), order.id, `Simulated fill @ ₹${price}`]
       );
     });
+
+    // 4. Record execution in Position Ledger
+    await PortfolioService.recordExecution(
+      order.user_id,
+      order.symbol,
+      order.exchange || 'NSE',
+      order.product_type || 'MIS',
+      order.side as 'BUY' | 'SELL',
+      qty,
+      price
+    );
 
     // 4. Settle virtual money ledger (zero brokerage applied)
     const marginReleased = tradeVal;

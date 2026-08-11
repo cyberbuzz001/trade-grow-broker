@@ -3,11 +3,17 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy root and module packages
-COPY package.json package-lock.json ./
-COPY client/package.json ./client/
+# Install build dependencies (needed for native addons)
+RUN apk add --no-cache python3 make g++
 
+# Copy root package files and install root deps
+COPY package.json package-lock.json ./
 RUN npm install
+
+# Copy client package files and install client deps fresh for Linux
+# (removes any Windows-generated lock to avoid @rollup/rollup-linux-x64-musl missing bug)
+COPY client/package.json client/package-lock.json ./client/
+RUN rm -f ./client/package-lock.json && cd client && npm install
 
 COPY . .
 

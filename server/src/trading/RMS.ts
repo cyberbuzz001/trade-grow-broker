@@ -21,6 +21,39 @@ export interface RMSOrderParams {
   productType: 'MIS' | 'CNC' | 'NRML';
 }
 
+function getISTDateString(input?: Date | string | number | null): string {
+  if (!input) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  }
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.trim())) {
+    return input.trim();
+  }
+  const d = typeof input === 'string' || typeof input === 'number' ? new Date(input) : input;
+  if (isNaN(d.getTime())) return String(input).slice(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+}
+
+function parseExpiryToYYYYMMDD(str?: string): string | null {
+  if (!str || str.trim() === '') return null;
+  const clean = str.trim().toUpperCase();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+
+  const months: Record<string, string> = {
+    JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+    JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
+  };
+
+  const match = clean.match(/^(\d{1,2})[-]?([A-Z]{3})[-]?(\d{2,4})$/);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = months[match[2]];
+    let year = match[3];
+    if (year.length === 2) year = `20${year}`;
+    if (month) return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
 export class RMS {
   public static async validateOrder(order: RMSOrderParams): Promise<RMSValidationResult> {
     // 1. Validate quantity
@@ -39,10 +72,10 @@ export class RMS {
         return { passed: false, reason: `ORDER_REJECTED: Instrument ${order.symbol} is currently inactive or suspended by exchange`, requiredMargin: 0 };
       }
       if (instrument.expiry) {
-        const today = new Date().toISOString().slice(0, 10);
-        const expStr = typeof instrument.expiry === 'object' ? instrument.expiry.toISOString().slice(0, 10) : String(instrument.expiry).slice(0, 10);
-        if (expStr < today) {
-          return { passed: false, reason: `ORDER_REJECTED: Contract ${order.symbol} has expired on ${expStr}. Trading on expired contracts is strictly prohibited`, requiredMargin: 0 };
+        const todayIST = getISTDateString();
+        const parsedExp = getISTDateString(instrument.expiry);
+        if (parsedExp && /^\d{4}-\d{2}-\d{2}$/.test(parsedExp) && parsedExp < todayIST) {
+          return { passed: false, reason: `ORDER_REJECTED: Contract ${order.symbol} has expired on ${parsedExp}. Trading on expired contracts is strictly prohibited`, requiredMargin: 0 };
         }
       }
     }

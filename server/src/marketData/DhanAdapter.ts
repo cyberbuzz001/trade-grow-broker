@@ -3,6 +3,8 @@ import { IMarketDataProvider } from './IMarketDataProvider';
 import { MarketTick, Candle, OptionChainItem, TickCallback } from './types';
 import { SafetyLock } from '../services/SafetyLock';
 import { OptionChainEngine } from './OptionChainEngine';
+import { getTokenExpiryMinutes, isTokenExpiringSoon } from '../utils/dhanTokenRefresh';
+import { sendTelegramAlert } from '../utils/telegramAlert';
 
 export class DhanAdapter implements IMarketDataProvider {
   public readonly name = 'DHAN';
@@ -45,7 +47,7 @@ export class DhanAdapter implements IMarketDataProvider {
   private lastTickTime: number = 0;
 
   public isHealthy(): boolean {
-    return this.healthy && this.lastTickTime > 0 && (Date.now() - this.lastTickTime < 15000);
+    return this.healthy && (this.lastTickTime === 0 || Date.now() - this.lastTickTime < 45000);
   }
 
   public async initialize(): Promise<void> {
@@ -53,6 +55,70 @@ export class DhanAdapter implements IMarketDataProvider {
     SafetyLock.assertSimulationOnly('DhanAdapter.initialize');
 
     await this.connectWebSocket();
+
+    // Start periodic JWT expiry check — every 30 minutes
+    setInterval(() => {
+      this.checkTokenExpiry();
+    }, 30 * 60 * 1000);
+
+    // Also check immediately on startup
+    setTimeout(() => this.checkTokenExpiry(), 5000);
+  }
+
+  /**
+   * Returns the current Dhan access token.
+   * Used by cron jobs to check expiry without direct field access.
+   */
+  public getAccessToken(): string {
+    return this.accessToken;
+  }
+
+  /**
+   * Hot-swap the Dhan access token and re-establish the WebSocket connection.
+   * No server restart required.
+   * Called by POST /api/internal/update-dhan-token
+   */
+  public async setAccessToken(newToken: string): Promise<void> {
+    console.log('[DhanAdapter] 🔄 Hot-swapping Dhan access token...');
+    this.accessToken = newToken;
+    // Re-establish WebSocket with the new token
+    await this.connectWebSocket();
+    console.log('[DhanAdapter] ✅ Access token updated and WebSocket reconnected.');
+  }
+
+  /**
+   * Decodes the current JWT token, checks time remaining, and sends a Telegram
+   * alert if expiry is within 60 minutes.
+   */
+  private async checkTokenExpiry(): Promise<void> {
+    if (!this.accessToken) return;
+
+    const minutesLeft = getTokenExpiryMinutes(this.accessToken);
+
+    if (minutesLeft < 0) {
+      console.error('[DhanAdapter] 🚨 Dhan access token is EXPIRED! Market data may be unavailable.');
+      await sendTelegramAlert(
+        `🚨 <b>Trade Grow — Dhan Token EXPIRED!</b>\n\n` +
+        `❌ The Dhan access token has expired and WebSocket is disconnected.\n\n` +
+        `🔑 Please update the token via:\n` +
+        `<code>POST /api/internal/update-dhan-token</code>\n` +
+        `Body: <code>{"accessToken": "YOUR_NEW_TOKEN"}</code>`
+      );
+    } else if (isTokenExpiringSoon(this.accessToken, 60)) {
+      const hoursLeft = (minutesLeft / 60).toFixed(1);
+      console.warn(`[DhanAdapter] ⚠️ Dhan token expiring in ${minutesLeft} min (${hoursLeft}h). Sending Telegram alert.`);
+      await sendTelegramAlert(
+        `⚠️ <b>Trade Grow — Dhan Token Expiring Soon!</b>\n\n` +
+        `🕐 Token expires in: <b>${minutesLeft} minutes (~${hoursLeft}h)</b>\n\n` +
+        `🔑 Renew now to avoid market data disruption:\n` +
+        `1. Login → <a href="https://login.dhan.co">https://login.dhan.co</a>\n` +
+        `2. Copy new Access Token\n` +
+        `3. <code>POST /api/internal/update-dhan-token</code>\n\n` +
+        `⚡ No server restart needed — token updates live.`
+      );
+    } else {
+      console.log(`[DhanAdapter] ✅ Token health OK. Expires in ${minutesLeft} minutes (~${(minutesLeft/60).toFixed(1)}h).`);
+    }
   }
 
   public stop(): void {
@@ -115,6 +181,8 @@ export class DhanAdapter implements IMarketDataProvider {
         });
 
         this.ws.on('message', (data: WebSocket.Data) => {
+          this.lastTickTime = Date.now();
+          this.healthy = true;
           try {
             if (Buffer.isBuffer(data)) {
               this.handleBinaryMessage(data);
@@ -232,6 +300,8 @@ export class DhanAdapter implements IMarketDataProvider {
       ask: Number((ltp + 0.05).toFixed(2)),
       bidQty: 100,
       askQty: 100,
+      source: 'dhan',
+      isSynthetic: false,
       timestamp: Date.now()
     };
 
@@ -281,6 +351,8 @@ export class DhanAdapter implements IMarketDataProvider {
               ask: Number((ltp + 0.05).toFixed(2)),
               bidQty: 100,
               askQty: 100,
+              source: 'dhan',
+              isSynthetic: false,
               timestamp: Date.now()
             };
 
@@ -388,13 +460,26 @@ export class DhanAdapter implements IMarketDataProvider {
     const mapping = DhanAdapter.DHAN_SECURITY_MAP[instrumentToken];
     if (mapping) {
       try {
-        const url = `${this.baseUrl}/v2/charts/intraday`;
-        const payload = {
+        const isIndex = mapping.segment.includes('INDEX') || instrumentToken.includes('NIFTY') || instrumentToken.includes('SENSEX');
+        const segment = isIndex ? 'IDX_I' : mapping.segment;
+        const instrument = isIndex ? 'INDEX' : 'EQUITY';
+
+        const toDateStr = new Date().toISOString().split('T')[0];
+        const fromDateObj = new Date();
+        fromDateObj.setDate(fromDateObj.getDate() - Math.max(30, count));
+        const fromDateStr = fromDateObj.toISOString().split('T')[0];
+
+        const isIntraday = timeframe !== '1D';
+        const url = `${this.baseUrl}/v2/charts/${isIntraday ? 'intraday' : 'historical'}`;
+        const payload: any = {
           securityId: mapping.securityId,
-          exchangeSegment: mapping.segment,
-          instrumentType: mapping.segment.includes('INDEX') ? 'INDEX' : 'EQUITY',
-          interval: timeframe === '1D' ? '1' : '1'
+          exchangeSegment: segment,
+          instrument,
+          expiryCode: 0,
+          fromDate: fromDateStr,
+          toDate: toDateStr
         };
+        if (isIntraday) payload.interval = timeframe === '5M' ? '5' : timeframe === '15M' ? '15' : '1';
 
         const res = await fetch(url, {
           method: 'POST',
@@ -408,16 +493,17 @@ export class DhanAdapter implements IMarketDataProvider {
 
         if (res.ok) {
           const json: any = await res.json();
-          if (json.start_Time && Array.isArray(json.start_Time)) {
+          const timestamps = json.timestamp || json.start_Time || [];
+          if (Array.isArray(timestamps) && timestamps.length > 0) {
             const candles: Candle[] = [];
-            for (let i = 0; i < json.start_Time.length; i++) {
+            for (let i = 0; i < timestamps.length; i++) {
               candles.push({
-                time: json.start_Time[i],
-                open: json.open[i],
-                high: json.high[i],
-                low: json.low[i],
-                close: json.close[i],
-                volume: json.volume ? json.volume[i] : 0
+                time: timestamps[i],
+                open: Number(json.open[i] || 0),
+                high: Number(json.high[i] || 0),
+                low: Number(json.low[i] || 0),
+                close: Number(json.close[i] || 0),
+                volume: Number(json.volume ? json.volume[i] : 0)
               });
             }
             if (candles.length > 0) return candles.slice(-count);
@@ -605,12 +691,7 @@ export class DhanAdapter implements IMarketDataProvider {
       console.warn(`[DhanAdapter] Live Option Chain API error for ${cleanSym}:`, err.message);
     }
 
-    const underlyingToken = cleanSym === 'SENSEX' ? 'BSE_SENSEX' : `NSE_${cleanSym}`;
-    const quote = await this.getQuote(underlyingToken);
-    const spotPrice = quote ? quote.ltp : (cleanSym.includes('SENSEX') ? 80500 : cleanSym.includes('BANK') ? 52000 : 24500);
-
-    const res = await OptionChainEngine.generateOptionChain({ symbol: cleanSym, spotPrice, expiry });
-    return res.chain;
+    return [];
   }
 
   /**

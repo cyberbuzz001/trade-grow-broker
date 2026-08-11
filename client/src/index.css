@@ -1,50 +1,57 @@
-@import "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap";
+@import "https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-headline: 'Geist', sans-serif;
+  --font-mono: 'Space Grotesk', 'JetBrains Mono', monospace;
 
-  /* Light Theme Colors */
-  --bg-body: #f4f6fa;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #f8fafc;
-  --bg-glass: rgba(255, 255, 255, 0.85);
-  --bg-glass-card: rgba(255, 255, 255, 0.95);
+@media (max-width: 640px) {
+  html {
+    font-size: 13px;
+  }
+}
 
-  --text-main: #0f172a;
-  --text-muted: #334155;
-  --text-tertiary: #64748b;
+  /* Stitch Primary Green & Core Theme Colors */
+  --bg-body: #0d1117;
+  --bg-surface: #161b22;
+  --bg-surface-elevated: #1c2128;
+  --bg-glass: rgba(22, 27, 34, 0.85);
+  --bg-glass-card: rgba(28, 33, 40, 0.95);
 
-  --border-color: #e2e8f0;
-  --border-light: #f1f5f9;
+  --text-main: #f0f6fc;
+  --text-muted: #8b949e;
+  --text-tertiary: #6e7681;
+
+  --border-color: #30363d;
+  --border-light: #21262d;
   
-  --primary: #00d09c;
-  --primary-hover: #00b887;
-  --primary-light: rgba(0, 208, 156, 0.1);
-  --primary-glow: rgba(0, 208, 156, 0.25);
+  --primary: #00e676;
+  --primary-hover: #00c853;
+  --primary-light: rgba(0, 230, 118, 0.1);
+  --primary-glow: rgba(0, 230, 118, 0.25);
 
-  --groww-green: #00d09c;
-  --groww-green-hover: #00b887;
-  --groww-green-light: #e6fbf5;
-  --groww-red: #eb5757;
-  --groww-red-light: #fdf2f2;
+  --groww-green: #00e676;
+  --groww-green-hover: #00c853;
+  --groww-green-light: rgba(0, 230, 118, 0.1);
+  --groww-red: #ff5252;
+  --groww-red-light: rgba(255, 82, 82, 0.1);
 
-  --gogrow-blue: #3b82f6;
-  --gogrow-blue-hover: #2563eb;
-  --gogrow-blue-light: #eff6ff;
+  --gogrow-blue: #448aff;
+  --gogrow-blue-hover: #2979ff;
+  --gogrow-blue-light: rgba(68, 138, 255, 0.1);
 
-  --gain: #00d09c;
-  --gain-light: rgba(0, 208, 156, 0.12);
-  --loss: #eb5757;
-  --loss-light: rgba(235, 87, 87, 0.12);
+  --gain: #00e676;
+  --gain-light: rgba(0, 230, 118, 0.12);
+  --loss: #ff5252;
+  --loss-light: rgba(255, 82, 82, 0.12);
 
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 16px -2px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 32px -4px rgba(15, 23, 42, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -53,23 +60,59 @@
 }
 
 [data-theme="dark"] {
-  /* Soft Navy Slate Dark Theme Colors (No pitch black) */
-  --bg-body: #0f172a;
-  --bg-surface: #1e293b;
-  --bg-surface-elevated: #334155;
-  --bg-glass: rgba(30, 41, 59, 0.85);
-  --bg-glass-card: rgba(30, 41, 59, 0.95);
+  /* Stitch Deep Dark Theme (#0D1117) */
+  --bg-body: #0d1117;
+  --bg-surface: #161b22;
+  --bg-surface-elevated: #1c2128;
+  --bg-glass: rgba(22, 27, 34, 0.85);
+  --bg-glass-card: rgba(28, 33, 40, 0.95);
 
-  --text-main: #f8fafc;
-  --text-muted: #cbd5e1;
-  --text-tertiary: #94a3b8;
+  --text-main: #f0f6fc;
+  --text-muted: #8b949e;
+  --text-tertiary: #6e7681;
 
-  --border-color: #334155;
-  --border-light: #475569;
+  --border-color: #30363d;
+  --border-light: #21262d;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="light"] {
+  /* Stitch Light Trading Theme (#F6F8FA) */
+  --bg-body: #f6f8fa;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.9);
+  --bg-glass-card: rgba(255, 255, 255, 0.98);
+
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-tertiary: #64748b;
+
+  --border-color: #cbd5e1;
+  --border-light: #e2e8f0;
+
+  --primary: #00c853;
+  --primary-hover: #00e676;
+  --primary-light: rgba(0, 200, 83, 0.1);
+  --primary-glow: rgba(0, 200, 83, 0.25);
+
+  --groww-green: #00c853;
+  --groww-green-hover: #00e676;
+  --groww-green-light: rgba(0, 200, 83, 0.1);
+  --groww-red: #d32f2f;
+  --groww-red-light: rgba(211, 47, 47, 0.1);
+
+  --gain: #00c853;
+  --gain-light: rgba(0, 200, 83, 0.12);
+  --loss: #d32f2f;
+  --loss-light: rgba(211, 47, 47, 0.12);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.15);
 }
 
 @layer base {
@@ -101,6 +144,46 @@
 ::-webkit-scrollbar-thumb {
   background: var(--border-color);
   border-radius: 3px;
+}
+
+/* Stitch Glassmorphism & Ticker Utilities */
+.glass-card {
+  background: var(--bg-glass-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+}
+
+.glass-header {
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.ticker-move {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker 35s linear infinite;
+}
+
+.ticker-move:hover {
+  animation-play-state: paused;
+}
+
+@keyframes ticker {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }
 
 /* TradeGrow Card & UI Utilities */
@@ -212,3 +295,54 @@
     cursor: pointer;
   }
 }
+
+/* Mobile Bottom Sheet Overlay & Drawer Animations */
+.mobile-bottom-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.mobile-bottom-sheet-content {
+  background: var(--bg-surface);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  border-top: 1px solid var(--border-color);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 24px);
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Touch Target Minimum Dimensions */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Sticky Strike Column in Mobile Option Chain */
+.sticky-col {
+  position: sticky;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--bg-surface-elevated);
+}
+

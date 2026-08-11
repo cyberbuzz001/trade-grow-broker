@@ -18,6 +18,8 @@ import { setupWebSocketServer } from './websocket/server';
 import apiRouter from './routes/api';
 import adminApiRouter from './routes/adminApi';
 import { SafetyLock } from './services/SafetyLock';
+import { startCronJobs, stopCronJobs } from './utils/cronJobs';
+import { setDhanAdapterRef } from './utils/dhanTokenRefresh';
 
 // Technical Assertion Lock on Server Startup
 SafetyLock.assertSimulationOnly('ServerStartup');
@@ -121,21 +123,33 @@ async function startServer() {
     // Setup WebSocket Server Gateway
     setupWebSocketServer(server);
 
+    // Start Dhan Token Expiry Check & Morning Reminder Cron Jobs
+    const engine = MarketDataEngine.getInstance();
+    const dhanProvider = (engine as any).providers?.get('DHAN');
+    if (dhanProvider && typeof dhanProvider.getAccessToken === 'function') {
+      setDhanAdapterRef(dhanProvider);
+      startCronJobs(() => dhanProvider.getAccessToken());
+      console.log('[Startup] ✅ Dhan token cron jobs started (30-min expiry check + 08:30 AM IST reminder).');
+    } else {
+      console.warn('[Startup] ⚠️ DhanAdapter not found — cron jobs not started.');
+    }
+
     // Serve Frontend Static Files in Production
     const clientDistPath = path.resolve(__dirname, '../../client/dist');
     app.use(express.static(clientDistPath));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/ws')) return next();
       res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
-        if (err) res.status(200).send('StockSharp Multi-User Simulation Platform API Running. Client build pending.');
+        if (err) res.status(200).send('Trade Grow — Smart Trading Platform API Running. Client build pending.');
       });
     });
 
     server.listen(PORT, () => {
       console.log(`=======================================================`);
-      console.log(`🚀 BROKERAGE SIMULATION PLATFORM RUNNING ON PORT ${PORT}`);
+      console.log(`🌱 TRADE GROW — SMART TRADING PLATFORM ON PORT ${PORT}`);
       console.log(`🔒 SAFETY MODE: VIRTUAL PAPER TRADING ONLY (REAL MONEY DISABLED)`);
-      console.log(`📊 MARKET DATA PROVIDER: ${MarketDataEngine.getInstance().getActiveProviderName()}`);
+      console.log(`📊 MARKET DATA: ${MarketDataEngine.getInstance().getActiveProviderName()}`);
+      console.log(`🔔 CRON JOBS: Dhan token expiry check (30-min) + 08:30 AM IST daily reminder`);
       console.log(`🛡️  SECURITY: Helmet.js, CORS restricted, Rate limiting active`);
       console.log(`🗄️  DATABASE: PostgreSQL (connection pool: max 20 connections)`);
       console.log(`=======================================================`);

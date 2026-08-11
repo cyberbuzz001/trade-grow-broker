@@ -9,6 +9,7 @@ import { checkDatabaseHealth } from '../db/pool';
 import { redis } from '../db/redis';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
+import { updateDhanToken, getTokenExpiryMinutes, setDhanAdapterRef } from '../utils/dhanTokenRefresh';
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
@@ -35,8 +36,8 @@ router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), as
       queryOne<any>('SELECT COUNT(*) as c FROM users'),
       queryOne<any>("SELECT COUNT(*) as c FROM users WHERE status = 'ACTIVE'"),
       queryOne<any>("SELECT COUNT(*) as c FROM users WHERE created_at > NOW() - INTERVAL '30 days'"),
-      queryOne<any>("SELECT COUNT(*) as c FROM kyc_records WHERE kyc_status IN ('SUBMITTED','UNDER_REVIEW')"),
-      queryOne<any>("SELECT COUNT(*) as c FROM kyc_records WHERE kyc_status = 'REJECTED'"),
+      queryOne<any>("SELECT COUNT(*) as c FROM kyc_applications WHERE status IN ('SUBMITTED','UNDER_REVIEW')"),
+      queryOne<any>("SELECT COUNT(*) as c FROM kyc_applications WHERE status = 'REJECTED'"),
       queryOne<any>("SELECT COUNT(*) as c FROM users WHERE status = 'SUSPENDED'"),
       queryOne<any>("SELECT COUNT(*) as c FROM orders WHERE created_at > NOW() - INTERVAL '1 day'"),
       queryOne<any>("SELECT COUNT(*) as c FROM executions WHERE executed_at > NOW() - INTERVAL '1 day'"),
@@ -676,6 +677,418 @@ router.get('/market-data/local-stats', authenticateToken, checkRole(ADMIN_ROLES)
   try {
     const stats = await MarketDataStorageService.getLocalStorageStats();
     res.json({ success: true, stats });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 14. ADMIN KYC MANAGEMENT & DOCUMENT VERIFICATION
+// ============================================================
+router.get('/kyc/applications', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const apps = await query<any>(
+      `SELECT ka.*, u.username, u.email, u.role
+       FROM kyc_applications ka
+       JOIN users u ON ka.user_id = u.id
+       ORDER BY ka.submitted_at DESC`
+    );
+
+    const appsWithDocs = await Promise.all(apps.map(async (a: any) => {
+      const documents = await query(
+        'SELECT id, document_type, original_filename, mime_type, file_size, uploaded_at FROM kyc_documents WHERE kyc_application_id = $1',
+        [a.id]
+      );
+      return { ...a, documents };
+    }));
+
+    res.json({ success: true, applications: appsWithDocs });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/kyc/documents/:id/download', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const doc = await queryOne<any>('SELECT * FROM kyc_documents WHERE id = $1', [req.params.id]);
+    if (!doc) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Document record not found' } });
+      return;
+    }
+
+    const fs = require('fs');
+    if (!fs.existsSync(doc.file_path)) {
+      res.status(404).json({ success: false, error: { code: 'FILE_NOT_FOUND', message: 'Physical file not found on server' } });
+      return;
+    }
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'DOWNLOAD_KYC_DOCUMENT', 'KYC_DOCUMENT', doc.id, null, { filename: doc.original_filename }, getClientIp(req));
+
+    res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${doc.original_filename}"`);
+    fs.createReadStream(doc.file_path).pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/kyc/review', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { applicationId, action, rejectionReason, rejectionCategory } = req.body;
+
+    if (!applicationId || !action || !['APPROVE', 'REJECT', 'REQUEST_RESUBMISSION'].includes(action)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Application ID and valid action (APPROVE/REJECT/REQUEST_RESUBMISSION) are required' } });
+      return;
+    }
+
+    const newStatus = action === 'APPROVE' ? 'APPROVED' : action === 'REJECT' ? 'REJECTED' : 'RESUBMISSION_REQUIRED';
+
+    await execute(
+      `UPDATE kyc_applications
+       SET status = $1, rejection_reason = $2, rejection_category = $3, reviewed_at = NOW(), reviewed_by = $4, updated_at = NOW()
+       WHERE id = $5`,
+      [newStatus, rejectionReason || null, rejectionCategory || null, req.user!.userId, applicationId]
+    );
+
+    await logAuditAction(req.user!.userId, req.user!.role, `KYC_${action}`, 'KYC_APPLICATION', applicationId, null, { action, rejectionReason, rejectionCategory }, getClientIp(req));
+
+    res.json({ success: true, message: `KYC Application ${applicationId} has been ${newStatus}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// 15. ADMIN DIRECT FUND ADJUSTMENT (CREDIT / DEBIT)
+// ============================================================
+router.post('/funds/direct-adjust', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, requestType, amount, reason } = req.body;
+    const reqAmount = parseFloat(amount);
+
+    if (!userId || !requestType || !['CREDIT', 'DEBIT'].includes(requestType) || isNaN(reqAmount) || reqAmount <= 0) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Valid userId, requestType (CREDIT/DEBIT), and positive amount required' } });
+      return;
+    }
+
+    const adjustAmount = requestType === 'CREDIT' ? reqAmount : -reqAmount;
+    const updatedWallet = await VirtualWalletLedger.adminAdjustBalance(
+      userId,
+      adjustAmount,
+      req.user!.userId,
+      reason || `Direct Admin ${requestType}`
+    );
+
+    const id = 'freq_' + generateUUID();
+    const requestId = 'ADM' + generateUUID().slice(0, 8).toUpperCase();
+    await execute(
+      `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note, approved_by, approved_at)
+       VALUES ($1, $2, $3, $4, $5, 'APPROVED', 'ADMIN_DIRECT', $6, $7, NOW())`,
+      [id, requestId, userId, requestType === 'CREDIT' ? 'DEPOSIT' : 'WITHDRAWAL', reqAmount, reason || 'Direct Admin Adjustment', req.user!.userId]
+    );
+
+    await logAuditAction(req.user!.userId, req.user!.role, `ADMIN_DIRECT_FUNDS_${requestType}`, 'WALLET', userId, null, { amount: reqAmount, reason }, getClientIp(req));
+
+    res.json({
+      success: true,
+      message: `Successfully ${requestType === 'CREDIT' ? 'credited' : 'debited'} ₹${reqAmount.toLocaleString('en-IN')} for user.`,
+      wallet: updatedWallet
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 16. ADMIN ORDER MONITOR & ORDER MANAGEMENT SYSTEM
+// ============================================================
+router.get('/orders/monitor', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const statusFilter = req.query.status as string || '';
+    const exchangeFilter = req.query.exchange as string || '';
+    const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 500);
+
+    let where = 'WHERE 1=1';
+    const params: any[] = [];
+    let pIdx = 1;
+
+    if (statusFilter) {
+      where += ` AND o.status = $${pIdx}`;
+      params.push(statusFilter);
+      pIdx++;
+    }
+    if (exchangeFilter) {
+      where += ` AND o.exchange = $${pIdx}`;
+      params.push(exchangeFilter);
+      pIdx++;
+    }
+
+    const orders = await query(
+      `SELECT o.*, u.username as client_name, u.email as client_email
+       FROM orders o
+       JOIN users u ON o.user_id = u.id
+       ${where}
+       ORDER BY o.created_at DESC LIMIT $${pIdx}`,
+      [...params, limit]
+    );
+
+    res.json({ success: true, orders });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/orders/:orderId/price', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { price } = req.body;
+    const newPrice = parseFloat(price);
+
+    if (isNaN(newPrice) || newPrice <= 0) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_PRICE', message: 'Price must be greater than 0' } });
+      return;
+    }
+
+    const order = await queryOne<any>('SELECT * FROM orders WHERE id = $1 OR order_id = $1', [orderId]);
+    if (!order) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+      return;
+    }
+
+    if (!['ACCEPTED', 'PENDING'].includes(order.status)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Cannot edit price for order in status ${order.status}` } });
+      return;
+    }
+
+    await execute('UPDATE orders SET price = $1, updated_at = NOW() WHERE id = $2', [newPrice, order.id]);
+    await execute(
+      `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
+       VALUES ($1, $2, $3, $3, $4, 'ADMIN')`,
+      ['evt_' + generateUUID(), order.id, order.status, `Admin modified price from ₹${order.price} to ₹${newPrice}`]
+    );
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_MODIFY_ORDER_PRICE', 'ORDER', order.id, null, { oldPrice: order.price, newPrice }, getClientIp(req));
+
+    res.json({ success: true, message: `Order ${order.order_id} limit price updated to ₹${newPrice}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/orders/:orderId/cancel', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+
+    const order = await queryOne<any>('SELECT * FROM orders WHERE id = $1 OR order_id = $1', [orderId]);
+    if (!order) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+      return;
+    }
+
+    if (!['ACCEPTED', 'PENDING'].includes(order.status)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Order is already ${order.status}` } });
+      return;
+    }
+
+    await execute(`UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`, [order.id]);
+    await execute(
+      `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
+       VALUES ($1, $2, $3, 'CANCELLED', $4, 'ADMIN')`,
+      ['evt_' + generateUUID(), order.id, order.status, reason || 'Cancelled by Admin']
+    );
+
+    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10);
+    if (marginToRelease > 0) {
+      await VirtualWalletLedger.releaseMargin(order.user_id, marginToRelease, order.order_id, 'ADMIN_CANCEL');
+    }
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_CANCEL_ORDER', 'ORDER', order.id, null, { reason }, getClientIp(req));
+
+    res.json({ success: true, message: `Order ${order.order_id} cancelled by Admin.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/orders/:orderId/execute', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { price } = req.body;
+
+    const order = await queryOne<any>('SELECT * FROM orders WHERE id = $1 OR order_id = $1', [orderId]);
+    if (!order) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+      return;
+    }
+
+    if (!['ACCEPTED', 'PENDING'].includes(order.status)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Order is already ${order.status}` } });
+      return;
+    }
+
+    const fillPrice = price ? parseFloat(price) : (parseFloat(order.price || '0') || 100);
+    const { ExecutionEngine } = require('../trading/ExecutionEngine');
+    await ExecutionEngine.executeOrder(order, fillPrice);
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_FORCE_EXECUTE_ORDER', 'ORDER', order.id, null, { fillPrice }, getClientIp(req));
+
+    res.json({ success: true, message: `Order ${order.order_id} force-executed @ ₹${fillPrice}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/orders/:orderId/reject', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+
+    const order = await queryOne<any>('SELECT * FROM orders WHERE id = $1 OR order_id = $1', [orderId]);
+    if (!order) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+      return;
+    }
+
+    if (!['ACCEPTED', 'PENDING'].includes(order.status)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Order is already ${order.status}` } });
+      return;
+    }
+
+    await execute(`UPDATE orders SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`, [order.id]);
+    await execute(
+      `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
+       VALUES ($1, $2, $3, 'REJECTED', $4, 'ADMIN')`,
+      ['evt_' + generateUUID(), order.id, order.status, reason || 'Rejected by Admin']
+    );
+
+    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10);
+    if (marginToRelease > 0) {
+      await VirtualWalletLedger.releaseMargin(order.user_id, marginToRelease, order.order_id, 'ADMIN_REJECT');
+    }
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_REJECT_ORDER', 'ORDER', order.id, null, { reason }, getClientIp(req));
+
+    res.json({ success: true, message: `Order ${order.order_id} rejected by Admin.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/orders/create', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, symbol, exchange, side, orderType, quantity, price, productType } = req.body;
+
+    if (!userId || !symbol || !side || !quantity || !price) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'userId, symbol, side, quantity, and price are required' } });
+      return;
+    }
+
+    const { OMS } = require('../trading/OMS');
+    const orderResult = await OMS.placeOrder({
+      userId,
+      symbol,
+      exchange: exchange || 'NSE',
+      side,
+      orderType: orderType || 'LIMIT',
+      productType: productType || 'MIS',
+      quantity: parseInt(quantity, 10),
+      price: parseFloat(price),
+      disclosedQuantity: 0,
+      triggerPrice: 0,
+      validity: 'DAY',
+      tradingSegment: 'EQUITY'
+    });
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_PLACE_ORDER', 'ORDER', orderResult.orderId, null, { userId, symbol, side, quantity, price }, getClientIp(req));
+
+    res.json({ success: true, message: `Admin successfully placed order for client. Order ID: ${orderResult.orderId}`, order: orderResult });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// DHAN TOKEN HOT-SWAP ENDPOINT
+// POST /api/v1/admin/broker/update-dhan-token
+// Protected: SUPER_ADMIN and ADMIN only
+// Description: Updates the Dhan access token in the live adapter
+//              AND writes it to .env — no server restart required.
+// Usage:
+//   curl -X POST http://localhost:5000/api/v1/admin/broker/update-dhan-token \
+//     -H "Authorization: Bearer YOUR_ADMIN_JWT" \
+//     -H "Content-Type: application/json" \
+//     -d '{"accessToken": "YOUR_NEW_DHAN_TOKEN"}'
+// ============================================================
+router.post('/broker/update-dhan-token', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken || typeof accessToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_TOKEN', message: 'accessToken is required in request body.' }
+      });
+    }
+
+    // Connect the live DhanAdapter instance to the token refresh utility
+    const engine = MarketDataEngine.getInstance();
+    const dhanProvider = (engine as any).providers?.get('DHAN');
+    if (dhanProvider) {
+      setDhanAdapterRef(dhanProvider);
+    }
+
+    const result = await updateDhanToken(accessToken);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: { code: 'TOKEN_UPDATE_FAILED', message: result.message } });
+    }
+
+    await logAuditAction(
+      req.user!.userId,
+      req.user!.role,
+      'DHAN_TOKEN_UPDATED',
+      'SYSTEM',
+      'dhan_access_token',
+      null,
+      { expiresInMinutes: result.expiresInMinutes },
+      getClientIp(req)
+    );
+
+    return res.json({
+      success: true,
+      message: result.message,
+      expiresInMinutes: result.expiresInMinutes,
+      expiresInHours: result.expiresInMinutes ? (result.expiresInMinutes / 60).toFixed(1) : null
+    });
+  } catch (err: any) {
+    console.error('[AdminAPI] Dhan token update error:', err);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// GET /api/v1/admin/broker/dhan-token-status
+// Returns current Dhan token expiry information
+router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const dhanToken = process.env.DHAN_ACCESS_TOKEN || '';
+    const minutesLeft = getTokenExpiryMinutes(dhanToken);
+    const isExpired = minutesLeft < 0;
+    const isExpiringSoon = minutesLeft >= 0 && minutesLeft <= 60;
+
+    return res.json({
+      success: true,
+      status: isExpired ? 'EXPIRED' : isExpiringSoon ? 'EXPIRING_SOON' : 'HEALTHY',
+      expiresInMinutes: minutesLeft,
+      expiresInHours: minutesLeft > 0 ? (minutesLeft / 60).toFixed(1) : null,
+      isExpired,
+      isExpiringSoon,
+      message: isExpired
+        ? '🚨 Token is expired. Update required immediately.'
+        : isExpiringSoon
+        ? `⚠️ Token expires in ${minutesLeft} minutes. Please renew soon.`
+        : `✅ Token is healthy. Expires in ~${(minutesLeft/60).toFixed(1)} hours.`
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }

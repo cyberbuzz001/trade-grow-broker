@@ -14,11 +14,12 @@ export function validateBody(schema: ZodSchema) {
         field: e.path.join('.'),
         message: e.message
       }));
+      const detailedMessage = errors.map(e => e.message).filter(Boolean).join('. ') || 'Request validation failed';
       res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Request validation failed',
+          message: detailedMessage,
           fields: errors
         }
       });

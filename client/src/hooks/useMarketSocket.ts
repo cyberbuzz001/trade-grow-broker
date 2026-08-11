@@ -200,6 +200,25 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
               pendingTicksRef.current.set(`NSE_${cleanSym}`, t);
               pendingTicksRef.current.set(`MCX_${cleanSym}`, t);
               pendingTicksRef.current.set(`BSE_${cleanSym}`, t);
+              pendingTicksRef.current.set(`NFO_${cleanSym}`, t);
+              pendingTicksRef.current.set(`BFO_${cleanSym}`, t);
+              // Also store under formatted NFO_NIFTY_STRIKE_TYPE and BFO_SENSEX_STRIKE_TYPE keys
+              const mNifty = cleanSym.match(/^NIFTY(\d+)(CE|PE)$/i);
+              if (mNifty) {
+                pendingTicksRef.current.set(`NFO_NIFTY_${mNifty[1]}_${mNifty[2].toUpperCase()}`, t);
+              }
+              const mBankNifty = cleanSym.match(/^BANKNIFTY(\d+)(CE|PE)$/i);
+              if (mBankNifty) {
+                pendingTicksRef.current.set(`NFO_BANKNIFTY_${mBankNifty[1]}_${mBankNifty[2].toUpperCase()}`, t);
+              }
+              const mSensex = cleanSym.match(/^SENSEX(\d+)(CE|PE)$/i);
+              if (mSensex) {
+                pendingTicksRef.current.set(`BFO_SENSEX_${mSensex[1]}_${mSensex[2].toUpperCase()}`, t);
+              }
+              const mFinNifty = cleanSym.match(/^FINNIFTY(\d+)(CE|PE)$/i);
+              if (mFinNifty) {
+                pendingTicksRef.current.set(`NFO_FINNIFTY_${mFinNifty[1]}_${mFinNifty[2].toUpperCase()}`, t);
+              }
             }
           };
 

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { ShieldCheck } from 'lucide-react';
 import { User, Wallet, MarketTick } from './types';
 import { MarketSocketProvider } from './hooks/useMarketSocket';
 import { GrowwHeader } from './components/GrowwHeader';
-import { GrowwSubNav } from './components/GrowwSubNav';
+import { GrowwSubNav, SubView } from './components/GrowwSubNav';
 import { GrowwExploreView } from './components/GrowwExploreView';
 import { GrowwHoldingsView } from './components/GrowwHoldingsView';
+import { GrowwWatchlistView } from './components/GrowwWatchlistView';
 import { GrowwTerminalView } from './components/GrowwTerminalView';
 import { OptionChainView } from './components/OptionChainView';
 import { OrdersPositionsView } from './components/OrdersPositionsView';
@@ -12,6 +14,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { AuthModal } from './components/AuthModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { UserProfileModal } from './components/UserProfileModal';
+import { CustomerSupportModal } from './components/CustomerSupportModal';
 import { McxCommodityView } from './components/McxCommodityView';
 
 // GoGrow Mobile App View Components (from Frontend/mobileapp)
@@ -28,7 +31,7 @@ export function App() {
   
   // Responsive / Mobile View Mode State
   const [isMobileScreen, setIsMobileScreen] = useState<boolean>(window.innerWidth < 768);
-  const [activeMobileTab, setActiveMobileTab] = useState<'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'ORDERS' | 'PROFILE'>('HOME');
+  const [activeMobileTab, setActiveMobileTab] = useState<'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'WATCHLIST' | 'ORDERS' | 'OPTION_CHAIN' | 'ADMIN' | 'PROFILE'>('HOME');
   
   // Mobile Quick Order Modal State
   const [selectedMobileStock, setSelectedMobileStock] = useState<{ name: string; symbol: string; price: number } | null>(null);
@@ -36,7 +39,7 @@ export function App() {
 
   // Desktop Groww Category & Sub-View State
   const [activeCategory, setActiveCategory] = useState<'STOCKS' | 'FO' | 'MUTUAL_FUNDS' | 'COMMODITIES'>('STOCKS');
-  const [activeSubView, setActiveSubView] = useState<'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'ADMIN'>('EXPLORE');
+  const [activeSubView, setActiveSubView] = useState<SubView>('EXPLORE');
   const [isTerminalMode, setIsTerminalMode] = useState<boolean>(false);
 
   const [terminalToken, setTerminalToken] = useState<string>('NSE_RELIANCE');
@@ -45,7 +48,9 @@ export function App() {
   
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY'>('PROFILE');
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   // Detect Mobile Viewport
   useEffect(() => {
@@ -63,18 +68,35 @@ export function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const fetchWallet = () => {
+  const fetchWallet = async () => {
     if (!token) return;
-    fetch('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setUser(data.user);
-          setWallet(data.wallet);
-        } else {
-          handleLogout();
+    try {
+      const res = await fetch('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+        setWallet(data.wallet);
+      } else {
+        // Attempt silent token refresh before logging out
+        const savedRefreshToken = localStorage.getItem('refreshToken');
+        if (savedRefreshToken) {
+          const refreshRes = await fetch('/api/v1/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: savedRefreshToken })
+          });
+          const refreshData = await refreshRes.json();
+          if (refreshData.success && refreshData.token) {
+            setToken(refreshData.token);
+            localStorage.setItem('token', refreshData.token);
+            return;
+          }
         }
-      });
+        handleLogout();
+      }
+    } catch (_) {
+      // Retain active session on transient network errors
+    }
   };
 
   useEffect(() => {
@@ -182,10 +204,17 @@ export function App() {
             {activeMobileTab === 'HOME' && (
               <MobileHomeView
                 user={user}
+                wallet={wallet}
                 ticks={ticks}
+                theme={theme}
+                onToggleTheme={toggleTheme}
                 onOpenSearch={() => setIsSearchOpen(true)}
                 onSelectStock={(symbol, name, price) => {
                   setSelectedMobileStock({ symbol, name, price });
+                  setIsMobileOrderModalOpen(true);
+                }}
+                onOpenQuickOrder={(stock) => {
+                  setSelectedMobileStock({ symbol: stock.symbol, name: stock.name, price: stock.price });
                   setIsMobileOrderModalOpen(true);
                 }}
               />
@@ -194,6 +223,8 @@ export function App() {
             {activeMobileTab === 'PORTFOLIO' && (
               <MobilePortfolioView
                 ticks={ticks}
+                token={token}
+                wallet={wallet}
                 onBack={() => setActiveMobileTab('HOME')}
                 onSelectStock={(symbol, name, price) => {
                   setSelectedMobileStock({ symbol, name, price });
@@ -202,23 +233,52 @@ export function App() {
               />
             )}
 
+            {activeMobileTab === 'OPTION_CHAIN' && (
+              <div className="p-2 pb-24">
+                <OptionChainView token={token} ticks={ticks} onRefreshWallet={fetchWallet} />
+              </div>
+            )}
+
             {activeMobileTab === 'POSITIONS' && (
-              <div className="p-4 pb-24">
+              <div className="p-2 sm:p-4 pb-24">
                 <OrdersPositionsView token={token} initialTab="POSITIONS" onRefreshWallet={fetchWallet} />
               </div>
             )}
 
-            {activeMobileTab === 'ORDERS' && (
-              <div className="p-4 pb-24">
-                <OrdersPositionsView token={token} initialTab="ORDERS" onRefreshWallet={fetchWallet} />
+            {activeMobileTab === 'WATCHLIST' && (
+              <div className="p-2 sm:p-4 pb-24">
+                <GrowwWatchlistView token={token || ''} onRefreshWallet={fetchWallet} />
+              </div>
+            )}
+
+            {activeMobileTab === 'ADMIN' && (
+              <div className="p-2 pb-24">
+                {user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user.role) ? (
+                  <AdminPanel token={token} />
+                ) : (
+                  <div className="p-4 text-center text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl border border-rose-500/20 my-8">
+                    Admin access restricted to authorized staff accounts.
+                  </div>
+                )}
               </div>
             )}
 
             {activeMobileTab === 'PROFILE' && (
               <MobileProfileView
                 user={user}
+                wallet={wallet}
+                token={token}
+                theme={theme}
+                onToggleTheme={toggleTheme}
                 onBack={() => setActiveMobileTab('HOME')}
                 onLogout={handleLogout}
+                onOpenProfileModal={(tab) => {
+                  setProfileInitialTab(tab || 'PROFILE');
+                  setIsProfileModalOpen(true);
+                }}
+                onOpenSupportModal={() => setIsSupportModalOpen(true)}
+                onOpenAdmin={() => setActiveMobileTab('ADMIN')}
+                onRefreshWallet={fetchWallet}
               />
             )}
           </div>
@@ -227,10 +287,7 @@ export function App() {
           <MobileBottomNav
             activeTab={activeMobileTab}
             onSelectTab={(tab) => setActiveMobileTab(tab)}
-            onOpenTradeModal={() => {
-              setSelectedMobileStock({ name: 'ICICI Bank', symbol: 'NSE_ICICIBANK', price: 127.00 });
-              setIsMobileOrderModalOpen(true);
-            }}
+            isAdmin={Boolean(user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER'].includes(user.role))}
           />
 
           {/* Mobile Order Confirmation Modal */}
@@ -268,17 +325,15 @@ export function App() {
         {/* 1. GROWW BRAND HEADER */}
         <GrowwHeader
           user={user}
-          walletBalance={wallet?.cashBalance || 295.41}
+          walletBalance={wallet?.cashBalance || 0}
           activeCategory={activeCategory}
-          onCategorySelect={(cat) => {
-            setActiveCategory(cat);
-            if (cat === 'FO') setIsTerminalMode(true);
-          }}
+          onCategorySelect={setActiveCategory}
           onOpenSearch={() => setIsSearchOpen(true)}
           onLogout={handleLogout}
           theme={theme}
           onToggleTheme={toggleTheme}
           onOpenWalletModal={() => setIsProfileModalOpen(true)}
+          onOpenSupport={() => setIsSupportModalOpen(true)}
           onNavigateView={(v) => {
             setIsTerminalMode(false);
             setActiveSubView(v);
@@ -307,6 +362,8 @@ export function App() {
               wallet={wallet}
               onRefreshWallet={fetchWallet}
               initialSymbol={terminalSymbol}
+              theme={theme}
+              onToggleTheme={toggleTheme}
             />
           ) : (
             /* STANDARD GROWW DASHBOARD VIEWS (IMAGES 1, 2, 3) */
@@ -319,6 +376,9 @@ export function App() {
                   {activeSubView === 'EXPLORE' && (
                     <GrowwExploreView
                       ticks={ticks}
+                      token={token}
+                      wallet={wallet}
+                      onRefreshWallet={fetchWallet}
                       onSelectSymbol={(sym) => {
                         setTerminalSymbol(sym);
                         setIsTerminalMode(true);
@@ -349,6 +409,18 @@ export function App() {
                   )}
 
                   {activeSubView === 'WATCHLIST' && (
+                    <GrowwWatchlistView
+                      token={token}
+                      ticks={ticks}
+                      onRefreshWallet={fetchWallet}
+                      onSelectSymbolForTerminal={(sym) => {
+                        setTerminalSymbol(sym);
+                        setIsTerminalMode(true);
+                      }}
+                    />
+                  )}
+
+                  {activeSubView === 'OPTION_CHAIN' && (
                     <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-6 shadow-xs">
                       <OptionChainView
                         token={token}
@@ -359,7 +431,25 @@ export function App() {
                   )}
 
                   {activeSubView === 'ADMIN' && (
-                    <AdminPanel token={token} />
+                    user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user.role) ? (
+                      <AdminPanel token={token} />
+                    ) : (
+                      <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto my-12 space-y-4 shadow-xl">
+                        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center mx-auto">
+                          <ShieldCheck className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-lg font-extrabold text-[var(--text-main)]">Access Denied — Client Account</h3>
+                        <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                          The Admin Control Center is strictly restricted to administrative staff and broker management teams. Client accounts do not have permission to view system controls.
+                        </p>
+                        <button
+                          onClick={() => setActiveSubView('EXPLORE')}
+                          className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl transition-colors shadow-md shadow-emerald-500/20"
+                        >
+                          Return to Trading Workspace
+                        </button>
+                      </div>
+                    )
                   )}
                 </>
               )}
@@ -372,6 +462,7 @@ export function App() {
         <GlobalSearchModal
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
+          userRole={user?.role}
           onSelectSymbol={(selectedToken, selectedSymbol) => {
             setTerminalToken(selectedToken);
             setTerminalSymbol(selectedSymbol);
@@ -388,11 +479,18 @@ export function App() {
             user={user}
             wallet={wallet}
             isOpen={isProfileModalOpen}
+            initialTab={profileInitialTab}
             onClose={() => setIsProfileModalOpen(false)}
             onLogout={handleLogout}
             onRefreshWallet={fetchWallet}
           />
         )}
+
+        <CustomerSupportModal
+          token={token}
+          isOpen={isSupportModalOpen}
+          onClose={() => setIsSupportModalOpen(false)}
+        />
 
       </div>
     </MarketSocketProvider>

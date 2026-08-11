@@ -27,9 +27,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
+          if (data.refreshToken) {
+            localStorage.setItem('refreshToken', data.refreshToken);
+          }
           onSuccess(data.token, data.user);
         } else {
-          setError(data.error?.message || 'Authentication failed');
+          const detailedErr = data.error?.fields?.map((f: any) => f.message).join('. ') || data.error?.message || 'Authentication failed';
+          setError(detailedErr);
         }
       })
       .catch(() => setError('Server connection error'));
@@ -45,7 +49,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           <h2 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[var(--text-main)] to-indigo-600 bg-clip-text text-transparent">
             TradeGrow Portal
           </h2>
-          <p className="text-xs font-semibold text-[var(--text-muted)] mt-1">Multi-User Paper Trading & Brokerage Simulation</p>
+          <p className="text-xs font-semibold text-[var(--text-muted)] mt-1">Institutional Trading & Brokerage Platform</p>
         </div>
 
         {error && (

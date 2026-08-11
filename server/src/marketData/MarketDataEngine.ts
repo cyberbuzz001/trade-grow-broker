@@ -20,7 +20,6 @@ export class MarketDataEngine {
     const angelOne = new AngelOneAdapter();
     const indianApi = new IndianStockMarketApiAdapter();
     const alphaVantage = new AlphaVantageAdapter();
-    const trueData = new TrueDataAdapter();
     const dhan = new DhanAdapter();
 
     this.providers.set(mock.name, mock);
@@ -29,13 +28,11 @@ export class MarketDataEngine {
     this.providers.set(indianApi.name, indianApi);
     this.providers.set(alphaVantage.name, alphaVantage);
     this.providers.set('ALPHAVANTAGE', alphaVantage);
-    this.providers.set(trueData.name, trueData);
-    this.providers.set('TRUEDATA', trueData);
     this.providers.set(dhan.name, dhan);
     this.providers.set('DHAN', dhan);
 
-    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'ANGELONE';
-    this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || angelOne;
+    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'DHAN';
+    this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || dhan;
 
     // Subscribe to Redis pub/sub for tick broadcasts (multi-process horizontal scaling)
     redis.subscribe('market:ticks', (msg: string) => {
@@ -90,30 +87,6 @@ export class MarketDataEngine {
 
     console.log(`[MarketDataEngine] System Startup | IST Market Hours: ${inMarketHours ? 'OPEN (9:15 AM - 3:30 PM IST)' : 'CLOSED (Off-Market / Weekend)'}`);
 
-    if (inMarketHours || allowOffMarketLive) {
-      console.log(`[MarketDataEngine] Initializing primary market data provider '${configuredProvider}' in FULL Quote Mode (Off-Market Override: ${allowOffMarketLive})...`);
-      const primary = this.providers.get(configuredProvider.toUpperCase()) || this.providers.get('TRUEDATA')!;
-      this.activeProvider = primary;
-      await this.activeProvider.initialize();
-
-      // Wait 3 seconds for primary provider to receive initial ticks
-      await new Promise(r => setTimeout(r, 3000));
-
-      if (!this.activeProvider.isHealthy()) {
-        console.warn(`[MarketDataEngine] Primary provider ${this.activeProvider.name} is unhealthy / not producing live ticks. Activating MOCK_ENGINE simulation fallback.`);
-        this.activeProvider = this.providers.get('MOCK_ENGINE')!;
-        await this.activeProvider.initialize();
-      }
-    } else {
-      console.log(`[MarketDataEngine] Off-Market Hours detected. Activating MOCK_ENGINE for 24/7 continuous paper trading & strategy testing.`);
-      this.activeProvider = this.providers.get('MOCK_ENGINE')!;
-      await this.activeProvider.initialize();
-    }
-
-    // Stop any other running adapters to prevent dual-broadcasting
-    this.stopInactiveProviders();
-
-    // Subscribe default tokens to tick updater
     const defaultTokens = [
       'NSE_NIFTY50', 'NSE_BANKNIFTY', 'BSE_SENSEX', 'NSE_FINNIFTY', 'NSE_MIDCPNIFTY',
       'NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK', 'NSE_ICICIBANK', 'NSE_TATAMOTORS',
@@ -121,8 +94,8 @@ export class MarketDataEngine {
       'NFO_NIFTY_24500_CE', 'NFO_NIFTY_24500_PE'
     ];
 
-    const attachSubscriber = () => {
-      this.activeProvider.subscribe(defaultTokens, (tick) => {
+    const attachSubscriber = (provider: IMarketDataProvider) => {
+      provider.subscribe(defaultTokens, (tick) => {
         this.tickCache.set(tick.instrumentToken, tick);
         redis.set(`tick:${tick.instrumentToken}`, JSON.stringify(tick), 3600);
         redis.publish('market:ticks', JSON.stringify(tick));
@@ -130,29 +103,14 @@ export class MarketDataEngine {
       });
     };
 
-    attachSubscriber();
+    console.log(`[MarketDataEngine] Initializing primary market data provider '${configuredProvider}' in FULL Quote Mode (Off-Market Override: ${allowOffMarketLive})...`);
+    const primary = this.providers.get(configuredProvider.toUpperCase()) || this.providers.get('DHAN')!;
+    this.activeProvider = primary;
+    await this.activeProvider.initialize();
+    attachSubscriber(this.activeProvider);
 
-    // Continuous Monitor: Manages market hours transitions & provider health failovers
-    setInterval(async () => {
-      const currentlyInMarketHours = MarketDataEngine.isMarketHours();
-      const allowOffMarketLiveCheck = process.env.ALLOW_OFF_MARKET_LIVE_DATA === 'true';
-
-      if (!currentlyInMarketHours && !allowOffMarketLiveCheck && this.activeProvider.name !== 'MOCK_ENGINE') {
-        console.log(`[MarketDataEngine] Market Hours Closed (IST). Transitioning to MOCK_ENGINE for off-market simulation.`);
-        const mock = this.providers.get('MOCK_ENGINE')!;
-        await mock.initialize();
-        this.activeProvider = mock;
-        this.stopInactiveProviders();
-        attachSubscriber();
-      } else if ((currentlyInMarketHours || allowOffMarketLiveCheck) && !this.activeProvider.isHealthy() && this.activeProvider.name !== 'MOCK_ENGINE') {
-        console.warn(`[MarketDataEngine] Active provider ${this.activeProvider.name} lost connection. Switching to MOCK_ENGINE simulation fallback.`);
-        const mock = this.providers.get('MOCK_ENGINE')!;
-        await mock.initialize();
-        this.activeProvider = mock;
-        this.stopInactiveProviders();
-        attachSubscriber();
-      }
-    }, 10000);
+    // Stop any other running adapters to prevent dual-broadcasting
+    this.stopInactiveProviders();
   }
 
   public getActiveProviderName(): string {

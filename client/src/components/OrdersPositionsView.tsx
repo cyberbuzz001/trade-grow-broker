@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Filter, CheckCircle2, XCircle, Clock, TrendingUp, TrendingDown, Zap, PieChart, Layers, DollarSign } from 'lucide-react';
+import { RefreshCw, Filter, CheckCircle2, XCircle, Clock, TrendingUp, TrendingDown, Zap, PieChart, Layers, DollarSign, Search, MoreVertical, Sliders, ShieldCheck, Check, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useMarketSocket, useSubscribeTokens } from '../hooks/useMarketSocket';
 
 interface OrdersPositionsViewProps {
@@ -75,7 +75,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return avgPrice;
   };
 
-  const [positionStatusFilter, setPositionStatusFilter] = useState<'OPEN' | 'CLOSED' | 'ALL'>('OPEN');
+  const [positionStatusFilter, setPositionStatusFilter] = useState<'OPEN' | 'CLOSED' | 'ALL'>('ALL');
 
   const fetchData = () => {
     setLoading(true);
@@ -85,7 +85,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
         if (data.success && Array.isArray(data.orders)) setOrders(data.orders);
       });
 
-    fetch('/api/v1/portfolio/positions', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/api/v1/portfolio/positions?todayOnly=true', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.positions)) {
@@ -102,12 +102,32 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
       .catch(() => setLoading(false));
   };
 
+  const handleClearOldPositions = () => {
+    setLoading(true);
+    fetch('/api/v1/portfolio/positions/clear', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.positions)) {
+          setPositions(data.positions);
+          setActionMessage("Cleared yesterday's positions.");
+          setTimeout(() => setActionMessage(null), 3000);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(fetchData, 2000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const handleCancelOrder = async (orderId: string) => {
@@ -120,12 +140,11 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
       if (data.success) {
         setActionMessage(`Order ${orderId} cancelled.`);
         fetchData();
-        if (onRefreshWallet) onRefreshWallet();
       } else {
-        setActionMessage(`Cancel failed: ${data.error?.message}`);
+        setActionMessage(`Failed to cancel: ${data.error?.message || 'Unknown'}`);
       }
-    } catch (err: any) {
-      setActionMessage(`Cancel error: ${err.message}`);
+    } catch (_) {
+      setActionMessage('Failed to cancel order.');
     }
   };
 
@@ -170,13 +189,12 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
   };
 
   const isTodayOrder = (o: any) => {
-    const ts = o.created_at || o.createdAt;
-    if (!ts) return true;
-    const d = new Date(ts);
+    if (!o.createdAt && !o.created_at) return true;
+    const dt = new Date(o.createdAt || o.created_at);
     const today = new Date();
-    return d.getFullYear() === today.getFullYear() &&
-           d.getMonth() === today.getMonth() &&
-           d.getDate() === today.getDate();
+    return dt.getDate() === today.getDate() &&
+           dt.getMonth() === today.getMonth() &&
+           dt.getFullYear() === today.getFullYear();
   };
 
   const filteredOrders = orders
@@ -194,7 +212,16 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return qty === 0;
   });
 
-  const filteredPositions = positions.filter((p: any) => {
+  // Sort positions so OPEN positions are on top, CLOSED positions are on bottom
+  const sortedPositions = [...positions].sort((a, b) => {
+    const qtyA = a.netQty !== undefined ? a.netQty : (a.net_qty !== undefined ? parseInt(a.net_qty, 10) : ((a.buyQty || 0) - (a.sellQty || 0)));
+    const qtyB = b.netQty !== undefined ? b.netQty : (b.net_qty !== undefined ? parseInt(b.net_qty, 10) : ((b.buyQty || 0) - (b.sellQty || 0)));
+    if (qtyA !== 0 && qtyB === 0) return -1;
+    if (qtyA === 0 && qtyB !== 0) return 1;
+    return 0;
+  });
+
+  const filteredPositions = sortedPositions.filter((p: any) => {
     const qty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
     if (positionStatusFilter === 'OPEN') return qty !== 0;
     if (positionStatusFilter === 'CLOSED') return qty === 0;
@@ -216,15 +243,13 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
 
   const totalPositionPnl = totalUnrealizedPnl + totalRealizedPnl;
 
-  const totalHoldingValue = holdings.reduce((acc, h) => acc + ((h.quantity || 0) * getLiveLtp(h)), 0);
-  const totalHoldingCost = holdings.reduce((acc, h) => acc + ((h.quantity || 0) * (parseFloat(h.averagePrice || h.average_price || 0))), 0);
-  const totalHoldingPnl = totalHoldingValue - totalHoldingCost;
-  const holdingReturnPct = totalHoldingCost > 0 ? ((totalHoldingPnl / totalHoldingCost) * 100) : 0;
-
   return (
-    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-1">
-      {/* TOOLBAR & TAB SWITCHER */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-surface)] border border-[var(--border-color)] p-4 rounded-2xl shadow-sm">
+    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-1 pb-28 select-none">
+      
+      {/* ------------------------------------------------------------ */}
+      {/* DESKTOP TOOLBAR & TAB SWITCHER */}
+      {/* ------------------------------------------------------------ */}
+      <div className="hidden md:flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-surface)] border border-[var(--border-color)] p-4 rounded-2xl shadow-sm font-headline">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl text-xs font-bold">
             <button
@@ -267,7 +292,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
           {activeTab === 'POSITIONS' && (
             <div className="flex items-center gap-1 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] px-2 py-1 rounded-xl text-xs">
               <Filter className="w-3.5 h-3.5 text-[var(--text-tertiary)] mr-1" />
-              {(['OPEN', 'CLOSED', 'ALL'] as const).map(pf => (
+              {(['ALL', 'OPEN', 'CLOSED'] as const).map(pf => (
                 <button
                   key={pf}
                   onClick={() => setPositionStatusFilter(pf)}
@@ -282,12 +307,80 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
           )}
         </div>
 
-        <button
-          onClick={fetchData}
-          className="bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface)] text-[var(--text-muted)] text-xs font-bold px-3.5 py-2 rounded-xl border border-[var(--border-color)] flex items-center gap-2 transition-all"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {activeTab === 'POSITIONS' && (
+            <button
+              onClick={handleClearOldPositions}
+              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold px-3 py-2 rounded-xl border border-rose-500/30 flex items-center gap-1.5 transition-all"
+              title="Clear old positions from previous days"
+            >
+              Clear Yesterday's Positions
+            </button>
+          )}
+          <button
+            onClick={fetchData}
+            className="bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface)] text-[var(--text-muted)] text-xs font-bold px-3.5 py-2 rounded-xl border border-[var(--border-color)] flex items-center gap-2 transition-all"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------ */}
+      {/* MOBILE TOP NAVIGATION HEADER & INDEX TICKER STRIP */}
+      {/* ------------------------------------------------------------ */}
+      <div className="md:hidden bg-[#0D1117] text-white -mx-2 -mt-2 p-3 border-b border-[#1C2128]">
+        
+        {/* Mobile Header Title */}
+        <div className="flex items-center justify-between mb-3 font-headline">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setActiveTab('ORDERS')}
+              className={`text-lg font-extrabold ${activeTab === 'ORDERS' ? 'text-white border-b-2 border-[#00E676] pb-0.5' : 'text-[#8B949E]'}`}
+            >
+              Orders
+            </button>
+            <button
+              onClick={() => setActiveTab('POSITIONS')}
+              className={`text-lg font-extrabold ${activeTab === 'POSITIONS' ? 'text-white border-b-2 border-[#00E676] pb-0.5' : 'text-[#8B949E]'}`}
+            >
+              Positions
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 text-[#8B949E]">
+            <Search className="w-5 h-5" />
+            <MoreVertical className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Horizontal Mini Index Ticker Strip */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-none py-1">
+          <div className="bg-[#161B22] border border-[#30363D] px-3 py-1.5 rounded-xl flex items-center gap-2 flex-shrink-0 text-xs font-label">
+            <span className="font-bold text-white">SENSEX</span>
+            <span className="bg-[#00E676]/10 text-[#00E676] text-[9px] font-bold px-1.5 py-0.5 rounded">Expiry Tomorrow</span>
+            <span className="text-[#FF5252] font-bold tabular-nums">76,884.72 (-0.76%)</span>
+          </div>
+
+          <div className="bg-[#161B22] border border-[#30363D] px-3 py-1.5 rounded-xl flex items-center gap-2 flex-shrink-0 text-xs font-label">
+            <span className="font-bold text-white">NIFTY</span>
+            <span className="bg-purple-500/10 text-purple-400 text-[9px] font-bold px-1.5 py-0.5 rounded">Expiry Tue</span>
+            <span className="text-[#FF5252] font-bold tabular-nums">24,024.35 (-0.68%)</span>
+          </div>
+        </div>
+
+        {/* Controls Bar */}
+        <div className="flex items-center justify-between pt-3 text-xs font-headline">
+          <div className="flex items-center gap-3 text-[#8B949E]">
+            <Sliders className="w-4 h-4" />
+            <Search className="w-4 h-4" />
+          </div>
+
+          <button className="text-[#8B949E] hover:text-white text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider">
+            <ShieldCheck className="w-4 h-4 text-[#00E676]" /> SECURE EXIT
+          </button>
+        </div>
+
       </div>
 
       {actionMessage && (
@@ -297,247 +390,306 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
         </div>
       )}
 
-      {/* SUMMARY BANNER FOR POSITIONS / HOLDINGS */}
-      {activeTab === 'POSITIONS' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Net Positions P&L</span>
-            <span className={`text-xl font-extrabold num-font block mt-1 ${totalPositionPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {totalPositionPnl >= 0 ? '+' : ''}₹{totalPositionPnl.toFixed(2)}
-            </span>
-          </div>
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Unrealized P&L (Open)</span>
-            <span className={`text-xl font-extrabold num-font block mt-1 ${totalUnrealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toFixed(2)}
-            </span>
-          </div>
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Realized P&L (Booked)</span>
-            <span className={`text-xl font-extrabold num-font block mt-1 ${totalRealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {totalRealizedPnl >= 0 ? '+' : ''}₹{totalRealizedPnl.toFixed(2)}
-            </span>
-          </div>
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Active Contracts</span>
-            <span className="text-xl font-extrabold num-font text-[var(--text-main)] block mt-1">{openPositions.length} Open | {closedPositions.length} Closed</span>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'HOLDINGS' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Current Portfolio Value</span>
-            <span className="text-xl font-extrabold num-font text-[var(--text-main)] block mt-1">₹{totalHoldingValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Total Invested</span>
-            <span className="text-xl font-extrabold num-font text-[var(--text-muted)] block mt-1">₹{totalHoldingCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Total Return (₹)</span>
-            <span className={`text-xl font-extrabold num-font block mt-1 ${totalHoldingPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {totalHoldingPnl >= 0 ? '+' : ''}₹{totalHoldingPnl.toFixed(2)}
-            </span>
-          </div>
-          <div className="tg-stat-card">
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold tracking-wider block">Total Return (%)</span>
-            <span className={`text-xl font-extrabold num-font block mt-1 ${holdingReturnPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {holdingReturnPct >= 0 ? '+' : ''}{holdingReturnPct.toFixed(2)}%
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* MAIN TABLE CONTAINER */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl overflow-hidden flex-1 overflow-y-auto shadow-sm">
-        {/* 1. ORDERS BOOK TABLE */}
+      {/* MAIN CONTENT AREA */}
+      <div className="bg-[#161B22] border border-[#30363D] rounded-2xl overflow-hidden shadow-sm flex-1">
+        
+        {/* ============================================================ */}
+        {/* 1. ORDERS BOOK VIEW (FIXED: RENDERS BOTH DESKTOP & MOBILE) */}
+        {/* ============================================================ */}
         {activeTab === 'ORDERS' && (
-          <table className="w-full text-xs text-left">
-            <thead className="bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] uppercase text-[10px] sticky top-0 border-b border-[var(--border-color)] font-extrabold">
-              <tr>
-                <th className="py-3 px-4">Order ID</th>
-                <th className="py-3 px-4">Symbol</th>
-                <th className="py-3 px-4">Exchange</th>
-                <th className="py-3 px-4">Side</th>
-                <th className="py-3 px-4 text-right">Quantity</th>
-                <th className="py-3 px-4">Type</th>
-                <th className="py-3 px-4">Product</th>
-                <th className="py-3 px-4 text-right">Price (₹)</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4">Time</th>
-                <th className="py-3 px-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-light)] num-font">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-[#0D1117] text-[#8B949E] uppercase text-[10px] sticky top-0 border-b border-[#30363D] font-extrabold font-headline">
+                  <tr>
+                    <th className="py-3 px-4">Time</th>
+                    <th className="py-3 px-4">Order ID</th>
+                    <th className="py-3 px-4">Symbol</th>
+                    <th className="py-3 px-4">Side</th>
+                    <th className="py-3 px-4 text-right">Qty</th>
+                    <th className="py-3 px-4 text-right">Price (₹)</th>
+                    <th className="py-3 px-4">Type</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#30363D] font-label tabular-nums">
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="text-center py-12 text-[#8B949E] font-body">
+                        No orders recorded today.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredOrders.map(o => (
+                      <tr key={o.id || o.order_id} className="hover:bg-[#1C2128] transition-colors">
+                        <td className="py-3 px-4 text-[#8B949E]">
+                          {o.createdAt || o.created_at ? new Date(o.createdAt || o.created_at).toLocaleTimeString() : 'Today'}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-white">{o.orderId || o.order_id || o.id?.slice(0, 8)}</td>
+                        <td className="py-3 px-4 font-headline font-bold text-white">{o.symbol}</td>
+                        <td className="py-3 px-4">
+                          <span className={`font-black text-xs px-2 py-0.5 rounded ${o.side === 'BUY' ? 'bg-[#00E676]/20 text-[#00E676]' : 'bg-[#FF5252]/20 text-[#FF5252]'}`}>
+                            {o.side}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-white">{o.quantity}</td>
+                        <td className="py-3 px-4 text-right text-white">₹{parseFloat(o.price || 0).toFixed(2)}</td>
+                        <td className="py-3 px-4"><span className="bg-[#0D1117] text-[#8B949E] px-2 py-0.5 rounded border border-[#30363D]">{o.orderType || o.order_type || 'MARKET'}</span></td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                            o.status === 'FILLED' ? 'bg-[#00E676]/20 text-[#00E676]' :
+                            o.status === 'REJECTED' ? 'bg-[#FF5252]/20 text-[#FF5252]' :
+                            o.status === 'CANCELLED' ? 'bg-slate-500/20 text-slate-400' : 'bg-amber-500/20 text-amber-400'
+                          }`}>
+                            {o.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {(o.status === 'ACCEPTED' || o.status === 'PENDING') && (
+                            <button
+                              onClick={() => handleCancelOrder(o.id || o.order_id)}
+                              className="text-xs text-[#FF5252] hover:underline font-bold"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Order Cards View */}
+            <div className="md:hidden flex flex-col divide-y divide-[#30363D]/40 bg-[#0D1117]">
               {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="text-center py-12 text-[var(--text-tertiary)] font-sans">No orders found matching criteria.</td>
-                </tr>
+                <div className="text-center py-12 text-[#8B949E] text-xs font-body">No orders recorded today.</div>
               ) : (
                 filteredOrders.map(o => (
-                  <tr key={o.id || o.order_id} className="hover:bg-[var(--bg-surface-elevated)] transition-colors">
-                    <td className="py-3 px-4 text-[var(--text-tertiary)] text-[11px]">{o.order_id || o.id}</td>
-                    <td className="py-3 px-4 font-sans font-extrabold text-[var(--text-main)] text-sm">{o.symbol}</td>
-                    <td className="py-3 px-4"><span className="bg-[var(--bg-surface-elevated)] text-indigo-500 font-sans text-[10px] px-2 py-0.5 rounded-md font-bold border border-[var(--border-color)]">{o.exchange || 'NSE'}</span></td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-extrabold font-sans uppercase ${o.side === 'BUY' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
-                        {o.side}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-bold text-[var(--text-main)]">{o.quantity}</td>
-                    <td className="py-3 px-4 text-[var(--text-muted)] font-sans text-[11px]">{o.order_type || o.orderType}</td>
-                    <td className="py-3 px-4 text-[var(--text-muted)] font-sans text-[11px]">{o.product_type || o.productType || 'MIS'}</td>
-                    <td className="py-3 px-4 text-right text-emerald-500 font-bold">₹{parseFloat(o.price || 0) > 0 ? parseFloat(o.price).toFixed(2) : 'MKT'}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold font-sans uppercase ${
-                        o.status === 'FILLED' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' :
-                        o.status === 'ACCEPTED' || o.status === 'PENDING' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
-                        'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border border-[var(--border-color)]'
+                  <div key={o.id || o.order_id} className="p-4 flex flex-col gap-2 bg-[#161B22] border-b border-[#30363D]/40">
+                    <div className="flex items-center justify-between font-headline">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded font-black text-xs ${
+                          o.side === 'BUY' ? 'bg-[#00E676]/20 text-[#00E676]' : 'bg-[#FF5252]/20 text-[#FF5252]'
+                        }`}>
+                          {o.side}
+                        </span>
+                        <span className="font-bold text-sm text-white">{o.symbol}</span>
+                      </div>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        o.status === 'FILLED' ? 'bg-[#00E676]/20 text-[#00E676]' :
+                        o.status === 'REJECTED' ? 'bg-[#FF5252]/20 text-[#FF5252]' :
+                        o.status === 'CANCELLED' ? 'bg-slate-500/20 text-slate-400' : 'bg-amber-500/20 text-amber-400'
                       }`}>
                         {o.status}
                       </span>
-                    </td>
-                    <td className="py-3 px-4 text-[var(--text-muted)] text-[11px]">{new Date(o.created_at || Date.now()).toLocaleTimeString()}</td>
-                    <td className="py-3 px-4 text-right">
-                      {(o.status === 'ACCEPTED' || o.status === 'PENDING') && (
-                        <button
-                          onClick={() => handleCancelOrder(o.order_id || o.id)}
-                          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold px-3 py-1 rounded-lg transition-all"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </td>
-                  </tr>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-label text-[#8B949E] pt-1">
+                      <div>Qty: <strong className="text-white">{o.quantity}</strong> ({o.productType || o.product_type || 'MIS'})</div>
+                      <div className="tabular-nums">Price: <strong className="text-white">₹{parseFloat(o.price || 0).toFixed(2)}</strong></div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-[#8B949E] pt-1 border-t border-[#30363D]/30 font-mono">
+                      <span>ID: #{o.orderId || o.order_id || o.id?.slice(0, 8)}</span>
+                      <span>{o.createdAt || o.created_at ? new Date(o.createdAt || o.created_at).toLocaleTimeString() : 'Today'}</span>
+                    </div>
+                  </div>
                 ))
               )}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
 
-        {/* 2. POSITIONS TABLE */}
+        {/* ============================================================ */}
+        {/* 2. POSITIONS LIST */}
+        {/* ============================================================ */}
         {activeTab === 'POSITIONS' && (
-          <table className="w-full text-xs text-left">
-            <thead className="bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] uppercase text-[10px] sticky top-0 border-b border-[var(--border-color)] font-extrabold">
-              <tr>
-                <th className="py-3 px-4">Symbol</th>
-                <th className="py-3 px-4">Product</th>
-                <th className="py-3 px-4 text-right">Net Qty</th>
-                <th className="py-3 px-4 text-right">Avg Price (₹)</th>
-                <th className="py-3 px-4 text-right">LTP / Exit (₹)</th>
-                <th className="py-3 px-4 text-right">Unrealized P&L (₹)</th>
-                <th className="py-3 px-4 text-right">Realized P&L (₹)</th>
-                <th className="py-3 px-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-light)] num-font">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-[#0D1117] text-[#8B949E] uppercase text-[10px] sticky top-0 border-b border-[#30363D] font-extrabold font-headline">
+                  <tr>
+                    <th className="py-3 px-4">Instrument</th>
+                    <th className="py-3 px-4">Product</th>
+                    <th className="py-3 px-4 text-right">Net Qty</th>
+                    <th className="py-3 px-4 text-right">Avg Price (₹)</th>
+                    <th className="py-3 px-4 text-right">Live LTP (₹)</th>
+                    <th className="py-3 px-4 text-right">Unrealized P&L</th>
+                    <th className="py-3 px-4 text-right">Realized P&L</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#30363D] font-label tabular-nums">
+                  {filteredPositions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-12 text-[#8B949E] font-body">No positions found.</td>
+                    </tr>
+                  ) : (
+                    filteredPositions.map(p => {
+                      const netQty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
+                      const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
+                      const ltp = getLiveLtp(p);
+                      const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : netQty < 0 ? Math.abs(netQty) * (avgPrice - ltp) : 0;
+                      const realizedPnl = parseFloat(p.realizedPnl || p.realized_pnl || 0);
+
+                      return (
+                        <tr key={p.id || p.symbol} className="hover:bg-[#1C2128] transition-colors">
+                          <td className="py-3 px-4 font-headline font-bold text-white text-sm">
+                            {p.symbol}
+                            {netQty === 0 && (
+                              <span className="ml-2 text-[9px] bg-slate-500/20 text-slate-400 px-1.5 py-0.5 rounded border border-slate-500/20 font-mono">
+                                CLOSED
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4"><span className="bg-[#0D1117] text-amber-500 text-[10px] px-2 py-0.5 rounded font-bold border border-[#30363D]">{p.productType || p.product_type || 'MIS'}</span></td>
+                          <td className={`py-3 px-4 text-right font-bold ${netQty > 0 ? 'text-[#00E676]' : (netQty < 0 ? 'text-[#FF5252]' : 'text-[#8B949E]')}`}>
+                            {netQty > 0 ? `+${netQty}` : netQty}
+                          </td>
+                          <td className="py-3 px-4 text-right text-white">₹{avgPrice.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-white">₹{ltp.toFixed(2)}</td>
+                          <td className={`py-3 px-4 text-right font-bold ${unrealizedPnl >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                            {netQty !== 0 ? `${unrealizedPnl >= 0 ? '+' : ''}₹${unrealizedPnl.toFixed(2)}` : '₹0.00'}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-bold ${realizedPnl >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                            {realizedPnl !== 0 ? `${realizedPnl >= 0 ? '+' : ''}₹${realizedPnl.toFixed(2)}` : '₹0.00'}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {netQty !== 0 ? (
+                              <button
+                                onClick={() => handleSquareOffPosition(p)}
+                                className="bg-[#FF5252] hover:bg-rose-600 text-white text-[10px] font-bold px-3 py-1 rounded transition-all shadow-sm"
+                              >
+                                Square Off
+                              </button>
+                            ) : (
+                              <span className="bg-[#0D1117] text-[#8B949E] text-[10px] font-bold px-2.5 py-1 rounded border border-[#30363D] uppercase">
+                                Squared Off
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Positions List (Dark Open / Light Closed) */}
+            <div className="md:hidden flex flex-col divide-y divide-[#30363D]/40 bg-[#0D1117]">
               {filteredPositions.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-12 text-[var(--text-tertiary)] font-sans">No {positionStatusFilter.toLowerCase()} positions in portfolio.</td>
-                </tr>
+                <div className="text-center py-12 text-[#8B949E] text-xs">No positions in portfolio.</div>
               ) : (
                 filteredPositions.map(p => {
                   const netQty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
+                  const isOpen = netQty !== 0;
                   const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
                   const ltp = getLiveLtp(p);
-                  const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : netQty < 0 ? Math.abs(netQty) * (avgPrice - ltp) : 0;
+                  const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : Math.abs(netQty) * (avgPrice - ltp);
                   const realizedPnl = parseFloat(p.realizedPnl || p.realized_pnl || 0);
+                  const displayPnl = isOpen ? unrealizedPnl : realizedPnl;
+                  const isGain = displayPnl >= 0;
+
+                  const buyAvg = parseFloat(p.buyAvgPrice || p.buy_price || avgPrice);
+                  const sellAvg = parseFloat(p.sellAvgPrice || p.sell_price || (isOpen ? ltp : avgPrice));
 
                   return (
-                    <tr key={p.id || p.symbol} className="hover:bg-[var(--bg-surface-elevated)] transition-colors">
-                      <td className="py-3 px-4 font-sans font-extrabold text-[var(--text-main)] text-sm">
-                        {p.symbol}
-                        {netQty === 0 && (
-                          <span className="ml-2 text-[9px] font-sans font-extrabold bg-slate-500/10 text-slate-400 px-1.5 py-0.5 rounded border border-slate-500/20">
-                            CLOSED
+                    <div
+                      key={p.id || p.symbol}
+                      className={`p-4 flex flex-col gap-1.5 transition-all ${
+                        isOpen
+                          ? 'bg-[#161B22] border-l-4 border-l-[#00E676] shadow-sm'
+                          : 'bg-[#161B22]/40 opacity-60 border-l-2 border-l-slate-600'
+                      }`}
+                    >
+                      {/* Line 1: Symbol Name & Total P&L */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-headline font-bold text-sm tracking-tight ${
+                            isOpen ? 'text-white font-extrabold' : 'text-slate-400 font-semibold'
+                          }`}>
+                            {p.symbol}
                           </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4"><span className="bg-[var(--bg-surface-elevated)] text-amber-500 font-sans text-[10px] px-2 py-0.5 rounded-md font-bold border border-[var(--border-color)]">{p.productType || p.product_type || 'MIS'}</span></td>
-                      <td className={`py-3 px-4 text-right font-bold ${netQty > 0 ? 'text-emerald-500' : (netQty < 0 ? 'text-rose-500' : 'text-[var(--text-muted)]')}`}>
-                        {netQty > 0 ? `+${netQty}` : netQty}
-                      </td>
-                      <td className="py-3 px-4 text-right text-[var(--text-main)]">₹{avgPrice.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-right font-bold text-[var(--text-main)]">₹{ltp.toFixed(2)}</td>
-                      <td className={`py-3 px-4 text-right font-bold ${unrealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {netQty !== 0 ? `${unrealizedPnl >= 0 ? '+' : ''}₹${unrealizedPnl.toFixed(2)}` : '₹0.00'}
-                      </td>
-                      <td className={`py-3 px-4 text-right font-bold ${realizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {realizedPnl !== 0 ? `${realizedPnl >= 0 ? '+' : ''}₹${realizedPnl.toFixed(2)}` : '₹0.00'}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {netQty !== 0 ? (
+                          {!isOpen && (
+                            <span className="text-[9px] bg-slate-500/20 text-slate-400 px-1.5 py-0.5 rounded font-extrabold font-mono">
+                              CLOSED
+                            </span>
+                          )}
+                        </div>
+
+                        <div className={`font-label font-bold text-sm tabular-nums ${
+                          isOpen
+                            ? (isGain ? 'text-[#00E676]' : 'text-[#FF5252]')
+                            : (isGain ? 'text-[#00E676]/70' : 'text-[#FF5252]/70')
+                        }`}>
+                          {isGain ? '+' : ''}₹{displayPnl.toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Line 2: Qty / Lots & LTP */}
+                      <div className="flex items-center justify-between text-xs font-label text-[#8B949E]">
+                        <div>
+                          <span>{Math.abs(netQty)} {Math.abs(netQty) === 1 ? 'Lot' : 'Lots'} • {p.productType || p.product_type || 'CF'}</span>
+                        </div>
+                        <div className="tabular-nums">
+                          <span>LTP ₹{ltp.toFixed(2)}</span>
+                          <span className="ml-1 text-[11px]">({isGain ? '+' : ''}{((displayPnl / (Math.abs(netQty || 1) * avgPrice || 1)) * 100).toFixed(2)}%)</span>
+                        </div>
+                      </div>
+
+                      {/* Line 3: Buy Price & Sell Price */}
+                      <div className="flex items-center justify-between text-xs font-label text-[#8B949E] pt-1">
+                        <div>Buy ₹{buyAvg.toFixed(2)}</div>
+                        <div>Sell ₹{sellAvg.toFixed(2)}</div>
+                      </div>
+
+                      {/* Square Off Button for Open Positions */}
+                      {isOpen && (
+                        <div className="pt-2 flex justify-end">
                           <button
                             onClick={() => handleSquareOffPosition(p)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-3 py-1 rounded-lg transition-all shadow-md shadow-rose-600/20"
+                            className="bg-[#FF5252] hover:bg-rose-600 text-white font-headline font-bold text-xs px-3 py-1 rounded-lg shadow-sm transition-all"
                           >
                             Square Off
                           </button>
-                        ) : (
-                          <span className="bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] text-[10px] font-extrabold px-2.5 py-1 rounded-lg border border-[var(--border-color)] font-sans uppercase">
-                            Squared Off
-                          </span>
-                        )}
-                      </td>
-                    </tr>
+                        </div>
+                      )}
+                    </div>
                   );
                 })
               )}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
 
-        {/* 3. HOLDINGS TABLE */}
-        {activeTab === 'HOLDINGS' && (
-          <table className="w-full text-xs text-left">
-            <thead className="bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] uppercase text-[10px] sticky top-0 border-b border-[var(--border-color)] font-extrabold">
-              <tr>
-                <th className="py-3 px-4">Symbol</th>
-                <th className="py-3 px-4 text-right">Qty</th>
-                <th className="py-3 px-4 text-right">Avg Cost (₹)</th>
-                <th className="py-3 px-4 text-right">Current Price (₹)</th>
-                <th className="py-3 px-4 text-right">Current Value (₹)</th>
-                <th className="py-3 px-4 text-right">P&L (₹)</th>
-                <th className="py-3 px-4 text-right">Return (%)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-light)] num-font">
-              {holdings.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-[var(--text-tertiary)] font-sans">No demat holdings in portfolio.</td>
-                </tr>
-              ) : (
-                holdings.map(h => {
-                  const qty = h.quantity || 0;
-                  const avgPrice = h.averagePrice || h.average_price || 0;
-                  const curPrice = h.currentPrice || h.ltp || avgPrice;
-                  const invested = qty * avgPrice;
-                  const curValue = qty * curPrice;
-                  const pnl = h.pnl ?? (curValue - invested);
-                  const returnPct = invested > 0 ? (pnl / invested) * 100 : 0;
-                  return (
-                    <tr key={h.id || h.symbol} className="hover:bg-[var(--bg-surface-elevated)] transition-colors">
-                      <td className="py-3 px-4 font-sans font-extrabold text-[var(--text-main)] text-sm">{h.symbol}</td>
-                      <td className="py-3 px-4 text-right font-bold text-[var(--text-main)]">{qty}</td>
-                      <td className="py-3 px-4 text-right text-[var(--text-main)]">₹{avgPrice.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-right font-bold text-emerald-500">₹{curPrice.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-right text-[var(--text-main)] font-bold">₹{curValue.toFixed(2)}</td>
-                      <td className={`py-3 px-4 text-right font-bold ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(2)}
-                      </td>
-                      <td className={`py-3 px-4 text-right font-bold ${returnPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        )}
       </div>
+
+      {/* STICKY BOTTOM TOTAL FOOTER BAR */}
+      {activeTab === 'POSITIONS' && (
+        <div className="md:hidden fixed bottom-14 left-0 right-0 bg-[#161B22]/95 backdrop-blur-md border-t border-[#30363D] p-3 flex items-center justify-between z-40 px-4 shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-[#00E676] text-[#0D1117] flex items-center justify-center font-black text-xs">
+              ✓
+            </span>
+            <span className="font-headline font-bold text-sm text-white">Total</span>
+          </div>
+
+          <div className={`font-headline font-black text-base tabular-nums flex items-center gap-1 ${
+            totalPositionPnl >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'
+          }`}>
+            <span>{totalPositionPnl >= 0 ? '+' : ''}₹{totalPositionPnl.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span>▲</span>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

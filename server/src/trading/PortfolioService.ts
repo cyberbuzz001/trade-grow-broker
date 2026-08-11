@@ -229,9 +229,16 @@ export class PortfolioService {
     }
   }
 
-  public static async getUserPositions(userId: string): Promise<PositionRecord[]> {
-    const rows = await query<any>('SELECT * FROM positions WHERE user_id = $1 ORDER BY updated_at DESC', [userId]);
+  public static async getUserPositions(userId: string, todayOnly: boolean = true): Promise<PositionRecord[]> {
+    let sql = 'SELECT * FROM positions WHERE user_id = $1';
+    if (todayOnly) {
+      sql += " AND (net_qty != 0 OR updated_at >= (NOW() AT TIME ZONE 'Asia/Kolkata')::date)";
+    }
+    sql += ' ORDER BY updated_at DESC';
+
+    const rows = await query<any>(sql, [userId]);
     const engine = MarketDataEngine.getInstance();
+    const { GreeksEngine } = require('../marketData/GreeksEngine');
 
     return rows.map(r => {
       const symbol = r.symbol || '';
@@ -241,19 +248,41 @@ export class PortfolioService {
                  engine.getCachedTick(symbol);
 
       if (!tick) {
-        const mNifty = symbol.match(/NIFTY(\d+)(CE|PE)/i);
-        if (mNifty) tick = engine.getCachedTick(`NFO_NIFTY_${mNifty[1]}_${mNifty[2].toUpperCase()}`);
-        const mSensex = symbol.match(/SENSEX(\d+)(CE|PE)/i);
-        if (mSensex) tick = engine.getCachedTick(`BFO_SENSEX_${mSensex[1]}_${mSensex[2].toUpperCase()}`);
+        const mNifty = symbol.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
+        if (mNifty) {
+          tick = engine.getCachedTick(`NFO_NIFTY_${mNifty[1]}_${mNifty[2].toUpperCase()}`);
+        }
+        const mSensex = symbol.match(/SENSEX\s*(\d+)\s*(CE|PE)/i);
+        if (mSensex) {
+          tick = engine.getCachedTick(`BFO_SENSEX_${mSensex[1]}_${mSensex[2].toUpperCase()}`);
+        }
       }
 
-      const ltp = tick && tick.ltp > 0 ? tick.ltp : parseFloat(r.ltp || r.average_price || 0);
+      let ltp = tick && tick.ltp > 0 ? tick.ltp : parseFloat(r.ltp || r.average_price || 0);
+
+      // Fallback: If option position and no direct tick, compute live BS price anchored to live spot tick
+      if ((!tick || tick.ltp <= 0) && ltp <= 0) {
+        const mNifty = symbol.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
+        if (mNifty) {
+          const strike = parseFloat(mNifty[1]);
+          const isCall = mNifty[2].toUpperCase() === 'CE';
+          const spotTick = engine.getCachedTick('NSE_NIFTY50');
+          if (spotTick && spotTick.ltp > 0) {
+            const timeToExpiryYears = 1.0 / 365.0;
+            const bsPrice = GreeksEngine.calculateOptionPrice(spotTick.ltp, strike, timeToExpiryYears, isCall, 0.14);
+            ltp = Number(bsPrice.toFixed(2));
+          }
+        }
+      }
+
       const netQty = parseInt(r.net_qty, 10);
       const averagePrice = parseFloat(r.average_price);
-      
+
       const unrealizedPnl = netQty > 0
         ? netQty * (ltp - averagePrice)
-        : Math.abs(netQty) * (averagePrice - ltp);
+        : netQty < 0
+        ? Math.abs(netQty) * (averagePrice - ltp)
+        : 0;
 
       return {
         id: r.id,
@@ -272,6 +301,14 @@ export class PortfolioService {
         unrealizedPnl
       };
     });
+  }
+
+  public static async clearOldPositions(userId: string): Promise<void> {
+    // Square off / delete past closed positions and reset overnight demo positions for fresh day trading
+    await query(
+      `DELETE FROM positions WHERE user_id = $1 AND (net_qty = 0 OR updated_at < (NOW() AT TIME ZONE 'Asia/Kolkata')::date)`,
+      [userId]
+    );
   }
 
   public static async getUserHoldings(userId: string): Promise<HoldingRecord[]> {

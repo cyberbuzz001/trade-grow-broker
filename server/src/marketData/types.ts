@@ -1,4 +1,4 @@
-export type TickSource = 'live' | 'guard_feed' | 'synthetic_skew' | 'cached_stale' | 'market_closed';
+export type TickSource = 'live' | 'guard_feed' | 'synthetic_skew' | 'cached_stale' | 'market_closed' | 'dhan' | 'angelone' | 'truedata' | 'alphavantage';
 
 export interface MarketTick {
   instrumentToken: string;

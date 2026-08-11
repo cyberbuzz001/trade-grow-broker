@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Sun, Moon, LogOut, ChevronRight, Wallet, Receipt, Building2, Headset, FileText, Settings, ShieldCheck } from 'lucide-react';
 import { User } from '../types';
+import { SubView } from './GrowwSubNav';
 
 interface GrowwHeaderProps {
   user: User;
@@ -12,7 +13,8 @@ interface GrowwHeaderProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenWalletModal?: () => void;
-  onNavigateView: (view: 'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'ADMIN') => void;
+  onNavigateView: (view: SubView) => void;
+  onOpenSupport?: () => void;
 }
 
 export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
@@ -26,6 +28,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
   onToggleTheme,
   onOpenWalletModal,
   onNavigateView,
+  onOpenSupport,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -50,79 +53,52 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
       
       {/* 1. BRAND LOGO & CATEGORY TABS */}
       <div className="flex items-center gap-8">
-        {/* Groww-styled Gradient Logo */}
+        {/* Trade Grow — Trending Arrow + Sprout Logo */}
         <div 
           className="flex items-center gap-2.5 cursor-pointer group"
           onClick={() => onCategorySelect('STOCKS')}
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-400 via-teal-400 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
-            <svg className="w-5 h-5 text-white fill-current" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-md shadow-emerald-500/30 group-hover:scale-105 transition-transform">
+            {/* Trade Grow Logo: Upward arrow with sprout leaf */}
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Upward trending arrow */}
+              <path d="M4 18 L10 10 L14 14 L20 6" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              {/* Sprout/leaf on the arrow peak */}
+              <path d="M18 4 C18 4 22 4 22 8 C22 8 18 8 18 4Z" fill="#A7F3D0" opacity="0.9"/>
+              {/* Arrow head */}
+              <polyline points="16,6 20,6 20,10" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <span className="font-extrabold text-xl tracking-tight text-slate-800 dark:text-white hidden sm:inline-block">
-            Groww
-          </span>
+          <div className="flex flex-col">
+            <span className="font-extrabold text-xl tracking-tight text-[var(--text-main)] hidden sm:inline-block font-headline">
+              Trade<span className="text-[#00E676]">Grow</span>
+            </span>
+            <span className="text-[10px] text-[#00E676] font-bold -mt-1 hidden sm:inline-block font-mono">
+              SMART TRADING PLATFORM
+            </span>
+          </div>
         </div>
 
-        {/* Category Selector Tabs */}
-        <div className="flex items-center gap-6 text-sm font-bold">
-          <button
-            onClick={() => onCategorySelect('STOCKS')}
-            className={`transition-colors relative py-4 ${
-              activeCategory === 'STOCKS'
-                ? 'text-[var(--groww-green)] font-extrabold'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-            }`}
-          >
-            Stocks
-            {activeCategory === 'STOCKS' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--groww-green)] rounded-t-md" />
-            )}
-          </button>
-
-          <button
-            onClick={() => onCategorySelect('FO')}
-            className={`transition-colors relative py-4 ${
-              activeCategory === 'FO'
-                ? 'text-[var(--groww-green)] font-extrabold'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-            }`}
-          >
-            F&O
-            {activeCategory === 'FO' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--groww-green)] rounded-t-md" />
-            )}
-          </button>
-
-          <button
-            onClick={() => onCategorySelect('MUTUAL_FUNDS')}
-            className={`transition-colors relative py-4 ${
-              activeCategory === 'MUTUAL_FUNDS'
-                ? 'text-[var(--groww-green)] font-extrabold'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-            }`}
-          >
-            Mutual Funds
-            {activeCategory === 'MUTUAL_FUNDS' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--groww-green)] rounded-t-md" />
-            )}
-          </button>
-
-          <button
-            onClick={() => onCategorySelect('COMMODITIES')}
-            className={`transition-colors relative py-4 ${
-              activeCategory === 'COMMODITIES'
-                ? 'text-[var(--groww-green)] font-extrabold'
-                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-            }`}
-          >
-            MCX Commodities
-            {activeCategory === 'COMMODITIES' && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--groww-green)] rounded-t-md" />
-            )}
-          </button>
-        </div>
+        {/* Category Navigation Tabs */}
+        <nav className="hidden lg:flex items-center gap-1">
+          {[
+            { id: 'STOCKS', label: 'Stocks' },
+            { id: 'FO', label: 'F&O' },
+            { id: 'COMMODITIES', label: 'Commodities' }
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => onCategorySelect(cat.id as any)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeCategory === cat.id
+                  ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/30'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)]'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {/* 2. SEARCH BAR (CENTER) */}
@@ -133,7 +109,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         >
           <div className="flex items-center gap-2.5">
             <Search className="w-4 h-4 text-slate-400" />
-            <span>Search Groww...</span>
+            <span>Search Trade Grow...</span>
           </div>
           <kbd className="bg-[var(--bg-surface)] border border-[var(--border-color)] text-[10px] font-bold text-slate-400 px-2 py-0.5 rounded-md font-mono">
             Ctrl+K
@@ -149,6 +125,16 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
           className="md:hidden p-2 text-slate-600 dark:text-slate-300 hover:text-[var(--groww-green)]"
         >
           <Search className="w-5 h-5" />
+        </button>
+
+        {/* Theme Mode Toggle Button */}
+        <button
+          onClick={onToggleTheme}
+          className="p-2 text-[var(--text-muted)] hover:text-[var(--groww-green)] transition-colors rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center gap-1.5 text-xs font-bold"
+          title="Toggle Light / Dark Theme"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+          <span className="hidden sm:inline text-xs">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
 
         {/* Notification Bell with Badge */}
@@ -238,26 +224,41 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
                 </button>
 
                 <button
-                  onClick={() => setIsProfileOpen(false)}
+                  onClick={() => { setIsProfileOpen(false); if (onOpenSupport) onOpenSupport(); }}
                   className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <Headset className="w-4 h-4 text-slate-400" />
+                    <Headset className="w-4 h-4 text-teal-500" />
                     <span>24 x 7 Customer Support</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>
 
+                {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT'].includes(user?.role || '') && (
+                  <button
+                    onClick={() => { setIsProfileOpen(false); onNavigateView('ADMIN'); }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors font-bold"
+                  >
+                    <div className="flex items-center gap-3">
+                      <ShieldCheck className="w-4 h-4 text-rose-500" />
+                      <span>Admin Control Center</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase">
+                      {user.role}
+                    </span>
+                  </button>
+                )}
+
                 <button
-                  onClick={() => setIsProfileOpen(false)}
+                  onClick={() => { setIsProfileOpen(false); onNavigateView('HOLDINGS'); }}
                   className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <FileText className="w-4 h-4 text-slate-400" />
-                    <span>Reports</span>
+                    <span>Reports & Holdings</span>
                   </div>
                   <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-[var(--groww-green)] text-[10px] font-black">
-                    File tax
+                    Tax Reports
                   </span>
                 </button>
               </div>

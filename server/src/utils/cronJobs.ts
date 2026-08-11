@@ -1,0 +1,145 @@
+/**
+ * cronJobs.ts
+ * 
+ * Scheduled background jobs for Trade Grow.
+ * 
+ * Jobs:
+ *  - Every 30 min (Mon-Fri 7:30 AM–4:00 PM IST): Check Dhan token expiry and alert via Telegram
+ *  - 8:30 AM IST every trading day: Send morning token renewal reminder to Telegram
+ * 
+ * NOTE: This uses Node.js setInterval (lightweight, no external dep required).
+ * For production scale, consider using 'node-cron' package: npm install node-cron
+ */
+
+import { sendTelegramAlert } from './telegramAlert';
+import { getTokenExpiryMinutes, isTokenExpiringSoon } from './dhanTokenRefresh';
+
+let tokenExpiryCheckInterval: NodeJS.Timeout | null = null;
+let morningReminderTimeout: NodeJS.Timeout | null = null;
+
+/**
+ * Get milliseconds until the next occurrence of a given IST hour:minute on Mon-Fri.
+ */
+function getMsUntilISTTime(targetHour: number, targetMinute: number): number {
+  // IST = UTC+5:30
+  const nowUTC = new Date();
+  const nowIST = new Date(nowUTC.getTime() + (5.5 * 60 * 60 * 1000));
+
+  const next = new Date(nowIST);
+  next.setHours(targetHour, targetMinute, 0, 0);
+
+  if (next <= nowIST) {
+    // Already passed today — schedule for tomorrow
+    next.setDate(next.getDate() + 1);
+  }
+
+  // Skip weekends (Saturday=6, Sunday=0)
+  while (next.getDay() === 0 || next.getDay() === 6) {
+    next.setDate(next.getDate() + 1);
+  }
+
+  return next.getTime() - nowIST.getTime();
+}
+
+/**
+ * Schedule the 08:30 AM IST morning Telegram reminder to renew the Dhan token.
+ * Recursively re-schedules itself for the next trading day after firing.
+ */
+function scheduleMorningReminder(getAccessToken: () => string) {
+  const msUntilMorning = getMsUntilISTTime(8, 30);
+  const hoursUntil = (msUntilMorning / 1000 / 60 / 60).toFixed(1);
+  console.log(`[CronJobs] ⏰ Morning token reminder scheduled in ${hoursUntil}h (08:30 AM IST next trading day).`);
+
+  morningReminderTimeout = setTimeout(async () => {
+    const token = getAccessToken();
+    const minutesLeft = getTokenExpiryMinutes(token);
+    const hoursLeft = (minutesLeft / 60).toFixed(1);
+
+    if (minutesLeft <= 0) {
+      await sendTelegramAlert(
+        `🚨 <b>Trade Grow — Dhan Token EXPIRED!</b>\n\n` +
+        `❌ The Dhan access token has expired. Live market data is currently unavailable.\n\n` +
+        `🔑 Please:\n` +
+        `1. Login to <a href="https://login.dhan.co">https://login.dhan.co</a>\n` +
+        `2. Generate a new Access Token\n` +
+        `3. Call: <code>POST /api/internal/update-dhan-token</code> with the new token\n\n` +
+        `📱 Or use the Trade Grow Admin Panel → Broker Settings`
+      );
+    } else if (minutesLeft <= 120) {
+      await sendTelegramAlert(
+        `⚠️ <b>Trade Grow — Dhan Token Expiring Soon!</b>\n\n` +
+        `🕐 Token expires in: <b>${hoursLeft} hours (${minutesLeft} minutes)</b>\n\n` +
+        `🔑 Please renew before market opens:\n` +
+        `1. Login to <a href="https://login.dhan.co">https://login.dhan.co</a>\n` +
+        `2. Generate a new Access Token\n` +
+        `3. Call: <code>POST /api/internal/update-dhan-token</code>\n\n` +
+        `⚡ Token will auto-update once you call the endpoint — no server restart needed.`
+      );
+    } else {
+      await sendTelegramAlert(
+        `🌅 <b>Trade Grow — Good Morning! Daily Token Check</b>\n\n` +
+        `✅ Dhan token is valid for <b>${hoursLeft} more hours</b>.\n` +
+        `📈 Market opens at 09:15 AM IST. All systems operational.`
+      );
+    }
+
+    // Re-schedule for the next trading day
+    scheduleMorningReminder(getAccessToken);
+  }, msUntilMorning);
+}
+
+/**
+ * Start the Dhan token expiry check interval.
+ * Checks every 30 minutes. Sends an alert if token expires in <60 minutes.
+ */
+function startTokenExpiryCheck(getAccessToken: () => string) {
+  // Run immediately on start
+  const checkNow = async () => {
+    const token = getAccessToken();
+    if (!token) return;
+
+    if (isTokenExpiringSoon(token, 60)) {
+      const minutesLeft = getTokenExpiryMinutes(token);
+      console.warn(`[CronJobs] ⚠️ Dhan token expiring in ${minutesLeft} minutes! Sending Telegram alert...`);
+      await sendTelegramAlert(
+        `⚠️ <b>Trade Grow — Dhan Token Expiry Alert!</b>\n\n` +
+        `🕐 Token expires in: <b>${minutesLeft} minutes</b>\n\n` +
+        `🔑 Action required:\n` +
+        `1. Login to <a href="https://login.dhan.co">https://login.dhan.co</a>\n` +
+        `2. Copy your new Access Token\n` +
+        `3. POST to: <code>/api/internal/update-dhan-token</code>\n\n` +
+        `Body: <code>{"accessToken": "YOUR_NEW_TOKEN"}</code>`
+      );
+    } else {
+      const minutesLeft = getTokenExpiryMinutes(token);
+      if (minutesLeft > 0) {
+        console.log(`[CronJobs] ✅ Dhan token healthy. Expires in ${minutesLeft} minutes (~${(minutesLeft / 60).toFixed(1)}h).`);
+      }
+    }
+  };
+
+  checkNow();
+
+  // Check every 30 minutes
+  tokenExpiryCheckInterval = setInterval(checkNow, 30 * 60 * 1000);
+  console.log('[CronJobs] 🔄 Dhan token expiry check interval started (every 30 minutes).');
+}
+
+/**
+ * Start all cron jobs. Call this from server/src/index.ts after DhanAdapter initializes.
+ * @param getAccessToken - A function that returns the current Dhan access token (live)
+ */
+export function startCronJobs(getAccessToken: () => string) {
+  console.log('[CronJobs] 🚀 Starting Trade Grow background cron jobs...');
+  startTokenExpiryCheck(getAccessToken);
+  scheduleMorningReminder(getAccessToken);
+}
+
+/**
+ * Gracefully stop all cron jobs (for clean server shutdown).
+ */
+export function stopCronJobs() {
+  if (tokenExpiryCheckInterval) clearInterval(tokenExpiryCheckInterval);
+  if (morningReminderTimeout) clearTimeout(morningReminderTimeout);
+  console.log('[CronJobs] 🛑 All cron jobs stopped.');
+}

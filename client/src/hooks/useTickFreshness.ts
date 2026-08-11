@@ -16,8 +16,8 @@ export interface TickFreshnessData {
   source?: TickSource;
 }
 
-export const DEFAULT_STALE_THRESHOLD_MS = 5000; // 5 seconds
-export const INITIAL_TICK_TIMEOUT_MS = 10000;  // 10 seconds
+export const DEFAULT_STALE_THRESHOLD_MS = 30000; // 30 seconds
+export const INITIAL_TICK_TIMEOUT_MS = 15000;  // 15 seconds
 
 /**
  * Checks if current time is within Indian Stock Market (NSE) trading hours:
@@ -49,16 +49,17 @@ export function evaluateTickState(
   now: number = Date.now()
 ): { state: PriceState; timeSinceLastTick: number | undefined; isSynthetic: boolean; source?: TickSource } {
   const tickSource = tick?.source;
+  const tickSourceStr = (tickSource as string) || '';
   const isSynthetic = Boolean(
-    tick && (tick.isSynthetic || (tick as any).synthetic || tickSource === 'synthetic_skew' || tickSource === 'guard_feed')
+    tick && (tick.isSynthetic || (tick as any).synthetic || tickSourceStr === 'synthetic_skew' || tickSourceStr === 'mock')
   );
 
   // Explicit backend source tags take precedence
-  if (tickSource === 'market_closed') {
+  if (tickSourceStr === 'market_closed') {
     return { state: 'MARKET_CLOSED', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: false, source: tickSource };
   }
 
-  if (tickSource === 'synthetic_skew' || tickSource === 'guard_feed' || isSynthetic) {
+  if (tickSourceStr === 'synthetic_skew' || tickSourceStr === 'mock' || (isSynthetic && tickSourceStr !== 'dhan' && tickSourceStr !== 'guard_feed' && tickSourceStr !== 'live' && tickSourceStr !== 'truedata')) {
     return { state: 'SYNTHETIC', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: true, source: tickSource };
   }
 

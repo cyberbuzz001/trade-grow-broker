@@ -84,7 +84,7 @@ export class ExpiryCalendarService {
    * falling back to dynamic calendar calculation if instruments table is empty.
    */
   public async getValidExpiries(underlying: string): Promise<ExpiryCategorization> {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = this.getTodayIST();
     const cleanSym = (underlying || 'NIFTY').toUpperCase().replace(' ', '');
 
     // 1. Query active exchange instruments for non-expired expiry dates
@@ -125,21 +125,22 @@ export class ExpiryCalendarService {
    */
   public async isValidExpiry(underlying: string, expiryDate: string): Promise<boolean> {
     if (!expiryDate) return false;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.getTodayIST();
     if (expiryDate < today) return false; // Expired contract rejection
 
     const categories = await this.getValidExpiries(underlying);
     return categories.allExpiries.includes(expiryDate);
   }
 
+  private getTodayIST(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  }
+
   /**
-   * Helper to format Date object to local YYYY-MM-DD string without UTC offset shifts
+   * Helper to format Date object to IST YYYY-MM-DD string without UTC offset shifts
    */
   private formatYYYYMMDD(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
   }
 
   /**

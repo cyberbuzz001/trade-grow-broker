@@ -200,12 +200,12 @@ export const OptionStrategyBuilder: React.FC<OptionStrategyBuilderProps> = ({ to
           </div>
 
           <div className="flex bg-slate-950 border border-slate-800 rounded-lg p-1 text-xs">
-            {['NIFTY', 'BANKNIFTY'].map(u => (
+            {['NIFTY', 'SENSEX'].map(u => (
               <button
                 key={u}
                 onClick={() => {
                   setUnderlying(u);
-                  setSpotPrice(u === 'BANKNIFTY' ? 57794.08 : 24603.94);
+                  setSpotPrice(u === 'SENSEX' ? 78088.00 : 24603.94);
                 }}
                 className={`px-3 py-1 rounded font-bold transition ${underlying === u ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
               >

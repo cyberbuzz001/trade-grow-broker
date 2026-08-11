@@ -6,13 +6,15 @@ interface GlobalSearchModalProps {
   onClose: () => void;
   onSelectSymbol: (token: string, symbol: string) => void;
   onSelectTab: (view: 'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'TERMINAL' | 'OPTION_CHAIN' | 'MARKET_DEPTH' | 'PORTFOLIO' | 'SCANNER' | 'ADMIN') => void;
+  userRole?: string;
 }
 
 export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   isOpen,
   onClose,
   onSelectSymbol,
-  onSelectTab
+  onSelectTab,
+  userRole,
 }) => {
   const [query, setQuery] = useState('');
 
@@ -28,6 +30,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const isAdminUser = ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT'].includes(userRole || '');
 
   const staticInstruments = [
     { token: 'NSE_NIFTY50', symbol: 'NIFTY 50', name: 'Nifty 50 Index', exchange: 'NSE', type: 'INDEX' },

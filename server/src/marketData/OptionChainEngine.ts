@@ -66,7 +66,8 @@ export class OptionChainEngine {
     if (!expiry) {
       const { ExpiryCalendarService } = await import('../services/ExpiryCalendarService');
       const categorization = await ExpiryCalendarService.getInstance().getValidExpiries(underlying);
-      expiry = categorization.nearestExpiry || new Date().toISOString().slice(0, 10);
+      const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      expiry = categorization.nearestExpiry || todayIST;
     }
 
     const atmStrike = Math.round(spotPrice / step) * step;
@@ -75,10 +76,11 @@ export class OptionChainEngine {
     const rangeCount = params.strikeRange === '5' ? 5 : params.strikeRange === '20' ? 20 : params.strikeRange === 'ALL' ? 50 : 10;
     const isAll = params.strikeRange === 'ALL';
 
-    const expiryDate = new Date(expiry.includes('T') ? expiry : `${expiry}T23:59:59Z`);
+    const expiryDate = new Date(expiry.includes('T') ? expiry : `${expiry}T15:30:00+05:30`);
     const now = new Date();
-    const diffMs = expiryDate.getTime() - now.getTime();
-    const diffDays = Math.max(0.5, diffMs / (1000 * 60 * 60 * 24));
+    const diffMs = Math.max(0, expiryDate.getTime() - now.getTime());
+    // Use realistic weekly time-to-expiry (~2-3 days for active contracts)
+    const diffDays = Math.min(3.5, Math.max(0.5, diffMs / (1000 * 60 * 60 * 24)));
     const timeToExpiryYears = diffDays / 365.0;
 
     const filterAndSanitizeChain = (rawChain: OptionChainItem[]): OptionChainItem[] => {
@@ -95,7 +97,8 @@ export class OptionChainEngine {
       return filtered.map(item => {
         const isATM = item.strikePrice === atmStrike;
         const dist = Math.abs(item.strikePrice - atmStrike);
-        const skewIvDecimal = Math.max(0.05, 0.14 + (dist * 0.00008));
+        const baseIv = isSensex ? 0.16 : isBanknifty ? 0.15 : 0.13;
+        const skewIvDecimal = Math.max(0.05, baseIv + (dist * 0.00005));
 
         let ceLtp = item.ce?.ltp ?? 0;
         if (ceLtp <= 0) {

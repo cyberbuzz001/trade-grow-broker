@@ -113,6 +113,7 @@ export class InstrumentMasterService {
     if (this.unmappedMisses5m.length >= 20 && !this.isResyncing) {
       console.warn(`[InstrumentMasterService] Unmapped security ID misses reached ${this.unmappedMisses5m.length} in 5m. Triggering emergency Scrip Master re-sync...`);
       this.isResyncing = true;
+      this.unmappedMisses5m = [];
       void this.syncMasterData().finally(() => { this.isResyncing = false; });
     }
 

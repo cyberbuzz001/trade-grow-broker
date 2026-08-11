@@ -87,9 +87,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
   const currentLabel = navItems.find(n => n.key === activePage)?.label || 'Customer 360';
 
   return (
-    <div className="flex h-full bg-[#0a0f1e]">
-      {/* Sidebar Navigation */}
-      <div className={`flex flex-col border-r border-slate-800 bg-[#0c1222] transition-all duration-300 ${collapsed ? 'w-14' : 'w-56'}`}>
+    <div className="flex flex-col md:flex-row h-full bg-[#0a0f1e] overflow-hidden">
+      
+      {/* Mobile Top Navigation Pills Bar (< 768px) */}
+      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto p-2 bg-[#0c1222] border-b border-slate-800 shrink-0">
+        {navItems.map(item => (
+          <button
+            key={item.key}
+            onClick={() => setActivePage(item.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+              activePage === item.key
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'text-slate-400 bg-slate-800/40 border border-slate-700/30'
+            }`}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop Sidebar Navigation (>= 768px) */}
+      <div className={`hidden md:flex flex-col border-r border-slate-800 bg-[#0c1222] transition-all duration-300 ${collapsed ? 'w-14' : 'w-56'}`}>
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-3 border-b border-slate-800">
           {!collapsed && (
@@ -137,20 +156,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
         {!collapsed && (
           <div className="p-3 border-t border-slate-800">
             <div className="text-[9px] text-slate-600">
-              <span className="block">🔒 Paper Trading Engine</span>
+              <span className="block">🔒 Core Trading Engine</span>
               <span className="block">Real Money: DISABLED</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-[#0c1222]">
+        <div className="flex items-center justify-between px-3 md:px-5 py-2.5 border-b border-slate-800 bg-[#0c1222]">
           <div>
-            <h1 className="text-sm font-bold text-white">{currentLabel}</h1>
-            <span className="text-[10px] text-slate-500">Admin Control Center — Brokerage Operations</span>
+            <h1 className="text-xs md:text-sm font-bold text-white">{currentLabel}</h1>
+            <span className="text-[9px] text-slate-500 hidden sm:inline">Admin Control Center — Brokerage Operations</span>
           </div>
           <div className="flex items-center gap-2 text-[10px] text-slate-500">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -159,7 +178,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden p-5">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-5">
           {renderContent()}
         </div>
       </div>

@@ -5,12 +5,13 @@ import { z } from 'zod';
 // ---------------------------------------------------
 export const RegisterSchema = z.object({
   username: z.string()
+    .trim()
     .min(3, 'Username must be at least 3 characters')
     .max(30, 'Username must be at most 30 characters')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Username may only contain letters, numbers and underscores'),
-  email: z.string().email('Invalid email address').max(100),
+    .regex(/^[a-zA-Z0-9_ ]+$/, 'Username may contain letters, numbers, spaces and underscores'),
+  email: z.string().trim().toLowerCase().email('Invalid email address').max(100),
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
+    .min(6, 'Password must be at least 6 characters')
     .max(72, 'Password must be at most 72 characters')
 });
 

@@ -24,7 +24,7 @@ export async function seedDatabase(): Promise<void> {
   const adminPasswordHash = await argon2.hash('Admin123!', { type: argon2.argon2id });
   const userPasswordHash  = await argon2.hash('Password123!', { type: argon2.argon2id });
 
-  const defaultCapital = parseFloat(process.env.DEFAULT_VIRTUAL_CAPITAL || '1000000');
+  const defaultCapital = 0.0;
 
   await withTransaction(async (client) => {
     // 1. Seed users
