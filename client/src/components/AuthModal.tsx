@@ -8,8 +8,8 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [username, setUsername] = useState<string>('');
-  const [email, setEmail] = useState<string>('user@broker.sim');
-  const [password, setPassword] = useState<string>('Password123!');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -124,10 +124,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           </button>
         </div>
 
-        <div className="pt-4 border-t border-[var(--border-light)] text-[10px] text-[var(--text-tertiary)] text-center space-y-1">
-          <div>Demo Admin: <span className="text-[var(--text-main)] font-mono font-bold">admin@broker.sim</span> / <span className="text-[var(--text-main)] font-mono font-bold">Admin123!</span></div>
-          <div>Demo Trader: <span className="text-[var(--text-main)] font-mono font-bold">user@broker.sim</span> / <span className="text-[var(--text-main)] font-mono font-bold">Password123!</span></div>
-        </div>
       </div>
     </div>
   );
