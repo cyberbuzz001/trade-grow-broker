@@ -20,7 +20,7 @@ function createPool(): Pool {
       max: parseInt(process.env.PG_POOL_MAX || '20'),
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+      ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false
     });
   }
 
