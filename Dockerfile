@@ -31,6 +31,7 @@ COPY package.json package-lock.json ./
 RUN npm install --only=production
 
 COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/server/src/db/migrations ./server/src/db/migrations
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/docs ./docs
 
