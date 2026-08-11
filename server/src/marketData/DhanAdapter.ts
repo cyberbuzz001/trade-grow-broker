@@ -37,7 +37,7 @@ export class DhanAdapter implements IMarketDataProvider {
 
   constructor() {
     this.clientId = process.env.DHAN_CLIENT_ID || '1113019677';
-    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg2MTc4ODQ1LCJpYXQiOjE3ODYwOTI0NDUsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.wLpmaBRPip6A9sYWjiaVOXmZlqsaQd2V9zXQqSIqgOdZOn4yt2hoQ6W_eoGytYvNlgc5cazuz8uKZeYN6RXlnQ';
+    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg2NTMyODcwLCJpYXQiOjE3ODY0NDY0NzAsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.63D9Bxap-491BIBhnvi4c6y-_oUwxdAqgG6QkvsZxLuO5HlZJVkMl9x-g88saZX6n65lAfnf3gXI80oncPKGXQ';
     this.apiKey = process.env.DHAN_API_KEY || '21483ef7';
     this.apiSecret = process.env.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09';
   }
