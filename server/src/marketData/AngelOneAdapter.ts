@@ -27,8 +27,15 @@ export class AngelOneAdapter implements IMarketDataProvider {
   }
 
   public async initialize(): Promise<void> {
-    console.log('[AngelOneAdapter] Spawning Python SmartConnect live ticker process...');
+    console.log('[AngelOneAdapter] Initializing Angel One adapter (non-blocking startup)...');
     SafetyLock.assertSimulationOnly('AngelOneAdapter.initialize');
+
+    setImmediate(() => {
+      this.startServices();
+    });
+  }
+
+  private startServices(): void {
 
     // ── Locate scripts & data files ──────────────────────────────────────
     let tickerScript = path.resolve(__dirname, 'angel_ticker.py');
@@ -60,17 +67,31 @@ export class AngelOneAdapter implements IMarketDataProvider {
       fs.mkdirSync(path.dirname(this.chainFilePath), { recursive: true });
     } catch (_) {}
 
+    const pythonCmd = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
+
+    // Resolve ticks file path once
+    const ticksFilePath = possibleTicksPaths.find(p => fs.existsSync(p)) || possibleTicksPaths[0];
+
     try {
       // ── Spawn live price ticker ──────────────────────────────────────
-      this.childProc = spawn('python', [tickerScript], { env: { ...process.env }, stdio: 'inherit' });
-      this.healthy = true;
+      const hasAngelCreds = process.env.ANGEL_ONE_API_KEY || process.env.SMARTAPI_API_KEY;
+      if (hasAngelCreds && fs.existsSync(tickerScript)) {
+        this.childProc = spawn(pythonCmd, [tickerScript], { env: { ...process.env }, stdio: 'inherit' });
+        this.childProc.on('error', (err) => {
+          console.warn('[AngelOneAdapter] Ticker process error:', err.message);
+          this.healthy = false;
+        });
+        this.healthy = true;
+      } else {
+        console.log('[AngelOneAdapter] Angel One credentials not configured or script missing. Standing by.');
+        this.healthy = true;
+      }
 
-      // Poll angel_ticks.json for real-time Angel One quotes
-      this.timer = setInterval(() => {
-        const fp = possibleTicksPaths.find(p => fs.existsSync(p));
-        if (fp) {
-          try {
-            const raw = fs.readFileSync(fp, 'utf-8');
+      // Poll angel_ticks.json for real-time Angel One quotes (non-blocking)
+      this.timer = setInterval(async () => {
+        try {
+          if (fs.existsSync(ticksFilePath)) {
+            const raw = await fs.promises.readFile(ticksFilePath, 'utf-8');
             if (raw) {
               const data = JSON.parse(raw);
               const entries = Object.entries<MarketTick>(data);
@@ -83,9 +104,9 @@ export class AngelOneAdapter implements IMarketDataProvider {
                 }
               }
             }
-          } catch (e) { /* read race condition ignored */ }
-        }
-      }, 1000);
+          }
+        } catch (_) {}
+      }, 2000);
 
       // ── Spawn option chain WebSocket fetcher (angel_option_ws.py) ─────────
       const wsChainScript = fs.existsSync(path.resolve(__dirname, 'angel_option_ws.py'))
@@ -93,12 +114,15 @@ export class AngelOneAdapter implements IMarketDataProvider {
         : path.resolve(__dirname, '../../src/marketData/angel_option_ws.py');
 
       const spawnChainScript = () => {
+        if (!hasAngelCreds) {
+          console.log('[AngelOneAdapter] Angel One credentials not present — Option Chain WS running in standby mode.');
+          return;
+        }
         if (fs.existsSync(wsChainScript)) {
           console.log('[AngelOneAdapter] Spawning Option Chain WebSocket process (SmartWebSocketV2)...');
-          this.chainProc = spawn('python', [wsChainScript], { env: { ...process.env }, stdio: 'inherit' });
-          this.chainProc.on('exit', (code) => {
-            console.warn(`[AngelOneAdapter] Option chain process exited (code=${code}). Will restart in 20s...`);
-            setTimeout(spawnChainScript, 20000);
+          this.chainProc = spawn(pythonCmd, [wsChainScript], { env: { ...process.env }, stdio: 'inherit' });
+          this.chainProc.on('error', (err) => {
+            console.warn('[AngelOneAdapter] Option chain WS process error:', err.message);
           });
         } else {
           console.warn('[AngelOneAdapter] angel_option_ws.py not found — no live option chain');
@@ -108,12 +132,11 @@ export class AngelOneAdapter implements IMarketDataProvider {
       // Delay 15s so ticker auth completes first (Angel One rate-limits concurrent logins)
       setTimeout(spawnChainScript, 15000);
 
-      // Poll angel_option_chain.json every 500ms (written by angel_option_ws.py)
-      this.chainTimer = setInterval(() => {
-        const fp = possibleChainPaths.find(p => fs.existsSync(p)) || this.chainFilePath;
-        if (fs.existsSync(fp)) {
+      // Poll angel_option_chain.json every 2s (written by angel_option_ws.py)
+      this.chainTimer = setInterval(async () => {
+        if (fs.existsSync(this.chainFilePath)) {
           try {
-            const raw = fs.readFileSync(fp, 'utf-8');
+            const raw = await fs.promises.readFile(this.chainFilePath, 'utf-8');
             if (raw) {
               const parsed = JSON.parse(raw);
               this.optionChainData = parsed;
@@ -121,7 +144,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
             }
           } catch (_) {}
         }
-      }, 500);  // 500ms matches the write interval in angel_option_ws.py
+      }, 2000);
 
       // ── Start NSE OI fetcher (OI, PCR, Max Pain every 60s) ─────────────
       nseOptionChainService.start();

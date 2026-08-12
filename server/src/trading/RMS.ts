@@ -55,6 +55,25 @@ function parseExpiryToYYYYMMDD(str?: string): string | null {
 }
 
 export class RMS {
+  private static cachedRiskLimits: { maxQty: number; maxOrderVal: number; expiresAt: number } | null = null;
+
+  private static async getRiskLimits(): Promise<{ maxQty: number; maxOrderVal: number }> {
+    if (this.cachedRiskLimits && Date.now() < this.cachedRiskLimits.expiresAt) {
+      return this.cachedRiskLimits;
+    }
+    const maxQtyRow   = await queryOne<any>(`SELECT value FROM system_settings WHERE key = 'MAX_ORDER_QTY'`);
+    const maxValueRow = await queryOne<any>(`SELECT value FROM system_settings WHERE key = 'MAX_ORDER_VALUE'`);
+    const maxQty      = maxQtyRow   ? parseInt(maxQtyRow.value, 10)   : 50000;
+    const maxOrderVal = maxValueRow ? parseFloat(maxValueRow.value) : 10000000;
+
+    this.cachedRiskLimits = {
+      maxQty,
+      maxOrderVal,
+      expiresAt: Date.now() + 60000
+    };
+    return this.cachedRiskLimits;
+  }
+
   public static async validateOrder(order: RMSOrderParams): Promise<RMSValidationResult> {
     // 1. Validate quantity
     if (!order.quantity || order.quantity <= 0) {
@@ -80,11 +99,8 @@ export class RMS {
       }
     }
 
-    // 3. Fetch System Risk Limits from DB
-    const maxQtyRow   = await queryOne<any>(`SELECT value FROM system_settings WHERE key = 'MAX_ORDER_QTY'`);
-    const maxValueRow = await queryOne<any>(`SELECT value FROM system_settings WHERE key = 'MAX_ORDER_VALUE'`);
-    const maxQty      = maxQtyRow   ? parseInt(maxQtyRow.value, 10)   : 50000;
-    const maxOrderVal = maxValueRow ? parseFloat(maxValueRow.value) : 10000000;
+    // 3. Fetch System Risk Limits (Cached)
+    const { maxQty, maxOrderVal } = await this.getRiskLimits();
 
     if (order.quantity > maxQty) {
       return { passed: false, reason: `ORDER_REJECTED: Order quantity exceeds maximum allowed limit of ${maxQty}`, requiredMargin: 0 };

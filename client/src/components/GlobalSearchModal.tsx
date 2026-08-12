@@ -107,7 +107,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   const allFiltered = [...filteredStatic, ...dynamicOptions];
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-20 px-4">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-start justify-center pt-20 px-4 touch-action-manipulation">
       <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-150">
         
         {/* SEARCH INPUT BAR */}

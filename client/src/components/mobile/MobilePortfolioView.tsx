@@ -44,7 +44,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
   const totalPortfolioValue = (wallet?.cashBalance ?? 0) + totalCurrent;
 
   return (
-    <div className="pb-24 pt-4 px-4 space-y-6 font-body bg-[#0D1117] min-h-screen text-white select-none">
+    <div className="pb-24 pt-4 px-4 space-y-6 font-body bg-[#0D1117] min-h-screen text-white touch-action-manipulation">
       
       {/* 1. TOP HEADER */}
       <div className="flex items-center justify-between">

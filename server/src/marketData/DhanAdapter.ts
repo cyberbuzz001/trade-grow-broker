@@ -26,7 +26,7 @@ export class DhanAdapter implements IMarketDataProvider {
   private static DHAN_SECURITY_MAP: Record<string, { segment: string; securityId: string }> = {
     'NSE_NIFTY50': { segment: 'NSE_INDEX', securityId: '13' },
     'NSE_BANKNIFTY': { segment: 'NSE_INDEX', securityId: '25' },
-    'BSE_SENSEX': { segment: 'BSE_INDEX', securityId: '51' },
+    'BSE_SENSEX': { segment: 'IDX_I', securityId: '51' },
     'NSE_RELIANCE': { segment: 'NSE_EQ', securityId: '2885' },
     'NSE_TCS': { segment: 'NSE_EQ', securityId: '11536' },
     'NSE_INFY': { segment: 'NSE_EQ', securityId: '1594' },
@@ -371,7 +371,7 @@ export class DhanAdapter implements IMarketDataProvider {
     // Dynamic resolution based on token naming convention
     if (token.startsWith('NSE_NIFTY')) return { segment: 'NSE_INDEX', securityId: '13' };
     if (token.startsWith('NSE_BANKNIFTY')) return { segment: 'NSE_INDEX', securityId: '25' };
-    if (token.startsWith('BSE_SENSEX')) return { segment: 'BSE_INDEX', securityId: '51' };
+    if (token.startsWith('BSE_SENSEX')) return { segment: 'IDX_I', securityId: '51' };
     if (token.startsWith('NFO_')) return { segment: 'NSE_FNO', securityId: token.replace(/\D/g, '') || '54321' };
     if (token.startsWith('BFO_')) return { segment: 'BSE_FNO', securityId: token.replace(/\D/g, '') || '84321' };
     if (token.startsWith('NSE_')) return { segment: 'NSE_EQ', securityId: token.replace(/\D/g, '') || '2885' };
@@ -550,7 +550,12 @@ export class DhanAdapter implements IMarketDataProvider {
     const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
     const underlyingSeg = cleanSym === 'SENSEX' ? 'IDX_I' : 'IDX_I';
     const underlyingScrip = cleanSym === 'SENSEX' ? 51 : cleanSym === 'BANKNIFTY' ? 25 : cleanSym === 'FINNIFTY' ? 27 : 13;
-    const targetExpiry = expiry || '2026-08-11';
+    let targetExpiry = expiry ? expiry.trim() : '';
+    if (!targetExpiry) {
+      const { ExpiryCalendarService } = require('../services/ExpiryCalendarService');
+      const cat = await ExpiryCalendarService.getInstance().getValidExpiries(cleanSym);
+      targetExpiry = cat.nearestExpiry || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    }
     const cacheKey = `${cleanSym}_${targetExpiry}`;
 
     const cached = DhanAdapter.optionChainCache.get(cacheKey);
@@ -586,6 +591,31 @@ export class DhanAdapter implements IMarketDataProvider {
           const { MarketDataEngine } = require('./MarketDataEngine');
           const engine = MarketDataEngine.getInstance();
 
+          if (spot > 0) {
+            const spotToken = cleanSym === 'SENSEX' ? 'BSE_SENSEX' : `NSE_${cleanSym}`;
+            engine.setCachedTick({
+              instrumentToken: spotToken,
+              exchange: cleanSym === 'SENSEX' ? 'BSE' : 'NSE',
+              symbol: cleanSym,
+              tradingSymbol: cleanSym === 'SENSEX' ? 'BSE SENSEX' : `NSE ${cleanSym}`,
+              ltp: spot,
+              open: spot,
+              high: spot * 1.002,
+              low: spot * 0.998,
+              close: spot,
+              change: 0,
+              changePercent: 0,
+              volume: 5000000,
+              source: 'dhan_feed',
+              isSynthetic: false,
+              timestamp: Date.now()
+            });
+            this.tickCache.set(spotToken, engine.getCachedTick(spotToken)!);
+          }
+
+          const optPrefix = cleanSym === 'SENSEX' ? 'BFO' : 'NFO';
+          const optSeg = cleanSym === 'SENSEX' ? 'BSE_FNO' : 'NSE_FNO';
+
           for (const [strikeStr, strikeData] of Object.entries<any>(oc)) {
             const strikePrice = parseFloat(strikeStr);
             const ceData = strikeData.ce || {};
@@ -594,16 +624,16 @@ export class DhanAdapter implements IMarketDataProvider {
             const ceSecurityId = String(ceData.security_id || '');
             const peSecurityId = String(peData.security_id || '');
 
-            const ceToken = ceSecurityId ? `NFO_${ceSecurityId}` : `NFO_${cleanSym}_${strikePrice}_CE`;
-            const peToken = peSecurityId ? `NFO_${peSecurityId}` : `NFO_${cleanSym}_${strikePrice}_PE`;
+            const ceToken = ceSecurityId ? `${optPrefix}_${ceSecurityId}` : `${optPrefix}_${cleanSym}_${strikePrice}_CE`;
+            const peToken = peSecurityId ? `${optPrefix}_${peSecurityId}` : `${optPrefix}_${cleanSym}_${strikePrice}_PE`;
 
             if (ceSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[`NFO_${cleanSym}_${strikePrice}_CE`] = { segment: 'NSE_FNO', securityId: ceSecurityId };
-              DhanAdapter.DHAN_SECURITY_MAP[ceToken] = { segment: 'NSE_FNO', securityId: ceSecurityId };
+              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${cleanSym}_${strikePrice}_CE`] = { segment: optSeg, securityId: ceSecurityId };
+              DhanAdapter.DHAN_SECURITY_MAP[ceToken] = { segment: optSeg, securityId: ceSecurityId };
             }
             if (peSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[`NFO_${cleanSym}_${strikePrice}_PE`] = { segment: 'NSE_FNO', securityId: peSecurityId };
-              DhanAdapter.DHAN_SECURITY_MAP[peToken] = { segment: 'NSE_FNO', securityId: peSecurityId };
+              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${cleanSym}_${strikePrice}_PE`] = { segment: optSeg, securityId: peSecurityId };
+              DhanAdapter.DHAN_SECURITY_MAP[peToken] = { segment: optSeg, securityId: peSecurityId };
             }
 
             const ceLtp = Number(ceData.last_price || ceData.ltp || 0);

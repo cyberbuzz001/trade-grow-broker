@@ -27,14 +27,20 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
 
+# Install Python 3 and SmartApi dependencies for Angel One SmartConnect ticker
+RUN apk add --no-cache python3 py3-pip && \
+    pip install --no-cache-dir SmartApi-python websocket-client requests pyotp logzero --break-system-packages
+
 COPY package.json package-lock.json ./
 RUN npm install --only=production
 
 COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/server/src/marketData ./server/src/marketData
+COPY --from=builder /app/server/src/marketData ./server/dist/marketData
 COPY --from=builder /app/server/src/db/migrations ./server/src/db/migrations
 COPY --from=builder /app/client/dist ./client/dist
 COPY --from=builder /app/docs ./docs
 
 EXPOSE 5000
 
-CMD ["node", "server/dist/index.js"]
+CMD ["node", "--max-old-space-size=2048", "server/dist/index.js"]

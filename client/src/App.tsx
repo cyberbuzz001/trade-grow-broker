@@ -15,6 +15,7 @@ import { AuthModal } from './components/AuthModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { CustomerSupportModal } from './components/CustomerSupportModal';
+import { LinkPeAddFundsModal } from './components/LinkPeAddFundsModal';
 import { McxCommodityView } from './components/McxCommodityView';
 
 // GoGrow Mobile App View Components (from Frontend/mobileapp)
@@ -47,9 +48,10 @@ export function App() {
   const [ticks, setTicks] = useState<Map<string, MarketTick>>(new Map());
   
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY'>('PROFILE');
-  const [isSupportModalOpen, setIsSupportModalOpen] = useState<boolean>(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isLinkPeModalOpen, setIsLinkPeModalOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   // Detect Mobile Viewport
@@ -298,6 +300,7 @@ export function App() {
               stockName={selectedMobileStock.name}
               stockSymbol={selectedMobileStock.symbol}
               stockPrice={selectedMobileStock.price}
+              token={token}
               onConfirmSuccess={() => fetchWallet()}
             />
           )}
@@ -306,11 +309,30 @@ export function App() {
           <GlobalSearchModal
             isOpen={isSearchOpen}
             onClose={() => setIsSearchOpen(false)}
+            userRole={user?.role}
             onSelectSymbol={(selectedToken, selectedSymbol) => {
               setSelectedMobileStock({ name: selectedSymbol, symbol: selectedToken, price: 297.64 });
               setIsMobileOrderModalOpen(true);
             }}
             onSelectTab={() => {}}
+          />
+
+          {user && (
+            <UserProfileModal
+              user={user}
+              wallet={wallet}
+              isOpen={isProfileModalOpen}
+              initialTab={profileInitialTab}
+              onClose={() => setIsProfileModalOpen(false)}
+              onLogout={handleLogout}
+              onRefreshWallet={fetchWallet}
+            />
+          )}
+
+          <CustomerSupportModal
+            token={token}
+            isOpen={isSupportModalOpen}
+            onClose={() => setIsSupportModalOpen(false)}
           />
         </div>
       </MarketSocketProvider>
@@ -331,13 +353,15 @@ export function App() {
           onOpenSearch={() => setIsSearchOpen(true)}
           onLogout={handleLogout}
           theme={theme}
-          onToggleTheme={toggleTheme}
-          onOpenWalletModal={() => setIsProfileModalOpen(true)}
-          onOpenSupport={() => setIsSupportModalOpen(true)}
+          onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+          onOpenWalletModal={() => {
+            setIsLinkPeModalOpen(true);
+          }}
           onNavigateView={(v) => {
             setIsTerminalMode(false);
             setActiveSubView(v);
           }}
+          onOpenSupport={() => setIsSupportModalOpen(true)}
         />
 
         {/* 2. GROWW SUB-NAV & TICKER BAR */}
@@ -491,6 +515,15 @@ export function App() {
           isOpen={isSupportModalOpen}
           onClose={() => setIsSupportModalOpen(false)}
         />
+
+        {user && (
+          <LinkPeAddFundsModal
+            token={token}
+            isOpen={isLinkPeModalOpen}
+            onClose={() => setIsLinkPeModalOpen(false)}
+            onRefreshWallet={fetchWallet}
+          />
+        )}
 
       </div>
     </MarketSocketProvider>

@@ -31,8 +31,8 @@ export class MarketDataEngine {
     this.providers.set(dhan.name, dhan);
     this.providers.set('DHAN', dhan);
 
-    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'DHAN';
-    this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || dhan;
+    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'ANGELONE';
+    this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || angelOne;
 
     // Subscribe to Redis pub/sub for tick broadcasts (multi-process horizontal scaling)
     redis.subscribe('market:ticks', (msg: string) => {
@@ -83,7 +83,7 @@ export class MarketDataEngine {
   public async initialize(): Promise<void> {
     const inMarketHours = MarketDataEngine.isMarketHours();
     const allowOffMarketLive = process.env.ALLOW_OFF_MARKET_LIVE_DATA === 'true';
-    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'DHAN';
+    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'ANGELONE';
 
     console.log(`[MarketDataEngine] System Startup | IST Market Hours: ${inMarketHours ? 'OPEN (9:15 AM - 3:30 PM IST)' : 'CLOSED (Off-Market / Weekend)'}`);
 

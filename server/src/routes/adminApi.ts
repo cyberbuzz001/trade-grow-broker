@@ -535,6 +535,75 @@ router.post('/funds/requests/:id/reject', authenticateToken, checkRole(['SUPER_A
   }
 });
 
+// Admin-Only Payment Credentials Configuration (LinkPe UPI & Bank Account)
+router.get('/funds/payment-settings', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const keys = [
+      'LINKPE_UPI_ID', 'LINKPE_MERCHANT_NAME',
+      'MERCHANT_BANK_NAME', 'MERCHANT_ACCOUNT_NAME',
+      'MERCHANT_ACCOUNT_NUMBER', 'MERCHANT_IFSC', 'MERCHANT_BRANCH'
+    ];
+    const settingsRows = await query<any>(
+      `SELECT key, value FROM system_settings WHERE key = ANY($1)`,
+      [keys]
+    );
+
+    const settingsMap: Record<string, string> = {};
+    settingsRows.forEach(r => { settingsMap[r.key] = r.value; });
+
+    res.json({
+      success: true,
+      settings: {
+        upiId: settingsMap['LINKPE_UPI_ID'] || process.env.LINKPE_UPI_ID || 'tradegrow@upi',
+        merchantName: settingsMap['LINKPE_MERCHANT_NAME'] || process.env.LINKPE_MERCHANT_NAME || 'Trade Grow Brokerage',
+        bankName: settingsMap['MERCHANT_BANK_NAME'] || 'HDFC Bank',
+        accountName: settingsMap['MERCHANT_ACCOUNT_NAME'] || 'Trade Grow Technologies Pvt Ltd',
+        accountNumber: settingsMap['MERCHANT_ACCOUNT_NUMBER'] || '50200098765432',
+        ifscCode: settingsMap['MERCHANT_IFSC'] || 'HDFC0001234',
+        branch: settingsMap['MERCHANT_BRANCH'] || 'Mumbai Main Branch'
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/funds/payment-settings', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { upiId, merchantName, bankName, accountName, accountNumber, ifscCode, branch } = req.body;
+
+    if (!upiId || !merchantName) {
+      res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS', message: 'UPI ID and Merchant Name are required' } });
+      return;
+    }
+
+    const upsertSetting = async (key: string, val: string) => {
+      await execute(
+        `INSERT INTO system_settings (key, value, description, updated_at)
+         VALUES ($1, $2, 'Merchant Payment Receiving Setting', NOW())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [key, val]
+      );
+    };
+
+    await Promise.all([
+      upsertSetting('LINKPE_UPI_ID', upiId.trim()),
+      upsertSetting('LINKPE_MERCHANT_NAME', merchantName.trim()),
+      bankName && upsertSetting('MERCHANT_BANK_NAME', bankName.trim()),
+      accountName && upsertSetting('MERCHANT_ACCOUNT_NAME', accountName.trim()),
+      accountNumber && upsertSetting('MERCHANT_ACCOUNT_NUMBER', accountNumber.trim()),
+      ifscCode && upsertSetting('MERCHANT_IFSC', ifscCode.trim().toUpperCase()),
+      branch && upsertSetting('MERCHANT_BRANCH', branch.trim())
+    ]);
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'UPDATE_PAYMENT_SETTINGS', 'SYSTEM_SETTINGS', 'LINKPE_UPI_ID', null, { upiId, merchantName, bankName, accountNumber }, getClientIp(req));
+
+    res.json({ success: true, message: 'Merchant receiving payment credentials (UPI & Bank) updated successfully!' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 // ============================================================
 // 10. LEDGER VIEWER
 // ============================================================

@@ -54,21 +54,27 @@ export class AccuracyCheckService {
 
     try {
       const result = await OptionChainEngine.generateOptionChain({ symbol: 'NIFTY', strikeRange: '5' });
-      const { spotPrice, atmStrike, chain } = result;
+      const { spotPrice, atmStrike, chain, expiry } = result;
 
       if (!chain || chain.length === 0) return null;
+
+      const expiryDate = new Date(expiry && expiry.includes('T') ? expiry : `${expiry}T15:30:00+05:30`);
+      const now = new Date();
+      const diffMs = Math.max(0, expiryDate.getTime() - now.getTime());
+      const diffDays = Math.min(3.5, Math.max(0.5, diffMs / (1000 * 60 * 60 * 24)));
+      const timeToExpiryYears = diffDays / 365.0;
 
       let totalPercentageError = 0;
       let maxError = 0;
       let count = 0;
 
       chain.forEach(item => {
-        const timeToExpiryYears = 0.08;
-        const ivDecimal = item.ce.iv / 100.0;
+        const ceIvDecimal = (item.ce.iv && item.ce.iv > 0 ? item.ce.iv : 13.0) / 100.0;
+        const peIvDecimal = (item.pe.iv && item.pe.iv > 0 ? item.pe.iv : 13.0) / 100.0;
 
-        // Compute theoretical benchmark price
-        const refCePrice = GreeksEngine.calculateOptionPrice(spotPrice, item.strikePrice, timeToExpiryYears, true, ivDecimal);
-        const refPePrice = GreeksEngine.calculateOptionPrice(spotPrice, item.strikePrice, timeToExpiryYears, false, ivDecimal);
+        // Compute theoretical benchmark price using actual contract time-to-expiry
+        const refCePrice = GreeksEngine.calculateOptionPrice(spotPrice, item.strikePrice, timeToExpiryYears, true, ceIvDecimal);
+        const refPePrice = GreeksEngine.calculateOptionPrice(spotPrice, item.strikePrice, timeToExpiryYears, false, peIvDecimal);
 
         if (item.ce.ltp > 0.1 && refCePrice > 0.1) {
           const ceError = (Math.abs(item.ce.ltp - refCePrice) / refCePrice) * 100;

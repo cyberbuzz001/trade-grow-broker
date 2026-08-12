@@ -272,28 +272,42 @@ export class MarginEngineService {
     return 24500;
   }
 
+  private cachedStatutoryConfig: { config: any; expiresAt: number } | null = null;
+  private cachedMarginParams = new Map<string, { params: any; expiresAt: number }>();
+
   private async getMarginParams(underlying: string, exchange: string): Promise<any> {
     const clean = underlying.toUpperCase();
+    const cached = this.cachedMarginParams.get(clean);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.params;
+    }
     const row = await queryOne<any>(
       `SELECT * FROM margin_parameters WHERE UPPER(underlying) = $1 LIMIT 1`,
       [clean]
     );
-    return {
+    const params = {
       spanMarginRate: row ? parseFloat(row.span_margin_rate) : 0.12,
       exposureMarginRate: row ? parseFloat(row.exposure_margin_rate) : 0.03,
       additionalMarginRate: row ? parseFloat(row.additional_margin_rate) : 0.00,
     };
+    this.cachedMarginParams.set(clean, { params, expiresAt: Date.now() + 60000 });
+    return params;
   }
 
   private async getStatutoryConfig(): Promise<any> {
+    if (this.cachedStatutoryConfig && Date.now() < this.cachedStatutoryConfig.expiresAt) {
+      return this.cachedStatutoryConfig.config;
+    }
     const row = await queryOne<any>('SELECT * FROM statutory_charge_config LIMIT 1');
-    return row || {
+    const config = row || {
       stt_option_sell_rate: 0.00125,
       gst_rate: 0.18,
       exchange_turnover_rate: 0.0005,
       sebi_turnover_rate: 0.000001,
       stamp_duty_buy_rate: 0.00003
     };
+    this.cachedStatutoryConfig = { config, expiresAt: Date.now() + 60000 };
+    return config;
   }
 }
 

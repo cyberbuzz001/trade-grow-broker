@@ -40,7 +40,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 touch-action-manipulation">
       <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
         <div className="flex flex-col items-center text-center">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-indigo-500/30 mb-3">

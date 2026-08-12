@@ -52,17 +52,18 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
   const role = user?.role || 'USER';
   const isAdminStaff = ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT'].includes(role);
 
-  const availableBalance = wallet?.cashBalance ?? 1000000;
-  const netWorth = (wallet?.cashBalance ?? 1000000) + (wallet?.unrealizedPnl ?? 0) + (wallet?.realizedPnl ?? 0);
+  const availableBalance = wallet?.buyingPower ?? wallet?.cashBalance ?? 50000;
+  const netWorth = (wallet?.cashBalance ?? 50000) + (wallet?.unrealizedPnl ?? 0);
 
   return (
-    <div className="pb-24 pt-4 px-4 space-y-4 select-none bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] font-sans">
+    <div className="pb-24 pt-4 px-4 space-y-4 bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] font-sans touch-action-manipulation">
       
       {/* 1. TOP HEADER */}
       <div className="flex items-center justify-between">
         <button
+          type="button"
           onClick={onBack}
-          className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-main)] active:scale-95 transition-all"
+          className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-main)] active:scale-95 transition-all cursor-pointer"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -73,8 +74,9 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
 
         {onToggleTheme ? (
           <button
+            type="button"
             onClick={onToggleTheme}
-            className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-amber-400 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-amber-400 active:scale-95 transition-all cursor-pointer"
             title="Toggle Light/Dark Theme"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
@@ -117,16 +119,17 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
         </div>
       </div>
 
-      {/* 3. VIRTUAL WALLET & CAPITAL CARD */}
+      {/* 3. WALLET & CAPITAL CARD */}
       <div className="bg-gradient-to-br from-[#161B22] to-[#0D1117] border border-[#30363D] rounded-2xl p-4 text-white shadow-md space-y-3">
         <div className="flex items-center justify-between text-xs text-[#8B949E] font-bold">
           <span className="flex items-center gap-1.5 uppercase tracking-wider">
-            <Wallet className="w-4 h-4 text-[#00E676]" /> Available Virtual Balance
+            <Wallet className="w-4 h-4 text-[#00E676]" /> Available Balance
           </span>
           {onRefreshWallet && (
             <button 
+              type="button"
               onClick={onRefreshWallet} 
-              className="text-xs text-[#00E676] hover:underline flex items-center gap-1 active:scale-95"
+              className="text-xs text-[#00E676] hover:underline flex items-center gap-1 active:scale-95 cursor-pointer"
             >
               <RefreshCw className="w-3 h-3" /> Refresh
             </button>
@@ -142,28 +145,24 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
           </span>
         </div>
 
-        {/* Quick Action Buttons */}
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        {/* Quick Action Button */}
+        <div className="pt-1">
           <button
+            type="button"
             onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#00E676] hover:bg-[#00C853] text-[#0D1117] font-black text-xs shadow-md active:scale-95 transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#00E676] hover:bg-[#00C853] text-[#0D1117] font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" /> Add Capital
-          </button>
-          <button
-            onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#1C2128] hover:bg-[#30363D] text-white border border-[#30363D] font-extrabold text-xs active:scale-95 transition-all"
-          >
-            <RefreshCw className="w-4 h-4 text-amber-400" /> Reset Margin
           </button>
         </div>
       </div>
 
       {/* 4. ADMIN QUICK ACTION BANNER (If Admin / Staff) */}
       {isAdminStaff && (
-        <div 
+        <button 
+          type="button"
           onClick={onOpenAdmin}
-          className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
+          className="w-full text-left bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer active:scale-98 transition-all"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
@@ -175,16 +174,17 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-amber-400" />
-        </div>
+        </button>
       )}
 
       {/* 5. ACCOUNT & TRADING OPTIONS MENU */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-2 shadow-xs space-y-1 font-headline">
         
         {/* Personal Profile Details */}
-        <div
+        <button
+          type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('PROFILE')}
-          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+          className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
@@ -196,12 +196,13 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
-        </div>
+        </button>
 
         {/* KYC Verification Status */}
-        <div
+        <button
+          type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('KYC')}
-          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+          className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-[#00E676] flex items-center justify-center">
@@ -216,29 +217,31 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             <span className="text-[10px] font-bold text-[#00E676] bg-[#00E676]/10 px-2 py-0.5 rounded-md border border-[#00E676]/20">Approved</span>
             <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
           </div>
-        </div>
+        </button>
 
         {/* Funds & Wallet Manager */}
-        <div
+        <button
+          type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
-          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+          className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold text-xs text-[var(--text-main)] block">Virtual Wallet & Capital</span>
+              <span className="font-bold text-xs text-[var(--text-main)] block">Wallet & Capital</span>
               <span className="text-[10px] text-[var(--text-tertiary)] font-semibold">Margin allocation & Capital ledger</span>
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
-        </div>
+        </button>
 
         {/* Security & Password */}
-        <div
+        <button
+          type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('SECURITY')}
-          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+          className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
@@ -250,12 +253,13 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
-        </div>
+        </button>
 
         {/* Customer Support & Help */}
-        <div
+        <button
+          type="button"
           onClick={onOpenSupportModal}
-          className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+          className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
@@ -267,13 +271,14 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
-        </div>
+        </button>
 
         {/* App Theme Switcher */}
         {onToggleTheme && (
-          <div
+          <button
+            type="button"
             onClick={onToggleTheme}
-            className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
+            className="w-full text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:bg-[var(--bg-surface-elevated)]"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
@@ -288,7 +293,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
               <span>{theme === 'dark' ? 'Dark 🌙' : 'Light ☀️'}</span>
               <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
             </div>
-          </div>
+          </button>
         )}
 
       </div>
@@ -296,8 +301,9 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
       {/* 6. LOGOUT BUTTON */}
       <div className="pt-2">
         <button
+          type="button"
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-[#FF5252] border border-rose-500/20 font-bold text-xs active:scale-98 transition-all"
+          className="w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-[#FF5252] border border-rose-500/20 font-bold text-xs active:scale-98 transition-all cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           <span>Logout Account</span>

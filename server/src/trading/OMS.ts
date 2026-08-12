@@ -31,12 +31,7 @@ export class OMS {
       if (fallbackUser) {
         dto.userId = fallbackUser.id;
       } else {
-        const defaultUser = await queryOne<any>('SELECT id FROM users WHERE status = \'ACTIVE\' ORDER BY created_at ASC LIMIT 1');
-        if (defaultUser) {
-          dto.userId = defaultUser.id;
-        } else {
-          return { success: false, error: 'ORDER_REJECTED: User account does not exist in database. Please re-login.' };
-        }
+        return { success: false, error: 'ORDER_REJECTED: User account does not exist in database. Please re-login.' };
       }
     }
 

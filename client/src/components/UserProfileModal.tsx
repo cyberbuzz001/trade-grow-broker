@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User as UserIcon, ShieldCheck, Wallet as WalletIcon, Lock, CheckCircle, AlertTriangle, Clock, RefreshCw, Zap } from 'lucide-react';
+import { X, User as UserIcon, ShieldCheck, Wallet as WalletIcon, Lock, CheckCircle, AlertTriangle, Clock, RefreshCw, Zap, QrCode, ExternalLink, Smartphone } from 'lucide-react';
 import { User, Wallet } from '../types';
 
 interface UserProfileModalProps {
@@ -162,6 +162,29 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [myFundRequests, setMyFundRequests] = useState<any[]>([]);
   const [submittingFundReq, setSubmittingFundReq] = useState(false);
 
+  // LinkPe UPI Payment State
+  const [linkpeData, setLinkpeData] = useState<{
+    linkpeUrl: string;
+    upiDeepLink: string;
+    qrCodeUrl: string;
+    upiId: string;
+    merchantName: string;
+  } | null>(null);
+  const [loadingLinkpe, setLoadingLinkpe] = useState(false);
+
+  useEffect(() => {
+    if (paymentMethod === 'UPI' && requestType === 'DEPOSIT' && fundAmount > 0) {
+      setLoadingLinkpe(true);
+      fetchWithAuth(`/api/v1/funds/upi-link?amount=${fundAmount}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) setLinkpeData(d.payment);
+        })
+        .catch(() => {})
+        .finally(() => setLoadingLinkpe(false));
+    }
+  }, [fundAmount, paymentMethod, requestType]);
+
   const fetchMyFundRequests = async () => {
     try {
       const res = await fetchWithAuth('/api/v1/funds/my-requests');
@@ -200,6 +223,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         setFundAmount(50000);
         setReferenceNote('');
         fetchMyFundRequests();
+        onRefreshWallet();
       } else {
         setFundMessage({ type: 'error', text: data.error?.message || 'Failed to submit fund request' });
       }
@@ -219,21 +243,23 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleResetCapital = async () => {
     setIsResetting(true);
     try {
-      const res = await fetchWithAuth('/api/v1/auth/me');
+      const res = await fetchWithAuth('/api/v1/funds/reset-margin', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         onRefreshWallet();
-        setResetMessage('Capital updated successfully.');
+        setResetMessage(data.message || 'Capital reset successfully.');
+      } else {
+        setResetMessage(data.error?.message || 'Failed to reset balance.');
       }
     } catch (_) {
-      setResetMessage('Failed to refresh balance.');
+      setResetMessage('Failed to reset balance.');
     } finally {
       setIsResetting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 select-none animate-in fade-in">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 animate-in fade-in touch-action-manipulation">
       <div className="bg-[#0D1117] border border-[#30363D] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
         {/* Modal Header */}
@@ -295,21 +321,53 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="space-y-4">
               
               {/* Account Balance Summary Cards */}
-              <div className="grid grid-cols-2 gap-3 font-label">
-                <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D]">
-                  <span className="text-[10px] text-[#8B949E] font-bold block uppercase font-headline">TOTAL BALANCE</span>
-                  <span className="font-extrabold font-mono text-[#00E676] text-lg mt-0.5 block tabular-nums">
-                    ₹{(wallet?.cashBalance || 1000000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 font-label">
+                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
+                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">TOTAL FUND</span>
+                  <span className="font-extrabold font-mono text-white text-base mt-0.5 block tabular-nums">
+                    ₹{(wallet?.cashBalance ?? 50000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[10px] text-[#8B949E] block mt-1">Available for stock & F&O trades</span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Account Net Cash Balance</span>
                 </div>
 
-                <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D]">
-                  <span className="text-[10px] text-[#8B949E] font-bold block uppercase font-headline">AVAILABLE BUYING POWER</span>
-                  <span className="font-extrabold font-mono text-[#00E676] text-lg mt-0.5 block tabular-nums">
-                    ₹{(wallet?.buyingPower || 1000000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
+                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">AVAILABLE BALANCE</span>
+                  <span className="font-extrabold font-mono text-[#00E676] text-base mt-0.5 block tabular-nums">
+                    ₹{(wallet?.buyingPower ?? wallet?.cashBalance ?? 50000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[10px] text-[#8B949E] block mt-1">Available for new order placement</span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Available for new trades</span>
+                </div>
+
+                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
+                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">USED FUNDS</span>
+                  <span className="font-extrabold font-mono text-amber-400 text-base mt-0.5 block tabular-nums">
+                    ₹{(wallet?.usedMargin ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Blocked in open positions</span>
+                </div>
+
+                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
+                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">REALIZED P&L</span>
+                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.realizedPnl ?? 0) >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                    {(wallet?.realizedPnl ?? 0) >= 0 ? '+' : ''}₹{(wallet?.realizedPnl ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Closed position profits</span>
+                </div>
+
+                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
+                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">UNREALIZED P&L</span>
+                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.unrealizedPnl ?? 0) >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                    {(wallet?.unrealizedPnl ?? 0) >= 0 ? '+' : ''}₹{(wallet?.unrealizedPnl ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Live open position P&L</span>
+                </div>
+
+                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
+                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">ACCOUNT EQUITY</span>
+                  <span className="font-extrabold font-mono text-cyan-400 text-base mt-0.5 block tabular-nums">
+                    ₹{((wallet?.cashBalance ?? 50000) + (wallet?.unrealizedPnl ?? 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Cash + Live Open P&L</span>
                 </div>
               </div>
 
@@ -370,6 +428,67 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </select>
                     </div>
                   </div>
+
+                  {/* LinkPe UPI Payment Box */}
+                  {requestType === 'DEPOSIT' && paymentMethod === 'UPI' && (
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-slate-900/90 border border-emerald-500/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <QrCode className="w-4 h-4" />
+                          </span>
+                          <div>
+                            <span className="text-xs font-bold text-white block">LinkPe Instant UPI Payment</span>
+                            <span className="text-[10px] text-slate-400 block">Scan QR or Tap to open UPI App</span>
+                          </div>
+                        </div>
+                        {linkpeData && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            {linkpeData.upiId}
+                          </span>
+                        )}
+                      </div>
+
+                      {linkpeData ? (
+                        <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+                          <img
+                            src={linkpeData.qrCodeUrl}
+                            alt="LinkPe UPI QR Code"
+                            className="w-28 h-28 rounded-lg border border-emerald-500/30 p-1 bg-white shrink-0 shadow-md"
+                          />
+                          <div className="flex-1 w-full space-y-2 text-center sm:text-left">
+                            <span className="text-[11px] font-semibold text-slate-300 block">
+                              Pay <span className="font-bold font-mono text-emerald-400">₹{fundAmount.toLocaleString('en-IN')}</span> to <span className="text-white font-bold">{linkpeData.merchantName}</span>
+                            </span>
+                            
+                            <div className="flex flex-col gap-1.5">
+                              <a
+                                href={linkpeData.upiDeepLink}
+                                className="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                              >
+                                <Smartphone className="w-3.5 h-3.5" />
+                                <span>Open UPI App (GPay / PhonePe / Paytm)</span>
+                              </a>
+                              <a
+                                href={linkpeData.linkpeUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-[11px] flex items-center justify-center gap-1.5 transition border border-slate-700"
+                              >
+                                <ExternalLink className="w-3 h-3 text-emerald-400" />
+                                <span>Open LinkPe Payment Page</span>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-slate-400 text-xs flex items-center justify-center gap-2">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                          <span>Generating LinkPe UPI Payment details...</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase font-headline">Reference / Transaction Note (Optional)</label>

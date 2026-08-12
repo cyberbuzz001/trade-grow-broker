@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw } from 'lucide-react';
 
 interface FundsDashboardProps { token: string; }
 
@@ -16,13 +16,35 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
   const [adjustReason, setAdjustReason] = useState<string>('Admin Balance Adjustment');
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
 
+  // Admin Payment Settings State (LinkPe UPI & Bank Receiving Account)
+  const [paymentSettings, setPaymentSettings] = useState<{
+    upiId: string;
+    merchantName: string;
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    ifscCode: string;
+    branch: string;
+  }>({
+    upiId: 'tradegrow@upi',
+    merchantName: 'Trade Grow Brokerage',
+    bankName: 'HDFC Bank',
+    accountName: 'Trade Grow Technologies Pvt Ltd',
+    accountNumber: '50200098765432',
+    ifscCode: 'HDFC0001234',
+    branch: 'Mumbai Main Branch'
+  });
+  const [submittingPaymentSettings, setSubmittingPaymentSettings] = useState(false);
+  const [paymentSettingMsg, setPaymentSettingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const fetchFundsData = () => {
     setLoading(true);
     Promise.all([
       fetch('/api/v1/admin/funds/overview', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
       fetch('/api/v1/admin/funds/requests', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch('/api/v1/admin/customers', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
-    ]).then(([overviewData, requestsData, customersData]) => {
+      fetch('/api/v1/admin/customers', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('/api/v1/admin/funds/payment-settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+    ]).then(([overviewData, requestsData, customersData, settingsData]) => {
       if (overviewData.success) setFunds(overviewData.funds);
       if (requestsData.success && Array.isArray(requestsData.requests)) setRequests(requestsData.requests);
       if (customersData.success && Array.isArray(customersData.customers)) {
@@ -30,6 +52,9 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
         if (customersData.customers.length > 0 && !targetUserId) {
           setTargetUserId(customersData.customers[0].id);
         }
+      }
+      if (settingsData.success && settingsData.settings) {
+        setPaymentSettings(settingsData.settings);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -303,6 +328,160 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Admin Payment Receiving Credentials Management (LinkPe UPI & Bank Account) */}
+      <div className="bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <QrCode className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-white tracking-tight flex items-center gap-2">
+                MERCHANT PAYMENT RECEIVING CREDENTIALS
+                <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase tracking-widest flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" /> Admin Access Only
+                </span>
+              </h3>
+              <span className="text-[10px] text-slate-400">Configure Merchant UPI ID (LinkPe) & Bank Deposit Account for Client Fund Receipts</span>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono text-emerald-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">
+            Active UPI VPA: {paymentSettings.upiId}
+          </span>
+        </div>
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          setSubmittingPaymentSettings(true);
+          setPaymentSettingMsg(null);
+          try {
+            const res = await fetch('/api/v1/admin/funds/payment-settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify(paymentSettings)
+            });
+            const data = await res.json();
+            if (data.success) {
+              setPaymentSettingMsg({ type: 'success', text: data.message });
+            } else {
+              setPaymentSettingMsg({ type: 'error', text: data.error?.message || 'Failed to update settings' });
+            }
+          } catch (err: any) {
+            setPaymentSettingMsg({ type: 'error', text: err.message });
+          } finally {
+            setSubmittingPaymentSettings(false);
+          }
+        }} className="space-y-4">
+          
+          {/* UPI Settings Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                LinkPe Merchant UPI VPA / ID
+              </label>
+              <input
+                type="text"
+                value={paymentSettings.upiId}
+                onChange={e => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
+                placeholder="e.g. tradegrow@upi or 9876543210@paytm"
+                required
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
+              />
+              <span className="text-[9px] text-slate-500 mt-1 block">Receives client instant UPI payments & generates LinkPe QR codes</span>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Merchant Business Name
+              </label>
+              <input
+                type="text"
+                value={paymentSettings.merchantName}
+                onChange={e => setPaymentSettings({ ...paymentSettings, merchantName: e.target.value })}
+                placeholder="e.g. Trade Grow Brokerage"
+                required
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+              />
+              <span className="text-[9px] text-slate-500 mt-1 block">Displayed on client LinkPe checkout page & UPI app prompt</span>
+            </div>
+          </div>
+
+          {/* Bank Wire Details Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Bank Name</label>
+              <input
+                type="text"
+                value={paymentSettings.bankName}
+                onChange={e => setPaymentSettings({ ...paymentSettings, bankName: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Account Holder Name</label>
+              <input
+                type="text"
+                value={paymentSettings.accountName}
+                onChange={e => setPaymentSettings({ ...paymentSettings, accountName: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Account Number</label>
+              <input
+                type="text"
+                value={paymentSettings.accountNumber}
+                onChange={e => setPaymentSettings({ ...paymentSettings, accountNumber: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">IFSC Code</label>
+              <input
+                type="text"
+                value={paymentSettings.ifscCode}
+                onChange={e => setPaymentSettings({ ...paymentSettings, ifscCode: e.target.value.toUpperCase() })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-amber-400 focus:outline-none focus:border-emerald-500 uppercase"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Branch Location</label>
+              <input
+                type="text"
+                value={paymentSettings.branch}
+                onChange={e => setPaymentSettings({ ...paymentSettings, branch: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          {paymentSettingMsg && (
+            <div className={`p-3 rounded-xl text-xs font-bold ${
+              paymentSettingMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+            }`}>
+              {paymentSettingMsg.text}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={submittingPaymentSettings}
+              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 transition shadow-lg disabled:opacity-50"
+            >
+              {submittingPaymentSettings ? (
+                <span>Saving Credentials...</span>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Merchant Receiving Credentials (Admin Lock)</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Recent Ledger Transactions */}

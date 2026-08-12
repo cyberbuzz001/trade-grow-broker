@@ -12,6 +12,14 @@ export interface OptionChainFilterParams {
 }
 
 export class OptionChainEngine {
+  private static lastKnownSpotPrices: Map<string, number> = new Map([
+    ['BSE_SENSEX', 78250.00],
+    ['NSE_NIFTY50', 24350.00],
+    ['NSE_BANKNIFTY', 57600.00],
+    ['NSE_FINNIFTY', 25800.00],
+    ['NSE_MIDCPNIFTY', 13100.00]
+  ]);
+
   /**
    * Generates production-grade Option Chain Matrix centered on live spot price.
    * Supports NIFTY (NSE), SENSEX (BSE), BANKNIFTY (NSE), FINNIFTY (NSE), MIDCPNIFTY (NSE).
@@ -47,15 +55,21 @@ export class OptionChainEngine {
 
     // Fetch live spot price from MarketDataEngine
     const spotToken = isSensex ? 'BSE_SENSEX' : isBanknifty ? 'NSE_BANKNIFTY' : isFinnifty ? 'NSE_FINNIFTY' : isMidcp ? 'NSE_MIDCPNIFTY' : 'NSE_NIFTY50';
-    const spotTick = MarketDataEngine.getInstance().getCachedTick(spotToken);
-    const defaultSpot = isSensex ? 78710.23 : isBanknifty ? 52200 : isFinnifty ? 23500 : 24563.00;
+    const spotTick = MarketDataEngine.getInstance().getCachedTick(spotToken) || MarketDataEngine.getInstance().getCachedTick(rawSym);
+
+    if (spotTick && spotTick.ltp > 0) {
+      OptionChainEngine.lastKnownSpotPrices.set(spotToken, spotTick.ltp);
+    }
+
+    const defaultSpot = isSensex ? 78250.00 : isBanknifty ? 57600 : isFinnifty ? 25800 : 24350.00;
+    const fallbackSpot = OptionChainEngine.lastKnownSpotPrices.get(spotToken) || defaultSpot;
 
     // Dual-Feed Spot Guard Verification
     const verifiedSpot = nseOptionChainService.getVerifiedSpotPrice(
       spotToken,
       spotTick ? spotTick.ltp : 0,
       spotTick ? spotTick.timestamp : undefined,
-      defaultSpot
+      fallbackSpot
     );
 
     const spotPrice = (params.spotPrice && params.spotPrice > 0) ? params.spotPrice : verifiedSpot.spotPrice;
@@ -149,55 +163,20 @@ export class OptionChainEngine {
       });
     };
 
-    // Tier 1: Try Dhan HQ REST option chain first (independent of WebSocket status)
+    // Tier 1: Try Dhan HQ REST option chain
     try {
       const { DhanAdapter } = await import('./DhanAdapter');
       const dhanAdapter = new DhanAdapter();
       const dhanChain = await dhanAdapter.getOptionChain(underlying, expiry);
       if (dhanChain && dhanChain.length > 0) {
         const filteredDhanChain = filterAndSanitizeChain(dhanChain);
-
-        return {
-          underlying,
-          exchange,
-          spotPrice,
-          futuresPrice,
-          atmStrike,
-          expiry,
-          lotSize,
-          spotSource,
-          chain: filteredDhanChain
-        };
+        return { underlying, exchange, spotPrice, futuresPrice, atmStrike, expiry, lotSize, spotSource, chain: filteredDhanChain };
       }
     } catch (err: any) {
-      console.warn('[OptionChainEngine] Tier 1 Dhan option chain fetch failed:', err.message);
+      console.warn('[OptionChainEngine] Dhan option chain fetch failed:', err.message);
     }
 
-    // Tier 2: Try Angel One option chain if Angel One adapter is initialized/healthy
-    try {
-      const { AngelOneAdapter } = await import('./AngelOneAdapter');
-      const angelAdapter = new AngelOneAdapter();
-      if (angelAdapter.isHealthy()) {
-        const angelChain = await angelAdapter.getOptionChain(underlying, expiry);
-        if (angelChain && angelChain.length > 0) {
-          const filteredAngelChain = filterAndSanitizeChain(angelChain);
 
-          return {
-            underlying,
-            exchange,
-            spotPrice,
-            futuresPrice,
-            atmStrike,
-            expiry,
-            lotSize,
-            spotSource,
-            chain: filteredAngelChain
-          };
-        }
-      }
-    } catch (err: any) {
-      console.warn('[OptionChainEngine] Tier 2 Angel One option chain fetch failed:', err.message);
-    }
 
     // Tier 3: Fetch database instruments WITH STRICT EXPIRY FILTER to avoid cross-expiry token mismatch
     const dbInstruments = await query<any>(

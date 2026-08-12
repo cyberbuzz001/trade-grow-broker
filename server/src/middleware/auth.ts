@@ -26,6 +26,8 @@ function getJwtSecret(): string {
   return secret;
 }
 
+const authUserCache = new Map<string, { user: AuthenticatedUser; expiresAt: number }>();
+
 export async function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
@@ -39,9 +41,19 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
     const decoded = jwt.verify(token, getJwtSecret()) as AuthenticatedUser;
     req.user = decoded;
 
-    // Verify user existence in database to prevent foreign key constraint violations
+    // Check in-memory cache for user verification to prevent per-request DB queries
+    const cached = authUserCache.get(decoded.userId);
+    if (cached && Date.now() < cached.expiresAt) {
+      req.user.role = cached.user.role;
+      return next();
+    }
+
+    // Verify user existence in database
     const dbUser = await queryOne<any>('SELECT id, username, email, role FROM users WHERE id = $1', [decoded.userId]);
-    if (!dbUser) {
+    if (dbUser) {
+      req.user.role = dbUser.role;
+      authUserCache.set(decoded.userId, { user: { ...decoded, role: dbUser.role }, expiresAt: Date.now() + 60000 });
+    } else {
       // Look up by email or username in case database was re-seeded with new UUIDs
       const matchedUser = await queryOne<any>(
         'SELECT id, username, email, role FROM users WHERE email = $1 OR username = $2',
@@ -50,6 +62,7 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
       if (matchedUser) {
         req.user.userId = matchedUser.id;
         req.user.role = matchedUser.role;
+        authUserCache.set(matchedUser.id, { user: { ...decoded, userId: matchedUser.id, role: matchedUser.role }, expiresAt: Date.now() + 60000 });
       } else {
         res.status(401).json({
           success: false,
@@ -111,7 +124,8 @@ export function requireSuperAdmin(req: AuthenticatedRequest, res: Response, next
  */
 export function validateStartupEnvironment(): void {
   const required: Array<{ key: string; minLength?: number; description: string }> = [
-    { key: 'JWT_SECRET', minLength: 32, description: 'JWT signing secret (min 32 chars)' }
+    { key: 'JWT_SECRET', minLength: 32, description: 'JWT signing secret (min 32 chars)' },
+    { key: 'JWT_REFRESH_SECRET', minLength: 32, description: 'JWT refresh token secret (min 32 chars)' }
   ];
 
   const errors: string[] = [];

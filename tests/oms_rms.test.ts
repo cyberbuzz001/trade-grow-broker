@@ -1,4 +1,4 @@
-import { runMigrations, queryOne } from '../server/src/db/schema';
+import { runMigrations, queryOne, execute } from '../server/src/db/schema';
 import { seedDatabase } from '../server/src/db/init';
 import { VirtualWalletLedger } from '../server/src/trading/VirtualWalletLedger';
 import { RMS } from '../server/src/trading/RMS';
@@ -15,6 +15,8 @@ describe('Multi-User Brokerage Platform Core Engine Tests', () => {
 
     const user = await queryOne<{ id: string }>("SELECT id FROM users WHERE username = 'trader1'");
     testUserId = user!.id;
+    await execute("UPDATE virtual_wallets SET cash_balance = 1000000.0, used_margin = 0.0, realized_pnl = 0.0 WHERE user_id = $1", [testUserId]);
+    await execute("DELETE FROM orders WHERE user_id = $1", [testUserId]);
   });
 
   test('1. Technical Safety Lock prevents real-money trading', () => {

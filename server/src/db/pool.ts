@@ -19,7 +19,9 @@ function createPool(): Pool {
       connectionString: databaseUrl,
       max: parseInt(process.env.PG_POOL_MAX || '20'),
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false
     });
   }
@@ -33,7 +35,9 @@ function createPool(): Pool {
     password: process.env.PG_PASSWORD || 'postgres',
     max: parseInt(process.env.PG_POOL_MAX || '20'),
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
     ssl: false
   });
 }
@@ -41,12 +45,15 @@ function createPool(): Pool {
 export const pool = createPool();
 
 pool.on('error', (err) => {
-  console.error('[PostgreSQL] Unexpected pool error:', err.message);
+  if (err.message?.includes('connection') || err.message?.includes('timeout') || (err as any).code === 'ECONNRESET') {
+    // Suppress transient TCP idle timeout pool error
+    return;
+  }
+  console.error('[PostgreSQL] Pool error:', err.message);
 });
 
 pool.on('connect', () => {
-  // Uncomment for debug logging:
-  // console.log('[PostgreSQL] New connection acquired from pool');
+  // Connection acquired
 });
 
 /**
@@ -58,7 +65,6 @@ export async function query<T extends QueryResultRow = QueryResultRow>(text: str
     return result.rows;
   } catch (err: any) {
     if (err.message?.includes('connection') || err.message?.includes('timeout') || err.code === 'ECONNRESET') {
-      console.warn('[PostgreSQL] Retrying query on connection reset:', err.message);
       const result = await pool.query<T>(text, params);
       return result.rows;
     }
@@ -75,7 +81,6 @@ export async function queryOne<T extends QueryResultRow = QueryResultRow>(text: 
     return result.rows[0] ?? null;
   } catch (err: any) {
     if (err.message?.includes('connection') || err.message?.includes('timeout') || err.code === 'ECONNRESET') {
-      console.warn('[PostgreSQL] Retrying queryOne on connection reset:', err.message);
       const result = await pool.query<T>(text, params);
       return result.rows[0] ?? null;
     }
@@ -87,8 +92,16 @@ export async function queryOne<T extends QueryResultRow = QueryResultRow>(text: 
  * Execute a query and return the row count affected.
  */
 export async function execute(text: string, params?: any[]): Promise<number> {
-  const result = await pool.query(text, params);
-  return result.rowCount ?? 0;
+  try {
+    const result = await pool.query(text, params);
+    return result.rowCount ?? 0;
+  } catch (err: any) {
+    if (err.message?.includes('connection') || err.message?.includes('timeout') || err.code === 'ECONNRESET') {
+      const result = await pool.query(text, params);
+      return result.rowCount ?? 0;
+    }
+    throw err;
+  }
 }
 
 /**

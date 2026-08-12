@@ -104,19 +104,19 @@ async function startServer() {
     await MarketDataEngine.getInstance().initialize();
 
     // Start Price Feed Reconciliation Monitor (every 60s)
-    import('./services/ReconciliationMonitorService').then(({ reconciliationMonitor }) => {
-      reconciliationMonitor.start(60000);
-    });
+    import('./services/ReconciliationMonitorService')
+      .then(({ reconciliationMonitor }) => reconciliationMonitor.start(60000))
+      .catch((err) => console.error('[Startup] Failed to start ReconciliationMonitorService:', err.message));
 
     // Start NSE Live Index & Dual-Feed Spot Guard (every 30s)
-    import('./marketData/NseOptionChainService').then(({ nseOptionChainService }) => {
-      nseOptionChainService.start();
-    });
+    import('./marketData/NseOptionChainService')
+      .then(({ nseOptionChainService }) => nseOptionChainService.start())
+      .catch((err) => console.error('[Startup] Failed to start NseOptionChainService:', err.message));
 
     // Start Automated Option Chain Pricing Accuracy Check (every 60s)
-    import('./services/AccuracyCheckService').then(({ accuracyCheckService }) => {
-      accuracyCheckService.start();
-    });
+    import('./services/AccuracyCheckService')
+      .then(({ accuracyCheckService }) => accuracyCheckService.start())
+      .catch((err) => console.error('[Startup] Failed to start AccuracyCheckService:', err.message));
 
     // Start Simulated Execution Engine
     ExecutionEngine.start();

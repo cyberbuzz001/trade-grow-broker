@@ -154,46 +154,14 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
   };
 
   const handleConfirmOrder = async (details: OrderPreviewDetails) => {
-    try {
-      const userToken = token || localStorage.getItem('token') || localStorage.getItem('stocksharp_token');
-      const res = await fetch('/api/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userToken}`
-        },
-        body: JSON.stringify({
-          instrumentToken: details.token,
-          exchange: details.exchange,
-          symbol: details.symbol,
-          side: details.side,
-          quantity: details.quantity,
-          price: details.price,
-          orderType: details.orderType,
-          productType: details.productType
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setActionMessage({
-          type: 'success',
-          text: `Order Executed: ${details.side} ${details.lots} Lot(s) ${details.symbol} @ ₹${details.price.toFixed(2)}`
-        });
-        if (onRefreshWallet) onRefreshWallet();
-        setIsPreviewOpen(false);
-      } else {
-        setActionMessage({
-          type: 'error',
-          text: data.error?.message || 'Order failed — RMS validation rejected'
-        });
-      }
-    } catch (err: any) {
-      setActionMessage({
-        type: 'error',
-        text: err.message || 'Network error submitting order'
-      });
-    }
+    // The OrderPreviewModal now handles the API call internally.
+    // This callback fires only on SUCCESS — refresh wallet & show success banner.
+    setActionMessage({
+      type: 'success',
+      text: `Order Executed: ${details.side} ${details.lots} Lot(s) ${details.symbol} @ ₹${details.price.toFixed(2)}`
+    });
+    if (onRefreshWallet) onRefreshWallet();
+    setIsPreviewOpen(false);
   };
 
   return (

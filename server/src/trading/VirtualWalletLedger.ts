@@ -1,5 +1,6 @@
 import { pool, query, queryOne, execute, withTransaction } from '../db/schema';
 import { generateUUID } from '../utils/crypto';
+import { PortfolioService } from './PortfolioService';
 
 export interface WalletState {
   userId: string;
@@ -8,12 +9,14 @@ export interface WalletState {
   realizedPnl: number;
   unrealizedPnl: number;
   buyingPower: number;
+  totalPnl: number;
+  accountEquity: number;
 }
 
 export class VirtualWalletLedger {
 
   /**
-   * Get current wallet state for a user.
+   * Get current wallet state for a user with live Unrealized P&L, Total P&L & Account Equity.
    */
   public static async getWallet(userId: string): Promise<WalletState | null> {
     const row = await queryOne<any>(
@@ -25,16 +28,36 @@ export class VirtualWalletLedger {
     const cashBalance   = parseFloat(row.cash_balance);
     const usedMargin    = parseFloat(row.used_margin);
     const realizedPnl   = parseFloat(row.realized_pnl);
-    const unrealizedPnl = parseFloat(row.unrealized_pnl);
-    // P1-7 FIX: Clamped in application layer, not in SQL
-    const buyingPower   = Math.max(0, cashBalance - usedMargin);
 
-    return { userId, cashBalance, usedMargin, realizedPnl, unrealizedPnl, buyingPower };
+    // Calculate dynamic live unrealized P&L from active open positions
+    let unrealizedPnl = 0;
+    try {
+      const openPositions = await PortfolioService.getUserPositions(userId, false);
+      for (const pos of openPositions) {
+        if (pos.netQty !== 0) {
+          unrealizedPnl += pos.unrealizedPnl;
+        }
+      }
+    } catch (_) {}
+
+    const buyingPower   = Math.max(0, cashBalance - usedMargin);
+    const totalPnl      = realizedPnl + unrealizedPnl;
+    const accountEquity = cashBalance + unrealizedPnl;
+
+    return {
+      userId,
+      cashBalance,
+      usedMargin,
+      realizedPnl,
+      unrealizedPnl,
+      buyingPower,
+      totalPnl,
+      accountEquity
+    };
   }
 
   /**
-   * Block virtual margin for a pending order.
-   * P0-8 FIX: Uses SELECT ... FOR UPDATE to prevent race conditions.
+   * Block virtual margin for a pending order using SELECT ... FOR UPDATE.
    */
   public static async blockMargin(
     userId: string,
@@ -46,7 +69,6 @@ export class VirtualWalletLedger {
 
     try {
       await withTransaction(async (client) => {
-        // Row-level lock: prevents two simultaneous orders from double-spending
         const walletRow = await client.query(
           'SELECT * FROM virtual_wallets WHERE user_id = $1 FOR UPDATE',
           [userId]
@@ -111,7 +133,6 @@ export class VirtualWalletLedger {
       const wallet = walletRow.rows[0];
       const cashBalance = parseFloat(wallet.cash_balance);
       const usedMargin  = parseFloat(wallet.used_margin);
-      // P1-7 FIX: Application-level Math.max instead of SQL Math.max()
       const releaseAmt  = Math.min(usedMargin, amount);
       const newUsedMargin = Math.max(0, usedMargin - releaseAmt);
 
@@ -134,61 +155,63 @@ export class VirtualWalletLedger {
   }
 
   /**
-   * Settle trade execution: deduct cash for buys, credit for sells, apply charges.
+   * Settle trade execution atomically within an active database transaction.
+   * Realized P&L flows directly into cash balance & realized_pnl with zero charges.
    */
-  public static async settleTradeExecution(
+  public static async settleTradeExecutionInTransaction(
+    client: any,
     userId: string,
     tradeType: 'BUY' | 'SELL',
     tradeAmount: number,
-    marginReleased: number,
-    charges: number,
+    blockedMargin: number,
+    releasedPositionCapital: number,
     realizedPnlDelta: number,
     referenceId: string
   ): Promise<void> {
-    await withTransaction(async (client) => {
-      const walletRow = await client.query(
-        'SELECT * FROM virtual_wallets WHERE user_id = $1 FOR UPDATE',
-        [userId]
-      );
+    const walletRow = await client.query(
+      'SELECT * FROM virtual_wallets WHERE user_id = $1 FOR UPDATE',
+      [userId]
+    );
 
-      if (walletRow.rows.length === 0) return;
+    if (walletRow.rows.length === 0) return;
 
-      const wallet = walletRow.rows[0];
-      const cashBalance   = parseFloat(wallet.cash_balance);
-      const usedMargin    = parseFloat(wallet.used_margin);
-      const realizedPnl   = parseFloat(wallet.realized_pnl);
+    const wallet = walletRow.rows[0];
+    const cashBalance = parseFloat(wallet.cash_balance);
+    const realizedPnl = parseFloat(wallet.realized_pnl);
 
-      let newCash: number;
-      if (tradeType === 'BUY') {
-        newCash = cashBalance - tradeAmount - charges;
-      } else {
-        newCash = cashBalance + tradeAmount - charges + realizedPnlDelta;
-      }
+    // 1. Realized P&L increases or decreases cash balance directly
+    const newCash = cashBalance + realizedPnlDelta;
+    const newRealizedPnl = realizedPnl + realizedPnlDelta;
 
-      const newUsedMargin = Math.max(0, usedMargin - marginReleased);
-      const newRealizedPnl = realizedPnl + realizedPnlDelta - charges;
+    // 2. Recalculate used margin based on remaining active open positions
+    const posRows = await client.query(
+      'SELECT net_qty, average_price FROM positions WHERE user_id = $1 AND net_qty != 0',
+      [userId]
+    );
+    let newUsedMargin = 0;
+    for (const p of posRows.rows) {
+      newUsedMargin += Math.abs(parseInt(p.net_qty, 10)) * parseFloat(p.average_price);
+    }
 
-      await client.query(
-        `UPDATE virtual_wallets SET cash_balance = $1, used_margin = $2, realized_pnl = $3, updated_at = NOW()
-         WHERE user_id = $4`,
-        [newCash, newUsedMargin, newRealizedPnl, userId]
-      );
+    await client.query(
+      `UPDATE virtual_wallets SET cash_balance = $1, used_margin = $2, realized_pnl = $3, updated_at = NOW()
+       WHERE user_id = $4`,
+      [newCash, newUsedMargin, newRealizedPnl, userId]
+    );
 
-      await client.query(
-        `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
-         VALUES ($1, $2, $3, 'PNL_SETTLEMENT', $4, $5, $6, $7, 'SIMULATED_EXECUTION', $8)`,
-        [
-          'led_' + generateUUID(), generateUUID(), userId,
-          tradeAmount, cashBalance, newCash, referenceId,
-          JSON.stringify({ tradeType, charges, realizedPnlDelta })
-        ]
-      );
-    });
+    await client.query(
+      `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
+       VALUES ($1, $2, $3, 'PNL_SETTLEMENT', $4, $5, $6, $7, 'SIMULATED_EXECUTION', $8)`,
+      [
+        'led_' + generateUUID(), generateUUID(), userId,
+        tradeAmount, cashBalance, newCash, referenceId,
+        JSON.stringify({ tradeType, realizedPnlDelta, releasedPositionCapital, newCash, newUsedMargin })
+      ]
+    );
   }
 
   /**
    * Admin balance adjustment (Add or Remove virtual capital).
-   * Always creates a corresponding immutable ledger entry.
    */
   public static async adminAdjustBalance(
     userId: string,

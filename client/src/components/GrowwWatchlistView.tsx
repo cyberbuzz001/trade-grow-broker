@@ -142,44 +142,14 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
 
   // Confirm Order Execution
   const handleConfirmOrder = async (confirmed: OrderPreviewDetails) => {
+    // The OrderPreviewModal now handles the API call internally.
+    // This callback fires only on SUCCESS — refresh wallet & show success message.
+    setActionMsg({
+      type: 'success',
+      text: `Order Executed! ${confirmed.side} ${confirmed.quantity} Qty of ${confirmed.symbol} @ ₹${confirmed.price.toFixed(2)}`,
+    });
+    if (onRefreshWallet) onRefreshWallet();
     setIsOrderModalOpen(false);
-    setActionMsg(null);
-
-    try {
-      const res = await fetch('/api/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          instrumentToken: confirmed.token,
-          exchange: confirmed.exchange,
-          symbol: confirmed.symbol,
-          side: confirmed.side,
-          quantity: confirmed.quantity,
-          price: confirmed.price,
-          orderType: confirmed.orderType,
-          productType: confirmed.productType,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setActionMsg({
-          type: 'success',
-          text: `Order Executed! ${confirmed.side} ${confirmed.quantity} Qty of ${confirmed.symbol} @ ₹${confirmed.price.toFixed(2)}`,
-        });
-        if (onRefreshWallet) onRefreshWallet();
-      } else {
-        setActionMsg({
-          type: 'error',
-          text: `Order Failed: ${data.error?.message || 'Execution Error'}`,
-        });
-      }
-    } catch (err: any) {
-      setActionMsg({ type: 'error', text: `Order Error: ${err.message}` });
-    }
   };
 
   return (

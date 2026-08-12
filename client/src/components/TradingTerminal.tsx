@@ -122,40 +122,12 @@ export const TradingTerminal: React.FC<TerminalProps> = ({
   };
 
   const handleConfirmPreviewOrder = async (confirmed: OrderPreviewDetails) => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          instrumentToken: confirmed.token,
-          exchange: confirmed.exchange,
-          symbol: confirmed.symbol,
-          side: confirmed.side,
-          quantity: confirmed.quantity,
-          price: confirmed.price,
-          orderType: confirmed.orderType,
-          productType: confirmed.productType
-        })
-      });
-
-      const data = await res.json();
-      setIsPreviewOpen(false);
-
-      if (data.success) {
-        setOrderMessage({ type: 'success', text: `Simulated ${confirmed.side} order placed for ${confirmed.symbol} (${confirmed.quantity} Qty @ ₹${confirmed.price.toFixed(2)})` });
-        onRefreshWallet();
-        fetchUserTradingData();
-      } else {
-        setOrderMessage({ type: 'error', text: data.error?.message || 'Order placement failed' });
-      }
-    } catch (err: any) {
-      setIsPreviewOpen(false);
-      setOrderMessage({ type: 'error', text: err.message });
-    }
+    // The OrderPreviewModal now handles the API call internally.
+    // This callback fires only on SUCCESS — refresh wallet & show success message.
+    setOrderMessage({ type: 'success', text: `${confirmed.side} order placed for ${confirmed.symbol} (${confirmed.quantity} Qty @ ₹${confirmed.price.toFixed(2)})` });
+    onRefreshWallet();
+    fetchUserTradingData();
+    setIsPreviewOpen(false);
   };
 
   const currentPriceDisplay = currentTick?.ltp || (price > 0 ? price : 125.0);

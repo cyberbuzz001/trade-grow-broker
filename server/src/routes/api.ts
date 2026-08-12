@@ -19,6 +19,7 @@ import { MarketDataEngine } from '../marketData/MarketDataEngine';
 import { GreeksEngine } from '../marketData/GreeksEngine';
 import { MarketDataStorageService } from '../services/MarketDataStorageService';
 import { InstrumentMasterService } from '../marketData/InstrumentMasterService';
+import { LinkPeService } from '../services/linkpeService';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { checkDatabaseHealth } from '../db/pool';
@@ -666,8 +667,8 @@ router.get('/market/synthetic-candles', async (req: Request, res: Response) => {
     } else {
       // Equity / Index Spot Candle Generator
       let basePrice = 2550.0;
-      if (rawSym.includes('NIFTY')) basePrice = 24508.90;
-      else if (rawSym.includes('SENSEX')) basePrice = 78338.89;
+      if (rawSym.includes('NIFTY')) basePrice = 24350.00;
+      else if (rawSym.includes('SENSEX')) basePrice = 78250.00;
       else if (rawSym.includes('RELIANCE')) basePrice = 1284.70;
 
       let currentPrice = basePrice * 0.995;
@@ -888,6 +889,22 @@ router.post('/funds/instant', authenticateToken, async (req: AuthenticatedReques
     const id = 'freq_' + generateUUID();
     const requestId = 'REQ' + generateUUID().slice(0, 8).toUpperCase();
 
+    if (requestType === 'DEPOSIT') {
+      await VirtualWalletLedger.adminAdjustBalance(req.user!.userId, reqAmount, req.user!.userId, 'Capital Deposit');
+      await execute(
+        `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note)
+         VALUES ($1, $2, $3, $4, $5, 'APPROVED', $6, $7)`,
+        [id, requestId, req.user!.userId, requestType, reqAmount, paymentMethod || 'INSTANT', referenceNote || 'Submitted via Client App']
+      );
+
+      res.json({
+        success: true,
+        requestId,
+        message: `₹${reqAmount.toLocaleString('en-IN')} capital deposited successfully!`
+      });
+      return;
+    }
+
     await execute(
       `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note)
        VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7)`,
@@ -898,6 +915,45 @@ router.post('/funds/instant', authenticateToken, async (req: AuthenticatedReques
       success: true,
       requestId,
       message: `Fund ${requestType.toLowerCase()} request for ₹${reqAmount.toLocaleString('en-IN')} submitted. Pending Admin approval.`
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/funds/reset-margin', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const defaultCapital = parseFloat(process.env.DEFAULT_VIRTUAL_CAPITAL || '1000000');
+    await execute(
+      `UPDATE virtual_wallets SET cash_balance = $1, used_margin = 0, realized_pnl = 0, unrealized_pnl = 0, updated_at = NOW() WHERE user_id = $2`,
+      [defaultCapital, userId]
+    );
+    await execute(
+      `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
+       VALUES ($1, $2, $3, 'MARGIN_RESET', $4, 0, $4, $5, $6, $7)`,
+      ['led_' + generateUUID(), generateUUID(), userId, defaultCapital, userId, userId, JSON.stringify({ reason: 'Margin & Balance Reset' })]
+    );
+    res.json({ success: true, message: `Balance reset to ₹${defaultCapital.toLocaleString('en-IN')}` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/funds/add-capital', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { amount } = req.body;
+    const addAmt = parseFloat(amount) || 100000;
+    const userId = req.user!.userId;
+    if (addAmt <= 0) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_AMOUNT', message: 'Amount must be greater than ₹0' } });
+      return;
+    }
+    const updatedWallet = await VirtualWalletLedger.adminAdjustBalance(userId, addAmt, userId, 'Capital Top-up');
+    res.json({
+      success: true,
+      message: `Successfully added ₹${addAmt.toLocaleString('en-IN')} capital.`,
+      wallet: updatedWallet
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
@@ -1224,6 +1280,81 @@ router.post('/support/tickets', authenticateToken, async (req: AuthenticatedRequ
 router.get('/admin/feature-flags', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req, res) => {
   const flags = await query('SELECT * FROM feature_flags ORDER BY key');
   res.json({ success: true, flags });
+});
+
+// ============================================================
+// LINKPE UPI PAYMENT GENERATION API
+// ============================================================
+router.get('/funds/upi-link', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const amount = parseFloat(req.query.amount as string || '100');
+    const note = req.query.note as string || undefined;
+
+    const paymentDetails = await LinkPeService.generatePaymentLink(amount, req.user!.userId, note);
+
+    res.json({
+      success: true,
+      payment: paymentDetails
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================
+// CLIENT FUND DEPOSIT & WITHDRAWAL REQUESTS (LINKPE UPI WORKFLOW)
+// ============================================================
+router.post('/funds/request', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { requestType = 'DEPOSIT', amount, paymentMethod = 'LINKPE_UPI', referenceNote = '' } = req.body;
+    const numAmount = parseFloat(amount);
+
+    if (isNaN(numAmount) || numAmount < 100) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_AMOUNT', message: 'Minimum deposit amount is ₹100' } });
+      return;
+    }
+
+    const reqId = 'freq_' + generateUUID();
+    const publicReqId = 'REQ-' + Math.floor(100000 + Math.random() * 900000);
+
+    await execute(
+      `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $7, NOW(), NOW())`,
+      [reqId, publicReqId, req.user!.userId, requestType, numAmount, paymentMethod, referenceNote]
+    );
+
+    res.status(201).json({
+      success: true,
+      requestId: publicReqId,
+      message: `Deposit request of ₹${numAmount.toLocaleString('en-IN')} submitted successfully! Admin approval is pending.`
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/funds/my-requests', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const requests = await query(
+      `SELECT * FROM fund_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [req.user!.userId]
+    );
+    res.json({ success: true, requests });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/funds/reset-margin', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await execute(
+      `UPDATE virtual_wallets SET cash_balance = 1000000, used_margin = 0, updated_at = NOW() WHERE user_id = $1`,
+      [req.user!.userId]
+    );
+    res.json({ success: true, message: 'Wallet balance reset to ₹10,00,000 successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 export default router;

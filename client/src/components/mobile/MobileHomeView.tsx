@@ -45,7 +45,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
   ];
 
   return (
-    <div className="pb-28 pt-4 px-4 space-y-5 font-body bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] select-none">
+    <div className="pb-28 pt-4 px-4 space-y-5 font-body bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] touch-action-manipulation">
       
       {/* 1. TOP HEADER & GREETING */}
       <div className="flex items-center justify-between">
