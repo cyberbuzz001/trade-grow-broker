@@ -202,12 +202,25 @@ export class OptionChainEngine {
 
     const chain: OptionChainItem[] = strikes.map(strike => {
       const isATM = strike === atmStrike;
-
       const ceInst = instMap.get(`${strike}_CE`);
       const peInst = instMap.get(`${strike}_PE`);
 
+      const { InstrumentMasterService } = require('./InstrumentMasterService');
+      const { DhanAdapter } = require('./DhanAdapter');
+
+      const ceSecId = InstrumentMasterService.getInstance().getDhanSecurityId(underlying, strike, 'CE', expiry);
+      const peSecId = InstrumentMasterService.getInstance().getDhanSecurityId(underlying, strike, 'PE', expiry);
+
       const ceTokenFallback = `${segment}_${underlying}_${strike}_CE`;
       const peTokenFallback = `${segment}_${underlying}_${strike}_PE`;
+
+      const optSeg = segment === 'BFO' ? 'BSE_FNO' : 'NSE_FNO';
+      if (ceSecId) {
+        DhanAdapter.DHAN_SECURITY_MAP[ceTokenFallback] = { segment: optSeg, securityId: ceSecId };
+      }
+      if (peSecId) {
+        DhanAdapter.DHAN_SECURITY_MAP[peTokenFallback] = { segment: optSeg, securityId: peSecId };
+      }
 
       const ceInstToken = ceInst?.instrument_token || ceTokenFallback;
       const peInstToken = peInst?.instrument_token || peTokenFallback;
@@ -217,10 +230,12 @@ export class OptionChainEngine {
 
       // Multi-key tick lookup for maximum resilience (DB token, raw numeric, synthetic format)
       const ceTick = engine.getCachedTick(ceInstToken) ||
+                     (ceSecId ? engine.getCachedTick(ceSecId) : null) ||
                      engine.getCachedTick(ceRawToken) ||
                      engine.getCachedTick(ceTokenFallback);
 
       const peTick = engine.getCachedTick(peInstToken) ||
+                     (peSecId ? engine.getCachedTick(peSecId) : null) ||
                      engine.getCachedTick(peRawToken) ||
                      engine.getCachedTick(peTokenFallback);
 

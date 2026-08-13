@@ -346,3 +346,37 @@
   background: var(--bg-surface-elevated);
 }
 
+/* Real-Time Price Flash Keyframes (Green Up / Red Down ~250ms Fade) */
+@keyframes priceFlashUp {
+  0% {
+    background-color: rgba(0, 230, 118, 0.4);
+    color: #00e676;
+    box-shadow: inset 0 0 12px rgba(0, 230, 118, 0.3);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+@keyframes priceFlashDown {
+  0% {
+    background-color: rgba(255, 82, 82, 0.4);
+    color: #ff5252;
+    box-shadow: inset 0 0 12px rgba(255, 82, 82, 0.3);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.price-flash-up {
+  animation: priceFlashUp 0.35s ease-out;
+}
+
+.price-flash-down {
+  animation: priceFlashDown 0.35s ease-out;
+}
+
+

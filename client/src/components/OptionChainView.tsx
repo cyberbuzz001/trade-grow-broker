@@ -6,6 +6,8 @@ import { useSubscribeTokens } from '../hooks/useMarketSocket';
 import { useTickFreshness, useMultiTickFreshness } from '../hooks/useTickFreshness';
 import { PriceBadge } from './PriceBadge';
 import { getSpotToken } from './SpotPriceTicker';
+import { OptionChainRow } from './OptionChainRow';
+
 
 interface OptionChainProps {
   token?: string;
@@ -117,11 +119,12 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
       .catch(() => setLoading(false));
   }, [symbol, expiry, strikeRange, isAtmPaused]);
 
+  // NOTE: Dhan's WebSocket feed is second-by-second event-based snapshot data (not tick-by-tick).
+  // Live prices stream directly via WebSocket push ticks. Initial metadata/strikes fetched once per filter change.
   useEffect(() => {
     fetchOptionChain();
-    const interval = setInterval(fetchOptionChain, 2000);
-    return () => clearInterval(interval);
   }, [fetchOptionChain]);
+
 
   // Handle Order Trigger
   const handleOpenOrder = (
@@ -299,80 +302,16 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                 const ceTick = freshnessMap.get(row.ce?.instrumentToken || '');
                 const peTick = freshnessMap.get(row.pe?.instrumentToken || '');
 
-                const ceLtp = ceTick?.tick?.ltp && ceTick.tick.ltp > 0 ? ceTick.tick.ltp : row.ce.ltp;
-                const peLtp = peTick?.tick?.ltp && peTick.tick.ltp > 0 ? peTick.tick.ltp : row.pe.ltp;
-
                 return (
-                  <tr
+                  <OptionChainRow
                     key={row.strikePrice}
-                    className={`hover:bg-[#1C2128] transition-colors ${
-                      isAtm ? 'bg-amber-500/10 border-y-2 border-amber-500/50 font-bold' : ''
-                    }`}
-                  >
-                    {/* CALLS (CE) */}
-                    {showAdvancedGreeks && (
-                      <td className="py-2.5 px-2 text-[10px] text-[#8B949E]">
-                        Δ {row.ce.delta.toFixed(2)} | IV {row.ce.iv.toFixed(1)}%
-                      </td>
-                    )}
-
-                    <td className="py-2.5 px-2 font-bold text-[#00E676] text-sm">
-                      ₹{ceLtp.toFixed(2)}
-                    </td>
-
-                    <td className="py-2.5 px-2 border-r border-[#30363D]">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'BUY')}
-                          className="bg-[#00E676] text-[#0D1117] hover:bg-[#00C853] text-[10px] font-black px-2 py-1 rounded shadow-xs active:scale-95 transition-all"
-                        >
-                          BUY
-                        </button>
-                        <button
-                          onClick={() => handleOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'SELL')}
-                          className="bg-[#FF5252]/20 text-[#FF5252] hover:bg-[#FF5252] hover:text-white text-[10px] font-black px-2 py-1 rounded active:scale-95 transition-all"
-                        >
-                          SELL
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* STRIKE PRICE (CENTER GOLDEN GLOW) */}
-                    <td className={`py-2.5 px-4 font-extrabold text-sm border-r border-[#30363D] ${
-                      isAtm ? 'text-amber-400 bg-amber-500/20 font-black tracking-wider' : 'text-white bg-[#0D1117]'
-                    }`}>
-                      {row.strikePrice}
-                      {isAtm && <span className="text-[9px] bg-amber-500 text-[#0D1117] px-1 py-0.5 rounded ml-1 font-mono">ATM</span>}
-                    </td>
-
-                    {/* PUTS (PE) */}
-                    <td className="py-2.5 px-2 border-r border-[#30363D]">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => handleOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'BUY')}
-                          className="bg-[#00E676] text-[#0D1117] hover:bg-[#00C853] text-[10px] font-black px-2 py-1 rounded shadow-xs active:scale-95 transition-all"
-                        >
-                          BUY
-                        </button>
-                        <button
-                          onClick={() => handleOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'SELL')}
-                          className="bg-[#FF5252]/20 text-[#FF5252] hover:bg-[#FF5252] hover:text-white text-[10px] font-black px-2 py-1 rounded active:scale-95 transition-all"
-                        >
-                          SELL
-                        </button>
-                      </div>
-                    </td>
-
-                    <td className="py-2.5 px-2 font-bold text-[#FF5252] text-sm">
-                      ₹{peLtp.toFixed(2)}
-                    </td>
-
-                    {showAdvancedGreeks && (
-                      <td className="py-2.5 px-2 text-[10px] text-[#8B949E]">
-                        Δ {row.pe.delta.toFixed(2)} | IV {row.pe.iv.toFixed(1)}%
-                      </td>
-                    )}
-                  </tr>
+                    row={row}
+                    isAtm={isAtm}
+                    showAdvancedGreeks={showAdvancedGreeks}
+                    ceTick={ceTick?.tick}
+                    peTick={peTick?.tick}
+                    onOpenOrder={handleOpenOrder}
+                  />
                 );
               })}
             </tbody>

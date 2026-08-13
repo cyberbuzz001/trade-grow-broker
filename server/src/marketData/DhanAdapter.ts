@@ -252,6 +252,13 @@ export class DhanAdapter implements IMarketDataProvider {
     this.ws.send(payload);
   }
 
+  /**
+   * DHAN MARKET FEED SPECIFICATION & LATENCY ARCHITECTURE:
+   * Dhan's official WebSocket market feed (wss://api-feed.dhan.co) streams event-based snapshot
+   * data delivered on a roughly second-by-second (~1 sec) basis per subscribed instrument (not tick-by-tick).
+   * Ticks parsed here are immediately forwarded to MarketDataEngine and published to Redis Pub/Sub
+   * without any interval batching or artificial delay.
+   */
   private handleBinaryMessage(buf: Buffer): void {
     if (buf.length < 8) return;
 
@@ -365,24 +372,62 @@ export class DhanAdapter implements IMarketDataProvider {
   }
 
   public resolveSecurityMapping(token: string): { segment: string; securityId: string } | null {
-    if (DhanAdapter.DHAN_SECURITY_MAP[token]) {
-      return DhanAdapter.DHAN_SECURITY_MAP[token];
+    if (!token) return null;
+    const cleanToken = token.trim();
+
+    if (DhanAdapter.DHAN_SECURITY_MAP[cleanToken]) {
+      return DhanAdapter.DHAN_SECURITY_MAP[cleanToken];
     }
-    // Dynamic resolution based on token naming convention
-    if (token.startsWith('NSE_NIFTY')) return { segment: 'NSE_INDEX', securityId: '13' };
-    if (token.startsWith('NSE_BANKNIFTY')) return { segment: 'NSE_INDEX', securityId: '25' };
-    if (token.startsWith('BSE_SENSEX')) return { segment: 'IDX_I', securityId: '51' };
-    if (token.startsWith('NFO_')) return { segment: 'NSE_FNO', securityId: token.replace(/\D/g, '') || '54321' };
-    if (token.startsWith('BFO_')) return { segment: 'BSE_FNO', securityId: token.replace(/\D/g, '') || '84321' };
-    if (token.startsWith('NSE_')) return { segment: 'NSE_EQ', securityId: token.replace(/\D/g, '') || '2885' };
-    if (token.startsWith('BSE_')) return { segment: 'BSE_EQ', securityId: token.replace(/\D/g, '') || '500325' };
+
+    // Explicit index spot security ID mappings
+    if (cleanToken === 'NSE_NIFTY50' || cleanToken === 'NSE_NIFTY') return { segment: 'NSE_INDEX', securityId: '13' };
+    if (cleanToken === 'NSE_BANKNIFTY') return { segment: 'NSE_INDEX', securityId: '25' };
+    if (cleanToken === 'BSE_SENSEX') return { segment: 'IDX_I', securityId: '51' };
+    if (cleanToken === 'NSE_FINNIFTY') return { segment: 'NSE_INDEX', securityId: '27' };
+    if (cleanToken === 'NSE_MIDCPNIFTY') return { segment: 'NSE_INDEX', securityId: '33' };
+
+    // Query InstrumentMasterService loaded Dhan Scrip Master
+    try {
+      const { InstrumentMasterService } = require('./InstrumentMasterService');
+      const scrip = InstrumentMasterService.getInstance().getDhanScripByToken(cleanToken);
+      if (scrip) {
+        const mapping = { segment: scrip.segment, securityId: scrip.securityId };
+        DhanAdapter.DHAN_SECURITY_MAP[cleanToken] = mapping;
+        return mapping;
+      }
+
+      // Dynamic resolution from option token structure e.g. NFO_NIFTY_24500_CE
+      const optMatch = cleanToken.match(/^(NFO|BFO)_([A-Z0-9]+)_(\d+(?:\.\d+)?)(?:_)?(CE|PE)$/i);
+      if (optMatch) {
+        const underlying = optMatch[2];
+        const strike = parseFloat(optMatch[3]);
+        const optionType = optMatch[4].toUpperCase() as 'CE' | 'PE';
+        const secId = InstrumentMasterService.getInstance().getDhanSecurityId(underlying, strike, optionType);
+        if (secId) {
+          const seg = (underlying === 'SENSEX' || optMatch[1] === 'BFO') ? 'BSE_FNO' : 'NSE_FNO';
+          const mapping = { segment: seg, securityId: secId };
+          DhanAdapter.DHAN_SECURITY_MAP[cleanToken] = mapping;
+          return mapping;
+        }
+      }
+    } catch (_) {}
+
+    // If pure numeric token (e.g. "35000")
+    if (/^\d+$/.test(cleanToken)) {
+      const seg = cleanToken === '51' ? 'IDX_I' : ['13', '25', '27', '33'].includes(cleanToken) ? 'NSE_INDEX' : 'NSE_FNO';
+      return { segment: seg, securityId: cleanToken };
+    }
+
     return null;
   }
 
   private findTokenBySecurityId(securityId: string): string | null {
+    if (!securityId) return null;
+    const cleanId = String(securityId).trim();
+
     let canonicalMatch: string | null = null;
     for (const [token, map] of Object.entries(DhanAdapter.DHAN_SECURITY_MAP)) {
-      if (map.securityId === securityId) {
+      if (map.securityId === cleanId) {
         if (token.includes('_CE') || token.includes('_PE')) {
           return token;
         }
@@ -390,10 +435,18 @@ export class DhanAdapter implements IMarketDataProvider {
       }
     }
     if (canonicalMatch) return canonicalMatch;
+
     for (const token of this.subscribedTokens) {
       const map = this.resolveSecurityMapping(token);
-      if (map && map.securityId === securityId) return token;
+      if (map && map.securityId === cleanId) return token;
     }
+
+    try {
+      const { InstrumentMasterService } = require('./InstrumentMasterService');
+      const masterToken = InstrumentMasterService.getInstance().findTokenBySecurityId(cleanId);
+      if (masterToken) return masterToken;
+    } catch (_) {}
+
     return null;
   }
 

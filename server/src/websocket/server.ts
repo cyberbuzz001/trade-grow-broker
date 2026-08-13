@@ -86,7 +86,7 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     }
   });
 
-  // Broadcast market ticks to subscribed connections
+  // Immediate Fan-Out: Broadcast market ticks to subscribed WebSocket clients with zero batching/interval delay
   MarketDataEngine.getInstance().onTick((tick) => {
     const payload = JSON.stringify({ type: 'MARKET_TICK', data: tick });
     const tickAliases = SymbologyNormalizer.normalizeToken(tick.instrumentToken);

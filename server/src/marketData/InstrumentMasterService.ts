@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline';
 import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { generateUUID } from '../utils/crypto';
 
@@ -55,15 +56,29 @@ export interface CanonicalInstrument {
   active: boolean;
 }
 
+export interface DhanScripRecord {
+  securityId: string;
+  exchange: string;
+  segment: string; // 'NSE_FNO' | 'BSE_FNO' | 'NSE_INDEX' | 'IDX_I' | 'NSE_EQ' | 'BSE_EQ'
+  tradingSymbol: string;
+  symbolName: string;
+  strikePrice: number;
+  optionType: 'CE' | 'PE' | 'XX';
+  expiryDate: string; // YYYY-MM-DD
+  lotSize: number;
+}
+
 export class InstrumentMasterService {
   private static instance: InstrumentMasterService;
   private masterUrl = 'https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json';
+  private dhanMasterUrl = 'https://images.dhan.co/api-data/api-scrip-master.csv';
 
   private isReady: boolean = false;
   private lastSyncTimestamp: number = 0;
   private totalTokensLoaded: number = 0;
   private lastVersionId: string = '';
   private tokenLookupCache: Map<string, string> = new Map();
+  private dhanLookupMap: Map<string, DhanScripRecord> = new Map();
   private unmappedMisses5m: { securityId: string; timestamp: number }[] = [];
   private isResyncing: boolean = false;
 
@@ -85,6 +100,7 @@ export class InstrumentMasterService {
       lastSyncTimestamp: this.lastSyncTimestamp,
       lastSyncDate: this.lastSyncTimestamp > 0 ? new Date(this.lastSyncTimestamp).toISOString() : null,
       totalTokensLoaded: this.totalTokensLoaded,
+      dhanLookupKeys: this.dhanLookupMap.size,
       unmappedTickCount5m: this.unmappedMisses5m.length,
       versionId: this.lastVersionId,
     };
@@ -96,12 +112,187 @@ export class InstrumentMasterService {
   }
 
   /**
+   * Downloads official Dhan HQ Scrip Master CSV file
+   */
+  public async downloadDhanMasterCsv(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const csvPath = path.resolve(__dirname, '../../../data/api-scrip-master.csv');
+      osEnsureDir(path.dirname(csvPath));
+
+      console.log('[InstrumentMasterService] Downloading official Dhan HQ Scrip Master CSV...');
+      https.get(this.dhanMasterUrl, (res) => {
+        if (res.statusCode !== 200) {
+          return reject(new Error(`Failed Dhan Scrip Master download. HTTP Status: ${res.statusCode}`));
+        }
+        const fileStream = fs.createWriteStream(csvPath);
+        res.pipe(fileStream);
+        fileStream.on('finish', () => {
+          fileStream.close();
+          console.log('[InstrumentMasterService] Successfully downloaded Dhan Scrip Master CSV.');
+          resolve(csvPath);
+        });
+      }).on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Syncs and indexes Dhan Scrip Master CSV into memory and database
+   */
+  public async syncDhanScripMaster(): Promise<number> {
+    const csvPath = path.resolve(__dirname, '../../../data/api-scrip-master.csv');
+    let targetPath = csvPath;
+
+    if (!fs.existsSync(csvPath)) {
+      try {
+        targetPath = await this.downloadDhanMasterCsv();
+      } catch (err: any) {
+        console.warn(`[InstrumentMasterService] Dhan CSV download fallback: ${err.message}`);
+        if (!fs.existsSync(csvPath)) return 0;
+      }
+    }
+
+    const fileStream = fs.createReadStream(targetPath);
+    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+
+    let isHeader = true;
+    let count = 0;
+
+    for await (const line of rl) {
+      if (isHeader) {
+        isHeader = false;
+        continue;
+      }
+      if (!line || line.trim() === '') continue;
+
+      const parts = line.split(',');
+      if (parts.length < 11) continue;
+
+      const exchange = parts[0]?.trim();
+      const segmentCode = parts[1]?.trim(); // D = F&O, E = EQ, I = Index
+      const securityId = parts[2]?.trim();
+      const tradingSymbol = parts[5]?.trim();
+      const lotSize = parseFloat(parts[6] || '1');
+      const expiryDateStr = parts[8]?.trim(); // 2026-09-29 14:30:00
+      const strikePrice = parseFloat(parts[9] || '0');
+      const optionType = parts[10]?.trim() as 'CE' | 'PE' | 'XX';
+      const symbolName = parts[15]?.trim() || tradingSymbol.split('-')[0];
+
+      if (!securityId) continue;
+      count++;
+
+      const segment = segmentCode === 'D' ? (exchange === 'BSE' ? 'BSE_FNO' : 'NSE_FNO') : segmentCode === 'I' ? (exchange === 'BSE' ? 'IDX_I' : 'NSE_INDEX') : (exchange === 'BSE' ? 'BSE_EQ' : 'NSE_EQ');
+      const expiryDate = expiryDateStr ? expiryDateStr.split(' ')[0] : '';
+
+      const rec: DhanScripRecord = {
+        securityId,
+        exchange,
+        segment,
+        tradingSymbol,
+        symbolName: symbolName.toUpperCase(),
+        strikePrice,
+        optionType: optionType === 'CE' || optionType === 'PE' ? optionType : 'XX',
+        expiryDate,
+        lotSize: isNaN(lotSize) || lotSize < 1 ? 1 : lotSize
+      };
+
+      // Indexing in-memory lookups
+      const segPrefix = exchange === 'BSE' ? 'BFO' : 'NFO';
+
+      // 1. By SecurityId e.g. "35000"
+      this.dhanLookupMap.set(securityId, rec);
+      this.dhanLookupMap.set(`${exchange}_${securityId}`, rec);
+
+      // 2. By Token e.g. "NFO_35000"
+      this.dhanLookupMap.set(`${segPrefix}_${securityId}`, rec);
+
+      // 3. By Trading Symbol e.g. "BANKNIFTY-Aug2026-72600-CE"
+      this.dhanLookupMap.set(tradingSymbol, rec);
+
+      // 4. By Option format e.g. "NFO_BANKNIFTY_72600_CE" or "NFO_NIFTY_24500_CE"
+      if ((optionType === 'CE' || optionType === 'PE') && strikePrice > 0 && rec.symbolName) {
+        const cleanSym = rec.symbolName.replace(/^(NSE_|BSE_|NFO_|BFO_)/, '');
+        const optKey = `${segPrefix}_${cleanSym}_${strikePrice}_${optionType}`;
+        
+        // Always store latest/nearest active strike mapping
+        if (!this.dhanLookupMap.has(optKey)) {
+          this.dhanLookupMap.set(optKey, rec);
+        }
+        if (expiryDate) {
+          this.dhanLookupMap.set(`${optKey}_${expiryDate}`, rec);
+        }
+
+        // Also index under compact format e.g. "NSE_NIFTY24500CE"
+        const compactKey = `${exchange}_${cleanSym}${strikePrice}${optionType}`;
+        if (!this.dhanLookupMap.has(compactKey)) {
+          this.dhanLookupMap.set(compactKey, rec);
+        }
+      } else if (segmentCode === 'I' || segmentCode === 'E') {
+        const cleanSym = rec.symbolName.replace(/^(NSE_|BSE_)/, '');
+        this.dhanLookupMap.set(`${exchange}_${cleanSym}`, rec);
+      }
+    }
+
+    console.log(`[InstrumentMasterService] Loaded ${count} Dhan instruments into ${this.dhanLookupMap.size} lookup keys.`);
+    this.isReady = true;
+    return count;
+  }
+
+  public getDhanScripBySecurityId(securityId: string): DhanScripRecord | undefined {
+    if (!securityId) return undefined;
+    return this.dhanLookupMap.get(String(securityId).trim());
+  }
+
+  public getDhanScripByToken(token: string): DhanScripRecord | undefined {
+    if (!token) return undefined;
+    const clean = token.trim();
+    const direct = this.dhanLookupMap.get(clean);
+    if (direct) return direct;
+
+    const noPrefix = clean.replace(/^(NSE_|BSE_|NFO_|BFO_)/, '');
+    const match = this.dhanLookupMap.get(noPrefix);
+    if (match) return match;
+
+    return undefined;
+  }
+
+  public getDhanSecurityId(underlying: string, strike: number, optionType: 'CE' | 'PE', expiry?: string): string | null {
+    const cleanSym = (underlying || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_|NFO_|BFO_)/, '');
+    const segPrefix = cleanSym === 'SENSEX' ? 'BFO' : 'NFO';
+    const baseKey = `${segPrefix}_${cleanSym}_${strike}_${optionType}`;
+
+    if (expiry) {
+      const expKey = `${baseKey}_${expiry.trim()}`;
+      const recExp = this.dhanLookupMap.get(expKey);
+      if (recExp) return recExp.securityId;
+    }
+
+    const recBase = this.dhanLookupMap.get(baseKey);
+    if (recBase) return recBase.securityId;
+
+    return null;
+  }
+
+  /**
    * High-performance in-memory lookup for live tick security IDs.
    * Tracks miss counter and triggers emergency re-sync if misses exceed threshold in 5m.
    */
   public findTokenBySecurityId(securityId: string): string | null {
     if (!securityId) return null;
     const cleanId = String(securityId).trim();
+
+    // 1. Check Dhan Scrip Lookup Map
+    const dhanRec = this.dhanLookupMap.get(cleanId);
+    if (dhanRec) {
+      if (dhanRec.optionType === 'CE' || dhanRec.optionType === 'PE') {
+        const segPrefix = dhanRec.exchange === 'BSE' ? 'BFO' : 'NFO';
+        return `${segPrefix}_${dhanRec.symbolName}_${dhanRec.strikePrice}_${dhanRec.optionType}`;
+      }
+      return dhanRec.tradingSymbol || `${dhanRec.exchange}_${dhanRec.securityId}`;
+    }
+
+    // 2. Check tokenLookupCache
     const token = this.tokenLookupCache.get(cleanId);
     if (token) return token;
 
@@ -114,7 +305,7 @@ export class InstrumentMasterService {
       console.warn(`[InstrumentMasterService] Unmapped security ID misses reached ${this.unmappedMisses5m.length} in 5m. Triggering emergency Scrip Master re-sync...`);
       this.isResyncing = true;
       this.unmappedMisses5m = [];
-      void this.syncMasterData().finally(() => { this.isResyncing = false; });
+      void this.syncDhanScripMaster().finally(() => { this.isResyncing = false; });
     }
 
     return null;
@@ -127,6 +318,9 @@ export class InstrumentMasterService {
   public async initializeOnStartup(): Promise<void> {
     console.log('[InstrumentMasterService] Initializing Scrip Master on server startup...');
     try {
+      // First sync Dhan Scrip Master into memory
+      await this.syncDhanScripMaster();
+
       // 1. Populate tokenLookupCache from existing database
       const rows = await query<{ instrument_token: string; trading_symbol: string }>(
         'SELECT instrument_token, trading_symbol FROM instruments WHERE active = TRUE'
@@ -146,14 +340,10 @@ export class InstrumentMasterService {
       console.log(`[InstrumentMasterService] Loaded ${rows.length} existing active tokens into lookup cache.`);
       this.isReady = true;
 
-      if (rows.length === 0) {
-        console.log('[InstrumentMasterService] No instruments found in database. Performing initial blocking sync...');
-        await this.syncMasterData();
-      }
-
       // Schedule daily recurring scrip master sync (runs every 24 hours to keep strike IDs fresh)
       setInterval(() => {
         console.log('[InstrumentMasterService] Running scheduled daily scrip master sync...');
+        void this.syncDhanScripMaster();
         void this.syncMasterData();
       }, 24 * 60 * 60 * 1000);
     } catch (err: any) {
@@ -241,7 +431,6 @@ export class InstrumentMasterService {
           
           let parsedStrike = parseFloat(raw.strike || '0');
           if (isNaN(parsedStrike) || parsedStrike < 0) parsedStrike = 0;
-          // Scale down if raw strike is in paise (> 1,000,000)
           if (parsedStrike > 1000000) parsedStrike = parsedStrike / 100;
           const strikeVal = Math.min(99999999.99, parsedStrike);
 
@@ -284,16 +473,12 @@ export class InstrumentMasterService {
             } else {
               updated++;
             }
-          } catch (_) {
-            // Ignore individual malformed record inserts
-          }
+          } catch (_) {}
         }
       });
-      // Yield to event loop to allow incoming HTTP auth / API requests to execute freely
       await new Promise(r => setTimeout(r, 10));
     }
 
-    // Deactivate expired instruments
     try {
       await execute(
         `UPDATE instruments 
@@ -306,7 +491,6 @@ export class InstrumentMasterService {
       );
     } catch (_) {}
 
-    // Record Version Details
     await execute(
       `INSERT INTO instrument_master_versions (version_id, source_url, file_hash, record_count, valid_count, inserted_count, updated_count, processing_duration_ms, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SUCCESS')`,
@@ -318,7 +502,6 @@ export class InstrumentMasterService {
     this.totalTokensLoaded = rawRecords.length;
     this.lastVersionId = versionId;
 
-    // Refresh tokenLookupCache
     rawRecords.forEach(r => {
       if (r.token && r.exch_seg) {
         const fullToken = `${r.exch_seg}_${r.token}`;
@@ -334,12 +517,10 @@ export class InstrumentMasterService {
     return { versionId, totalParsed: rawRecords.length, inserted, updated };
   }
 
-  /**
-   * Pre-market daily job to sync instrument master and clean up stale mapping
-   */
   public async syncPreMarketScripMaster(): Promise<void> {
     console.log('[InstrumentMasterService] Running pre-market instrument master sync job...');
     try {
+      await this.syncDhanScripMaster();
       await this.syncMasterData();
     } catch (err: any) {
       console.error('[InstrumentMasterService] Pre-market sync failed:', err.message);
