@@ -380,9 +380,16 @@ export class DhanAdapter implements IMarketDataProvider {
   }
 
   private findTokenBySecurityId(securityId: string): string | null {
+    let canonicalMatch: string | null = null;
     for (const [token, map] of Object.entries(DhanAdapter.DHAN_SECURITY_MAP)) {
-      if (map.securityId === securityId) return token;
+      if (map.securityId === securityId) {
+        if (token.includes('_CE') || token.includes('_PE')) {
+          return token;
+        }
+        if (!canonicalMatch) canonicalMatch = token;
+      }
     }
+    if (canonicalMatch) return canonicalMatch;
     for (const token of this.subscribedTokens) {
       const map = this.resolveSecurityMapping(token);
       if (map && map.securityId === securityId) return token;
@@ -624,16 +631,16 @@ export class DhanAdapter implements IMarketDataProvider {
             const ceSecurityId = String(ceData.security_id || '');
             const peSecurityId = String(peData.security_id || '');
 
-            const ceToken = ceSecurityId ? `${optPrefix}_${ceSecurityId}` : `${optPrefix}_${cleanSym}_${strikePrice}_CE`;
-            const peToken = peSecurityId ? `${optPrefix}_${peSecurityId}` : `${optPrefix}_${cleanSym}_${strikePrice}_PE`;
+            const ceToken = `${optPrefix}_${cleanSym}_${strikePrice}_CE`;
+            const peToken = `${optPrefix}_${cleanSym}_${strikePrice}_PE`;
 
             if (ceSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${cleanSym}_${strikePrice}_CE`] = { segment: optSeg, securityId: ceSecurityId };
               DhanAdapter.DHAN_SECURITY_MAP[ceToken] = { segment: optSeg, securityId: ceSecurityId };
+              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${ceSecurityId}`] = { segment: optSeg, securityId: ceSecurityId };
             }
             if (peSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${cleanSym}_${strikePrice}_PE`] = { segment: optSeg, securityId: peSecurityId };
               DhanAdapter.DHAN_SECURITY_MAP[peToken] = { segment: optSeg, securityId: peSecurityId };
+              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${peSecurityId}`] = { segment: optSeg, securityId: peSecurityId };
             }
 
             const ceLtp = Number(ceData.last_price || ceData.ltp || 0);

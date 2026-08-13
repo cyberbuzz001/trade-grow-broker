@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import jwt from 'jsonwebtoken';
 import { MarketDataEngine } from '../marketData/MarketDataEngine';
+import { SymbologyNormalizer } from '../marketData/SymbologyNormalizer';
 import { getJwtSecret } from '../middleware/auth';
 
 interface ExtendedWebSocket extends WebSocket {
@@ -47,14 +48,10 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
 
           tokensToAdd.forEach((t: string) => {
             if (!t) return;
-            ws.subscriptions?.add(t);
-            // Also register common aliases for spot tickers
             const clean = t.trim();
             ws.subscriptions?.add(clean);
-            if (!clean.startsWith('NSE_') && !clean.startsWith('BSE_') && !clean.startsWith('NFO_') && !clean.startsWith('MCX_')) {
-              ws.subscriptions?.add(`NSE_${clean}`);
-              ws.subscriptions?.add(`BSE_${clean}`);
-            }
+            const aliases = SymbologyNormalizer.normalizeToken(clean);
+            aliases.forEach(alias => ws.subscriptions?.add(alias));
           });
 
           // Forward token subscriptions to MarketDataEngine so market provider emits live ticks
@@ -62,7 +59,13 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
             MarketDataEngine.getInstance().subscribe(tokensToAdd);
           }
         } else if (data.action === 'UNSUBSCRIBE' && Array.isArray(data.tokens)) {
-          data.tokens.forEach((t: string) => ws.subscriptions?.delete(t));
+          data.tokens.forEach((t: string) => {
+            if (!t) return;
+            const clean = t.trim();
+            ws.subscriptions?.delete(clean);
+            const aliases = SymbologyNormalizer.normalizeToken(clean);
+            aliases.forEach(alias => ws.subscriptions?.delete(alias));
+          });
         } else if (data.action === 'PING') {
           ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
         }
@@ -86,26 +89,20 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
   // Broadcast market ticks to subscribed connections
   MarketDataEngine.getInstance().onTick((tick) => {
     const payload = JSON.stringify({ type: 'MARKET_TICK', data: tick });
-    let sentCount = 0;
+    const tickAliases = SymbologyNormalizer.normalizeToken(tick.instrumentToken);
+    if (tick.symbol) {
+      const symAliases = SymbologyNormalizer.normalizeToken(tick.symbol);
+      symAliases.forEach(a => tickAliases.push(a));
+    }
 
     wss.clients.forEach((client: ExtendedWebSocket) => {
       if (client.readyState === WebSocket.OPEN && client.subscriptions) {
         const subs = client.subscriptions;
-        const sym = tick.symbol ? tick.symbol.trim() : '';
-        const isSubscribed = subs.has(tick.instrumentToken) ||
-          (sym && (
-            subs.has(sym) ||
-            subs.has(`NSE_${sym}`) ||
-            subs.has(`BSE_${sym}`) ||
-            subs.has(`MCX_${sym}`) ||
-            subs.has(`NFO_${sym}`) ||
-            subs.has(`BFO_${sym}`)
-          ));
+        const isSubscribed = subs.has(tick.instrumentToken) || tickAliases.some(alias => subs.has(alias));
 
         if (isSubscribed) {
           try {
             client.send(payload);
-            sentCount++;
           } catch (err: any) {
             // Suppress send errors for dead connections
           }
