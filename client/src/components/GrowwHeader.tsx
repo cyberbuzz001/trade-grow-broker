@@ -137,6 +137,18 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
           <span className="hidden sm:inline text-xs">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
 
+        {/* Admin Control Center Quick Button (for Staff/Admin accounts) */}
+        {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user?.role || '') && (
+          <button
+            onClick={() => onNavigateView('ADMIN')}
+            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 flex items-center gap-1.5 text-xs font-black transition shadow-sm"
+            title="Open Admin Control Center"
+          >
+            <ShieldCheck className="w-4 h-4 text-rose-500" />
+            <span className="hidden md:inline">Admin Panel</span>
+          </button>
+        )}
+
         {/* Notification Bell with Badge */}
         <div className="relative cursor-pointer p-2 text-slate-600 dark:text-slate-300 hover:text-[var(--groww-green)] transition-colors">
           <Bell className="w-5 h-5" />

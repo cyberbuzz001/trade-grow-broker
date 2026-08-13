@@ -16,6 +16,8 @@ import { LedgerViewer } from './admin/LedgerViewer';
 import { SystemMonitor } from './admin/SystemMonitor';
 import { AuditLogViewer } from './admin/AuditLogViewer';
 import { MarketDataAdmin } from './admin/MarketDataAdmin';
+import { LinkPeAdminManagement } from './admin/LinkPeAdminManagement';
+import { QrCode as QrCodeIcon } from 'lucide-react';
 
 interface AdminPanelProps {
   token: string;
@@ -23,7 +25,7 @@ interface AdminPanelProps {
 
 type AdminPage =
   | 'DASHBOARD' | 'CUSTOMERS' | 'CUSTOMER_360' | 'KYC' | 'ORDERS'
-  | 'RISK' | 'KILL_SWITCH' | 'BROKER' | 'FUNDS' | 'LEDGER' | 'SYSTEM' | 'AUDIT' | 'MARKET_DATA';
+  | 'RISK' | 'KILL_SWITCH' | 'BROKER' | 'FUNDS' | 'LINKPE_UPI' | 'LEDGER' | 'SYSTEM' | 'AUDIT' | 'MARKET_DATA';
 
 interface NavItem {
   key: AdminPage;
@@ -48,7 +50,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
     { key: 'BROKER', label: 'Broker Health', icon: <Wifi className="w-4 h-4" />, section: 'TECHNOLOGY' },
     { key: 'MARKET_DATA', label: 'API Keys & Storage', icon: <Server className="w-4 h-4" />, section: 'TECHNOLOGY' },
     { key: 'SYSTEM', label: 'System Monitor', icon: <Server className="w-4 h-4" />, section: 'TECHNOLOGY' },
-    { key: 'FUNDS', label: 'Funds Dashboard', icon: <DollarSign className="w-4 h-4" />, section: 'FINANCE' },
+    { key: 'FUNDS', label: 'Funds Overview', icon: <DollarSign className="w-4 h-4" />, section: 'FINANCE' },
+    { key: 'LINKPE_UPI', label: 'LinkPe & UPI Settings', icon: <QrCodeIcon className="w-4 h-4 text-emerald-400" />, section: 'FINANCE' },
     { key: 'LEDGER', label: 'Ledger Viewer', icon: <BookOpen className="w-4 h-4" />, section: 'FINANCE' },
     { key: 'AUDIT', label: 'Audit Logs', icon: <FileText className="w-4 h-4" />, section: 'COMPLIANCE' },
   ];
@@ -77,6 +80,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
       case 'BROKER': return <BrokerHealth token={token} />;
       case 'MARKET_DATA': return <MarketDataAdmin token={token} />;
       case 'FUNDS': return <FundsDashboard token={token} />;
+      case 'LINKPE_UPI': return <LinkPeAdminManagement token={token} />;
       case 'LEDGER': return <LedgerViewer token={token} />;
       case 'SYSTEM': return <SystemMonitor token={token} />;
       case 'AUDIT': return <AuditLogViewer token={token} />;

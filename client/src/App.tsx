@@ -374,6 +374,7 @@ export function App() {
           isTerminalMode={isTerminalMode}
           onToggleTerminal={() => setIsTerminalMode(!isTerminalMode)}
           ticks={ticks}
+          user={user}
         />
 
         {/* 3. MAIN WORKSPACE CONTAINER */}

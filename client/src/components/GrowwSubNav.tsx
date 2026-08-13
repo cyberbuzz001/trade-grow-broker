@@ -10,6 +10,7 @@ interface GrowwSubNavProps {
   isTerminalMode: boolean;
   onToggleTerminal: () => void;
   ticks?: Map<string, MarketTick>;
+  user?: any;
 }
 
 export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
@@ -18,6 +19,7 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   isTerminalMode,
   onToggleTerminal,
   ticks,
+  user,
 }) => {
   const getNifty = () => ticks?.get('NSE_NIFTY50') || ticks?.get('NIFTY50') || ticks?.get('NIFTY 50');
   const getSensex = () => ticks?.get('BSE_SENSEX') || ticks?.get('SENSEX');
@@ -49,6 +51,8 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   const bankNiftyChg = formatChange(bankNiftyTick, -78.40, -0.15);
   const finNiftyChg = formatChange(finNiftyTick, 52.10, 0.22);
 
+  const isStaff = user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user.role);
+
   const navItems: { id: SubView; label: string }[] = [
     { id: 'EXPLORE', label: 'Explore' },
     { id: 'HOLDINGS', label: 'Holdings' },
@@ -56,6 +60,7 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
     { id: 'ORDERS', label: 'Orders' },
     { id: 'WATCHLIST', label: 'Watchlist' },
     { id: 'OPTION_CHAIN', label: 'Option Chain' },
+    ...(isStaff ? [{ id: 'ADMIN' as SubView, label: 'Admin Panel 🛡️' }] : []),
   ];
 
   return (
