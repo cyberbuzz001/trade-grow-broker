@@ -110,15 +110,15 @@ export class PortfolioService {
         // ── CURRENT POSITION IS LONG (netQty > 0) ─────────────────────────
         if (side === 'BUY') {
           // Adding to Long Position (Weighted Average Entry Price)
-          const totalVal = (buyQty * buyPrice) + (quantity * price);
+          const totalVal = (buyQty * (buyPrice > 0 ? buyPrice : price)) + (quantity * price);
           buyQty += quantity;
-          buyPrice = buyQty > 0 ? totalVal / buyQty : 0;
+          buyPrice = buyQty > 0 ? totalVal / buyQty : price;
         } else {
           // Selling (Closing Long or Flipping Short)
           closedQty = Math.min(currentNet, quantity);
-          closedEntryPrice = buyPrice;
-          realizedPnlDelta = closedQty * (price - buyPrice);
-          releasedPositionCapital = closedQty * buyPrice;
+          closedEntryPrice = buyPrice > 0 ? buyPrice : (sellPrice > 0 ? sellPrice : price);
+          realizedPnlDelta = closedQty * (price - closedEntryPrice);
+          releasedPositionCapital = closedQty * closedEntryPrice;
           realizedPnl += realizedPnlDelta;
 
           const remainingShortQty = quantity - closedQty;
@@ -130,6 +130,7 @@ export class PortfolioService {
             sellPrice = price;
           } else {
             sellQty += quantity;
+            if (sellPrice === 0) sellPrice = price;
           }
         }
       } else if (currentNet < 0) {
@@ -137,15 +138,15 @@ export class PortfolioService {
         const currentShortQty = Math.abs(currentNet);
         if (side === 'SELL') {
           // Adding to Short Position (Weighted Average Entry Price)
-          const totalVal = (currentShortQty * sellPrice) + (quantity * price);
+          const totalVal = (currentShortQty * (sellPrice > 0 ? sellPrice : price)) + (quantity * price);
           sellQty += quantity;
-          sellPrice = sellQty > 0 ? totalVal / sellQty : 0;
+          sellPrice = sellQty > 0 ? totalVal / sellQty : price;
         } else {
           // Buying (Covering Short or Flipping Long)
           closedQty = Math.min(currentShortQty, quantity);
-          closedEntryPrice = sellPrice;
-          realizedPnlDelta = closedQty * (sellPrice - price);
-          releasedPositionCapital = closedQty * sellPrice;
+          closedEntryPrice = sellPrice > 0 ? sellPrice : (buyPrice > 0 ? buyPrice : price);
+          realizedPnlDelta = closedQty * (closedEntryPrice - price);
+          releasedPositionCapital = closedQty * closedEntryPrice;
           realizedPnl += realizedPnlDelta;
 
           const remainingLongQty = quantity - closedQty;
@@ -157,6 +158,7 @@ export class PortfolioService {
             buyPrice = price;
           } else {
             buyQty += quantity;
+            if (buyPrice === 0) buyPrice = price;
           }
         }
       } else {
@@ -171,7 +173,9 @@ export class PortfolioService {
       }
 
       const netQty = buyQty - sellQty;
-      const averagePrice = netQty > 0 ? buyPrice : netQty < 0 ? sellPrice : 0;
+      const averagePrice = netQty > 0
+        ? (buyPrice > 0 ? buyPrice : price)
+        : (netQty < 0 ? (sellPrice > 0 ? sellPrice : price) : 0);
       const unrealizedPnl = netQty > 0
         ? netQty * (ltp - averagePrice)
         : netQty < 0
