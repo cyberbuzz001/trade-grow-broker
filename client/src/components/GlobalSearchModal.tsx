@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, TrendingUp, LineChart, Layers, PieChart, ShieldAlert, Zap } from 'lucide-react';
+import { Search, X, TrendingUp, LineChart, Layers, PieChart, ShieldAlert, Zap, Command } from 'lucide-react';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -44,15 +44,13 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   ];
 
   const quickNav = [
-    { id: 'TERMINAL', label: 'Trading Terminal', icon: LineChart, color: 'text-emerald-400' },
-    { id: 'OPTION_CHAIN', label: 'Nifty Option Chain', icon: TrendingUp, color: 'text-emerald-400' },
-    { id: 'MARKET_DEPTH', label: 'Level-2 Market Depth', icon: Layers, color: 'text-blue-400' },
-    { id: 'PORTFOLIO', label: 'Portfolio & Risk Analytics', icon: PieChart, color: 'text-purple-400' },
-    { id: 'SCANNER', label: 'Market Scanner', icon: Zap, color: 'text-yellow-400' },
+    { id: 'TERMINAL', label: 'Pro Terminal Workspace', icon: LineChart, color: 'text-emerald-400' },
+    { id: 'OPTION_CHAIN', label: 'Option Chain Matrix', icon: TrendingUp, color: 'text-emerald-400' },
+    { id: 'SCANNER', label: 'AI Technical Scanner', icon: Zap, color: 'text-amber-400' },
+    { id: 'PORTFOLIO', label: 'Portfolio Analytics', icon: PieChart, color: 'text-purple-400' },
     { id: 'ADMIN', label: 'Admin Control Center', icon: ShieldAlert, color: 'text-rose-400' }
   ];
 
-  // Dynamic Options Contract Generator for NIFTY & SENSEX strike searches
   const getDynamicOptionResults = () => {
     if (!query.trim()) return [];
     const qLower = query.toLowerCase();
@@ -107,46 +105,50 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   const allFiltered = [...filteredStatic, ...dynamicOptions];
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-start justify-center pt-20 px-4 touch-action-manipulation">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-150">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[9999] flex items-start justify-center pt-16 sm:pt-20 px-4 touch-action-manipulation font-body text-slate-100">
+      <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-xl animate-in fade-in zoom-in duration-150">
         
         {/* SEARCH INPUT BAR */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-800 bg-slate-950/60">
-          <Search className="w-5 h-5 text-slate-400" />
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-800 bg-slate-950/80">
+          <Search className="w-5 h-5 text-emerald-400" />
           <input
             type="text"
             autoFocus
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search NIFTY/SENSEX options (e.g. NIFTY 24500 CE)..."
-            className="w-full bg-transparent text-white placeholder-slate-500 font-sans text-sm focus:outline-none"
+            placeholder="Search Nifty, Sensex, Equity & Option Strikes (e.g. NIFTY 24850 CE)..."
+            className="w-full bg-transparent text-white placeholder-slate-400 font-sans text-sm focus:outline-none"
           />
-          <button onClick={onClose} className="p-1 text-slate-500 hover:text-white rounded">
+          <kbd className="hidden sm:inline bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-mono px-2 py-0.5 rounded">
+            Esc
+          </kbd>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* RESULTS LIST */}
-        <div className="max-h-96 overflow-y-auto p-2 flex flex-col gap-3">
+        <div className="max-h-96 overflow-y-auto p-3 flex flex-col gap-4">
           
           {/* QUICK NAV MODULES */}
           {query === '' && (
             <div>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1 block">Quick Navigation</span>
-              <div className="grid grid-cols-2 gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 block font-mono">Quick Navigation</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {quickNav.map(nav => {
                   const Icon = nav.icon;
                   return (
                     <button
                       key={nav.id}
+                      type="button"
                       onClick={() => {
                         onSelectTab(nav.id as any);
                         onClose();
                       }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-950/60 hover:bg-slate-800 text-left transition border border-slate-800/80 text-xs"
+                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-left transition border border-slate-800 text-xs min-h-[44px] cursor-pointer"
                     >
                       <Icon className={`w-4 h-4 ${nav.color}`} />
-                      <span className="font-semibold text-slate-200">{nav.label}</span>
+                      <span className="font-bold text-slate-200">{nav.label}</span>
                     </button>
                   );
                 })}
@@ -156,35 +158,36 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
           {/* INSTRUMENTS SEARCH LIST */}
           <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1 block">Instruments & Options</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 block font-mono">Instruments & Option Contracts</span>
             {allFiltered.length === 0 ? (
-              <div className="text-center py-6 text-xs text-slate-500">No matching instruments or options found for "{query}".</div>
+              <div className="text-center py-8 text-xs text-slate-400 font-medium">No matching instruments found for "{query}".</div>
             ) : (
               <div className="flex flex-col gap-1">
                 {allFiltered.map(inst => (
                   <button
                     key={inst.token}
+                    type="button"
                     onClick={() => {
                       onSelectSymbol(inst.token, inst.symbol);
                       onClose();
                     }}
-                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-slate-800/80 transition text-left group"
+                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl hover:bg-slate-800/80 transition text-left cursor-pointer min-h-[44px] border border-transparent hover:border-slate-800"
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`font-black text-sm ${inst.symbol.includes('CE') ? 'text-emerald-400' : inst.symbol.includes('PE') ? 'text-rose-400' : 'text-slate-100'}`}>
+                        <span className={`font-bold text-sm ${inst.symbol.includes('CE') ? 'text-emerald-400' : inst.symbol.includes('PE') ? 'text-rose-400' : 'text-white'}`}>
                           {inst.symbol}
                         </span>
-                        <span className="text-xs text-slate-400 font-semibold">{inst.name}</span>
+                        <span className="text-xs text-slate-400 font-medium">{inst.name}</span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-bold">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-950 text-slate-400 font-bold border border-slate-800">
                         {inst.exchange}
                       </span>
                       <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-extrabold ${
-                        inst.type === 'OPT' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                        inst.type === 'OPT' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
                       }`}>
                         {inst.type}
                       </span>

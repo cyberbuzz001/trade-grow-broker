@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, User, Lock, Mail, AlertTriangle, TrendingUp } from 'lucide-react';
+import { ShieldCheck, User, Lock, Mail, AlertTriangle, TrendingUp, Sparkles } from 'lucide-react';
 
 interface AuthModalProps {
   onSuccess: (token: string, user: any) => void;
@@ -40,20 +40,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 touch-action-manipulation">
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
-        <div className="flex flex-col items-center text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-indigo-500/30 mb-3">
-            <TrendingUp className="w-8 h-8" />
+    <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 touch-action-manipulation font-body text-slate-100">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6 backdrop-blur-xl relative overflow-hidden">
+        
+        {/* Glow ambient background */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div className="flex flex-col items-center text-center relative z-10">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-indigo-600 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-emerald-950/40 mb-3 border border-emerald-400/30">
+            <TrendingUp className="w-7 h-7 text-white" />
           </div>
-          <h2 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[var(--text-main)] to-indigo-600 bg-clip-text text-transparent">
-            TradeGrow Portal
+          <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
+            TradeGrow <span className="text-emerald-400">Pro</span>
           </h2>
-          <p className="text-xs font-semibold text-[var(--text-muted)] mt-1">Institutional Trading & Brokerage Platform</p>
+          <p className="text-xs font-medium text-slate-400 mt-1">Smart Institutional Trading & Brokerage Platform</p>
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+          <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs font-bold flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -62,55 +66,55 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 text-xs">
           {!isLogin && (
             <div>
-              <label className="text-[var(--text-muted)] font-bold block mb-1">Username</label>
+              <label className="text-slate-400 font-bold block mb-1">Username</label>
               <div className="relative">
-                <User className="w-4 h-4 text-[var(--text-tertiary)] absolute left-3.5 top-3" />
+                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
                   type="text"
                   required
                   placeholder="trader1"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl py-2.5 pl-10 pr-3 text-[var(--text-main)] font-semibold focus:border-indigo-500 outline-none transition-all"
+                  className="w-full min-h-[44px] bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3 text-white font-bold focus:border-emerald-500 outline-none transition-all"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="text-[var(--text-muted)] font-bold block mb-1">Email Address</label>
+            <label className="text-slate-400 font-bold block mb-1">Email Address</label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-[var(--text-tertiary)] absolute left-3.5 top-3" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="text"
                 required
                 placeholder="user@broker.sim"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl py-2.5 pl-10 pr-3 text-[var(--text-main)] font-semibold focus:border-indigo-500 outline-none transition-all"
+                className="w-full min-h-[44px] bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3 text-white font-bold focus:border-emerald-500 outline-none transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-[var(--text-muted)] font-bold block mb-1">Password</label>
+            <label className="text-slate-400 font-bold block mb-1">Password</label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-[var(--text-tertiary)] absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl py-2.5 pl-10 pr-3 text-[var(--text-main)] font-semibold focus:border-indigo-500 outline-none transition-all"
+                className="w-full min-h-[44px] bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3 text-white font-bold focus:border-emerald-500 outline-none transition-all"
               />
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-3 rounded-xl transition-all mt-2 text-sm shadow-md shadow-indigo-600/20"
+            className="w-full min-h-[48px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl transition-all mt-2 text-sm shadow-lg shadow-emerald-950/40 active:scale-95 cursor-pointer"
           >
-            {isLogin ? 'Sign In to Portal' : 'Register Account'}
+            {isLogin ? 'Sign In to Terminal' : 'Create Trader Account'}
           </button>
         </form>
 
@@ -118,7 +122,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           <button
             type="button"
             onClick={() => setIsLogin(!isLogin)}
-            className="text-xs font-bold text-[var(--text-muted)] hover:text-indigo-600 transition-colors"
+            className="text-xs font-bold text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer min-h-[44px]"
           >
             {isLogin ? "Don't have an account? Register here" : 'Already have an account? Sign in'}
           </button>

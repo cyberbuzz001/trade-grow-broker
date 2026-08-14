@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import {
   QrCode, Smartphone, ExternalLink, ShieldCheck, Lock, Save, Copy, Check,
   RefreshCw, Building, CreditCard, DollarSign, AlertCircle, CheckCircle2,
@@ -15,6 +16,7 @@ export const LinkPeAdminManagement: React.FC<LinkPeAdminManagementProps> = ({ to
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
   // Test amount for real-time QR code & deep-link preview
   const [testAmount, setTestAmount] = useState<number>(5000);
@@ -39,10 +41,10 @@ export const LinkPeAdminManagement: React.FC<LinkPeAdminManagementProps> = ({ to
       });
       const data = await res.json();
       if (data.success && data.settings) {
-        setSettings(data.settings);
+        setSettings(prev => ({ ...prev, ...data.settings }));
       }
-    } catch (err: any) {
-      console.error('Failed to load payment settings:', err);
+    } catch {
+      // Keep defaults
     } finally {
       setLoading(false);
     }
@@ -51,6 +53,24 @@ export const LinkPeAdminManagement: React.FC<LinkPeAdminManagementProps> = ({ to
   useEffect(() => {
     fetchSettings();
   }, [token]);
+
+  // Generate Live LinkPe Payloads for preview
+  const safePa = encodeURIComponent(settings.upiId.trim());
+  const safePn = encodeURIComponent(settings.merchantName.trim());
+  const safeTn = encodeURIComponent(customNote.trim());
+  
+  const upiDeepLink = `upi://pay?pa=${safePa}&pn=${safePn}&amt=${testAmount}&cu=INR&tn=${safeTn}`;
+  const linkpeWebUrl = `https://ptprashanttripathi.github.io/linkpe/?pa=${safePa}&pn=${safePn}&amt=${testAmount}&tn=${safeTn}`;
+
+  useEffect(() => {
+    if (upiDeepLink) {
+      QRCode.toDataURL(upiDeepLink, { width: 300, margin: 2, errorCorrectionLevel: 'M' })
+        .then(url => setQrCodeUrl(url))
+        .catch(() => {
+          setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiDeepLink)}&margin=10`);
+        });
+    }
+  }, [upiDeepLink]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,15 +97,6 @@ export const LinkPeAdminManagement: React.FC<LinkPeAdminManagementProps> = ({ to
       setSaving(false);
     }
   };
-
-  // Generate Live LinkPe Payloads for preview
-  const safePa = encodeURIComponent(settings.upiId.trim());
-  const safePn = encodeURIComponent(settings.merchantName.trim());
-  const safeTn = encodeURIComponent(customNote.trim());
-  
-  const upiDeepLink = `upi://pay?pa=${safePa}&pn=${safePn}&amt=${testAmount}&cu=INR&tn=${safeTn}`;
-  const linkpeWebUrl = `https://ptprashanttripathi.github.io/linkpe/?pa=${safePa}&pn=${safePn}&amt=${testAmount}&tn=${safeTn}`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiDeepLink)}&margin=10`;
 
   const copyToClipboard = (text: string, type: 'upi' | 'link') => {
     navigator.clipboard.writeText(text);

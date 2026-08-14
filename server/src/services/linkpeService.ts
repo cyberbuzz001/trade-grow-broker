@@ -2,6 +2,7 @@
  * LinkPe UPI Payment Service
  * Integrates PtPrashantTripathi/linkpe URL schema and UPI deep links
  */
+import QRCode from 'qrcode';
 import { queryOne } from '../db/schema';
 
 export interface LinkPePayload {
@@ -43,8 +44,17 @@ export class LinkPeService {
     // Direct UPI Mobile Deep Link (GPay, PhonePe, Paytm, BHIM)
     const upiDeepLink = `upi://pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
 
-    // Dynamic QR Code Image URL
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiDeepLink)}`;
+    // Dynamic Local Base64 QR Code Image Data URL (Zero external API dependencies)
+    let qrCodeUrl = '';
+    try {
+      qrCodeUrl = await QRCode.toDataURL(upiDeepLink, {
+        width: 300,
+        margin: 2,
+        errorCorrectionLevel: 'M'
+      });
+    } catch {
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiDeepLink)}`;
+    }
 
     return {
       upiId,

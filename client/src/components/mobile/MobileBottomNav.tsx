@@ -13,76 +13,109 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   isAdmin = false,
 }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-surface)] border-t border-[var(--border-color)] px-2 h-16 flex items-center justify-around shadow-2xl backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)]">
+    <nav 
+      aria-label="Mobile Navigation Bar"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-2xl border-t border-slate-800/80 px-2 h-16 flex items-center justify-around shadow-2xl pb-[env(safe-area-inset-bottom,8px)]"
+    >
       
       {/* Home Tab */}
       <button
+        type="button"
         onClick={() => onSelectTab('HOME')}
-        className={`flex flex-col items-center gap-1 transition-colors touch-target px-2 ${
-          activeTab === 'HOME' ? 'text-indigo-500 font-black scale-105' : 'text-[var(--text-tertiary)] font-bold hover:text-[var(--text-main)]'
+        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+          activeTab === 'HOME' 
+            ? 'text-emerald-400 font-extrabold shadow-sm' 
+            : 'text-slate-400 font-semibold hover:text-white'
         }`}
       >
-        <Home className="w-5 h-5" />
-        <span className="text-[10px]">Home</span>
+        <div className={`p-1 rounded-lg ${activeTab === 'HOME' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
+          <Home className="w-5 h-5" />
+        </div>
+        <span className="text-[10px] tracking-tight">Home</span>
       </button>
 
       {/* Watchlist Tab */}
       <button
+        type="button"
         onClick={() => onSelectTab('WATCHLIST')}
-        className={`flex flex-col items-center gap-1 transition-colors touch-target px-2 ${
-          activeTab === 'WATCHLIST' ? 'text-indigo-500 font-black scale-105' : 'text-[var(--text-tertiary)] font-bold hover:text-[var(--text-main)]'
+        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+          activeTab === 'WATCHLIST' 
+            ? 'text-emerald-400 font-extrabold shadow-sm' 
+            : 'text-slate-400 font-semibold hover:text-white'
         }`}
       >
-        <Bookmark className="w-5 h-5" />
-        <span className="text-[10px]">Watchlist</span>
+        <div className={`p-1 rounded-lg ${activeTab === 'WATCHLIST' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
+          <Bookmark className="w-5 h-5" />
+        </div>
+        <span className="text-[10px] tracking-tight">Watchlist</span>
       </button>
 
       {/* Option Chain Tab */}
       <button
+        type="button"
         onClick={() => onSelectTab('OPTION_CHAIN')}
-        className={`flex flex-col items-center gap-1 transition-colors touch-target px-2 ${
-          activeTab === 'OPTION_CHAIN' ? 'text-indigo-500 font-black scale-105' : 'text-[var(--text-tertiary)] font-bold hover:text-[var(--text-main)]'
+        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+          activeTab === 'OPTION_CHAIN' 
+            ? 'text-emerald-400 font-extrabold shadow-sm' 
+            : 'text-slate-400 font-semibold hover:text-white'
         }`}
       >
-        <Layers className="w-5 h-5" />
-        <span className="text-[10px]">Option Chain</span>
+        <div className={`p-1 rounded-lg ${activeTab === 'OPTION_CHAIN' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
+          <Layers className="w-5 h-5" />
+        </div>
+        <span className="text-[10px] tracking-tight">Options</span>
       </button>
 
       {/* Positions Tab */}
       <button
+        type="button"
         onClick={() => onSelectTab('POSITIONS')}
-        className={`flex flex-col items-center gap-1 transition-colors touch-target px-2 ${
-          activeTab === 'POSITIONS' ? 'text-indigo-500 font-black scale-105' : 'text-[var(--text-tertiary)] font-bold hover:text-[var(--text-main)]'
+        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+          activeTab === 'POSITIONS' 
+            ? 'text-emerald-400 font-extrabold shadow-sm' 
+            : 'text-slate-400 font-semibold hover:text-white'
         }`}
       >
-        <Briefcase className="w-5 h-5" />
-        <span className="text-[10px]">Positions</span>
+        <div className={`p-1 rounded-lg ${activeTab === 'POSITIONS' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
+          <Briefcase className="w-5 h-5" />
+        </div>
+        <span className="text-[10px] tracking-tight">Positions</span>
       </button>
 
-      {/* Admin Tab (Only for Admin Roles) */}
+      {/* Admin Tab (For Admin Staff) */}
       {isAdmin && (
         <button
+          type="button"
           onClick={() => onSelectTab('ADMIN')}
-          className={`flex flex-col items-center gap-1 transition-colors touch-target px-2 ${
-            activeTab === 'ADMIN' ? 'text-amber-500 font-black scale-105' : 'text-[var(--text-tertiary)] font-bold hover:text-[var(--text-main)]'
+          className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+            activeTab === 'ADMIN' 
+              ? 'text-rose-400 font-extrabold shadow-sm' 
+              : 'text-slate-400 font-semibold hover:text-white'
           }`}
         >
-          <ShieldCheck className="w-5 h-5" />
-          <span className="text-[10px]">Admin</span>
+          <div className={`p-1 rounded-lg ${activeTab === 'ADMIN' ? 'bg-rose-500/20 text-rose-400' : ''}`}>
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight">Admin</span>
         </button>
       )}
 
       {/* Profile Tab */}
       <button
+        type="button"
         onClick={() => onSelectTab('PROFILE')}
-        className={`flex flex-col items-center gap-1 transition-colors touch-target px-2 ${
-          activeTab === 'PROFILE' ? 'text-indigo-500 font-black scale-105' : 'text-[var(--text-tertiary)] font-bold hover:text-[var(--text-main)]'
+        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+          activeTab === 'PROFILE' 
+            ? 'text-emerald-400 font-extrabold shadow-sm' 
+            : 'text-slate-400 font-semibold hover:text-white'
         }`}
       >
-        <User className="w-5 h-5" />
-        <span className="text-[10px]">Profile</span>
+        <div className={`p-1 rounded-lg ${activeTab === 'PROFILE' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
+          <User className="w-5 h-5" />
+        </div>
+        <span className="text-[10px] tracking-tight">Profile</span>
       </button>
 
-    </div>
+    </nav>
   );
 };

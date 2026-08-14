@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MarketTick } from '../types';
-import { Search, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Star, ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Eye } from 'lucide-react';
+import { Search, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Star, ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Eye, Bookmark } from 'lucide-react';
 import { PriceBadge } from './PriceBadge';
 import { useTickFreshness, useMultiTickFreshness } from '../hooks/useTickFreshness';
 import { useSubscribeTokens } from '../hooks/useMarketSocket';
@@ -51,7 +51,6 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
   onRefreshWallet,
   onSelectSymbolForTerminal,
 }) => {
-  // Load saved watchlist or default
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
     try {
       const saved = localStorage.getItem('user_custom_watchlist');
@@ -67,21 +66,17 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
   const [isOrderModalOpen, setIsOrderModalOpen] = useState<boolean>(false);
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Save watchlist updates to local storage
   useEffect(() => {
     try {
       localStorage.setItem('user_custom_watchlist', JSON.stringify(watchlist));
     } catch (_) {}
   }, [watchlist]);
 
-  // Subscribe all watchlist tokens to live WebSocket feed
   const activeTokens = useMemo(() => watchlist.map(item => item.token), [watchlist]);
   useSubscribeTokens(activeTokens);
 
-  // Multi-token tick freshness map
   const freshnessMap = useMultiTickFreshness(activeTokens);
 
-  // Filter items by category & search query
   const filteredWatchlist = useMemo(() => {
     return watchlist.filter(item => {
       const matchesCategory = activeFilter === 'ALL' || item.category === activeFilter;
@@ -93,7 +88,6 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
     });
   }, [watchlist, activeFilter, searchQuery]);
 
-  // Search catalog suggestions for adding new items
   const catalogSuggestions = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const existingTokens = new Set(watchlist.map(w => w.token));
@@ -105,7 +99,6 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
     );
   }, [searchQuery, watchlist]);
 
-  // Add symbol to watchlist
   const handleAddSymbol = (item: WatchlistItem) => {
     if (!watchlist.some(w => w.token === item.token)) {
       setWatchlist(prev => [item, ...prev]);
@@ -113,12 +106,10 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
     }
   };
 
-  // Remove symbol from watchlist
   const handleRemoveSymbol = (tokenToRemove: string) => {
     setWatchlist(prev => prev.filter(w => w.token !== tokenToRemove));
   };
 
-  // Open Order Preview Modal
   const handleOpenOrder = (item: WatchlistItem, side: 'BUY' | 'SELL', ltp: number) => {
     const orderDetails: OrderPreviewDetails = {
       token: item.token,
@@ -140,10 +131,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
     setIsOrderModalOpen(true);
   };
 
-  // Confirm Order Execution
   const handleConfirmOrder = async (confirmed: OrderPreviewDetails) => {
-    // The OrderPreviewModal now handles the API call internally.
-    // This callback fires only on SUCCESS — refresh wallet & show success message.
     setActionMsg({
       type: 'success',
       text: `Order Executed! ${confirmed.side} ${confirmed.quantity} Qty of ${confirmed.symbol} @ ₹${confirmed.price.toFixed(2)}`,
@@ -153,51 +141,53 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex flex-col gap-6 w-full font-body text-slate-100">
+      
       {/* 1. TOP HEADER BANNER & SEARCH CONTROL */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-5 sm:p-6 rounded-3xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-md backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-black text-[var(--text-main)] tracking-tight">Market Watchlist</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-black border border-emerald-500/20">
-              {watchlist.length} Symbols
+          <div className="flex items-center gap-2.5">
+            <Bookmark className="w-5 h-5 text-emerald-400" />
+            <h1 className="text-xl font-black text-white tracking-tight">Pro Watchlist</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/30 font-mono">
+              {watchlist.length} Tracked
             </span>
           </div>
-          <p className="text-xs text-[var(--text-tertiary)] font-bold mt-1">
-            Real-time streaming prices, market depth & instant order entry.
+          <p className="text-xs text-slate-400 font-medium mt-1">
+            Real-time WebSocket tick stream, depth monitor & 1-click order execution.
           </p>
         </div>
 
-        {/* Search & Add Symbol Input */}
+        {/* Search Input Box */}
         <div className="relative w-full md:w-80">
           <div className="relative flex items-center">
-            <Search size={16} className="absolute left-3.5 text-[var(--text-tertiary)]" />
+            <Search size={16} className="absolute left-3.5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search symbol to add (e.g. RELIANCE)..."
-              className="w-full pl-10 pr-4 py-2.5 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-2xl text-xs font-bold text-[var(--text-main)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-indigo-500 transition-all shadow-inner"
+              placeholder="Search symbol to track (e.g. RELIANCE)..."
+              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-all shadow-inner"
             />
           </div>
 
-          {/* Autocomplete Suggestions Dropdown */}
+          {/* Autocomplete Suggestions */}
           {catalogSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-12 z-30 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-2xl shadow-xl p-2 max-h-60 overflow-y-auto">
-              <div className="text-[10px] font-black uppercase text-[var(--text-tertiary)] px-3 py-1">
+            <div className="absolute left-0 right-0 top-11 z-30 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 max-h-60 overflow-y-auto">
+              <div className="text-[10px] font-bold uppercase text-slate-400 px-3 py-1">
                 Add to Watchlist
               </div>
               {catalogSuggestions.map(item => (
                 <button
                   key={item.token}
                   onClick={() => handleAddSymbol(item)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-indigo-500/10 text-left transition-colors"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-emerald-500/10 text-left transition-colors cursor-pointer"
                 >
                   <div className="flex flex-col">
-                    <span className="text-xs font-black text-[var(--text-main)]">{item.symbol}</span>
-                    <span className="text-[10px] font-bold text-[var(--text-tertiary)]">{item.name}</span>
+                    <span className="text-xs font-bold text-white">{item.symbol}</span>
+                    <span className="text-[10px] text-slate-400">{item.name}</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-500 font-extrabold text-[10px] flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center gap-1">
                     <Plus size={12} /> Add
                   </span>
                 </button>
@@ -210,30 +200,30 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
       {/* Action Notification Banner */}
       {actionMsg && (
         <div
-          className={`p-4 rounded-2xl border text-xs font-black flex items-center justify-between shadow-xs ${
+          className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between ${
             actionMsg.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
           }`}
         >
           <span>{actionMsg.text}</span>
-          <button onClick={() => setActionMsg(null)} className="text-xs opacity-70 hover:opacity-100 font-bold">
+          <button onClick={() => setActionMsg(null)} className="text-xs opacity-80 hover:opacity-100 font-bold cursor-pointer">
             Dismiss
           </button>
         </div>
       )}
 
-      {/* 2. CATEGORY FILTER TABS & SYMBOL COUNT */}
+      {/* 2. CATEGORY FILTER TABS */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           {(['ALL', 'STOCKS', 'INDICES', 'COMMODITIES'] as const).map(cat => (
             <button
               key={cat}
               onClick={() => setActiveFilter(cat)}
-              className={`px-4 py-2 rounded-2xl text-xs font-black transition-all border ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                 activeFilter === cat
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 scale-105'
-                  : 'bg-[var(--bg-surface-elevated)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-indigo-400 hover:text-[var(--text-main)]'
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
               }`}
             >
               {cat}
@@ -243,43 +233,43 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
 
         <button
           onClick={() => setWatchlist(DEFAULT_WATCHLIST)}
-          className="flex items-center gap-1.5 text-xs font-extrabold text-[var(--text-tertiary)] hover:text-indigo-500 transition-colors"
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
         >
           <RefreshCw size={13} /> Reset Defaults
         </button>
       </div>
 
       {/* 3. WATCHLIST SYMBOLS TABLE */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl shadow-sm overflow-hidden">
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-md overflow-hidden backdrop-blur-xl">
         {filteredWatchlist.length === 0 ? (
           <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
-            <Eye size={36} className="text-[var(--text-tertiary)] opacity-50 animate-pulse" />
-            <span className="text-sm font-extrabold text-[var(--text-muted)]">No symbols found in this filter</span>
+            <Eye size={32} className="text-slate-500 opacity-50 animate-pulse" />
+            <span className="text-sm font-bold text-slate-400">No symbols found matching filter</span>
             <button
               onClick={() => {
                 setActiveFilter('ALL');
                 setSearchQuery('');
               }}
-              className="px-4 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl shadow-md"
+              className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
             >
-              View All Symbols
+              Show All Tracked Symbols
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto scrollbar-none">
+          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-[var(--bg-surface-elevated)]/60 border-b border-[var(--border-color)] text-[10px] font-black uppercase text-[var(--text-tertiary)] tracking-wider num-font">
-                  <th className="py-3.5 px-6">Symbol</th>
-                  <th className="py-3.5 px-4">Exchange</th>
-                  <th className="py-3.5 px-4 text-right">LTP</th>
-                  <th className="py-3.5 px-4 text-right">Change (₹ / %)</th>
-                  <th className="py-3.5 px-4 text-right">High / Low</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-6 text-center">Quick Trade / Action</th>
+                <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 tracking-wider num-font">
+                  <th className="py-3 px-5">Symbol</th>
+                  <th className="py-3 px-4">Exchange</th>
+                  <th className="py-3 px-4 text-right">LTP Price</th>
+                  <th className="py-3 px-4 text-right">Change (1D)</th>
+                  <th className="py-3 px-4 text-right">High / Low</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-5 text-center">Order Execution</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-color)] text-xs font-bold num-font">
+              <tbody className="divide-y divide-slate-800 text-xs font-bold num-font">
                 {filteredWatchlist.map(item => {
                   const freshness = freshnessMap.get(item.token);
                   const tick = freshness?.tick || ticks?.get(item.token);
@@ -289,59 +279,59 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                   const isPositive = change >= 0;
 
                   return (
-                    <tr key={item.token} className="hover:bg-[var(--bg-surface-elevated)]/40 transition-colors group">
+                    <tr key={item.token} className="hover:bg-slate-800/50 transition-colors group">
                       {/* Symbol & Name */}
-                      <td className="py-4 px-6">
+                      <td className="py-3.5 px-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-black text-xs">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-black text-xs">
                             {item.symbol.substring(0, 2)}
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-black text-sm text-[var(--text-main)] group-hover:text-indigo-500 transition-colors">
+                            <span className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors">
                               {item.symbol}
                             </span>
-                            <span className="text-[10px] font-bold text-[var(--text-tertiary)]">{item.name}</span>
+                            <span className="text-[10px] text-slate-400">{item.name}</span>
                           </div>
                         </div>
                       </td>
 
                       {/* Exchange Tag */}
-                      <td className="py-4 px-4">
-                        <span className="px-2 py-0.5 rounded bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[10px] font-black text-[var(--text-muted)]">
+                      <td className="py-3.5 px-4">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">
                           {item.exchange}
                         </span>
                       </td>
 
                       {/* LTP */}
-                      <td className="py-4 px-4 text-right">
-                        <span className="font-black text-base text-[var(--text-main)]">
+                      <td className="py-3.5 px-4 text-right">
+                        <span className="font-bold text-sm text-white">
                           ₹{ltp > 0 ? ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                         </span>
                       </td>
 
                       {/* Change */}
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right">
                         {ltp > 0 ? (
-                          <div className={`flex flex-col items-end ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            <span className="font-black flex items-center gap-0.5">
-                              {isPositive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                          <div className={`flex flex-col items-end ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className="font-bold flex items-center gap-0.5">
+                              {isPositive ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
                               {isPositive ? '+' : ''}{change.toFixed(2)}
                             </span>
-                            <span className="text-[10px] font-extrabold opacity-80">
+                            <span className="text-[10px] font-mono opacity-90">
                               ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
                             </span>
                           </div>
                         ) : (
-                          <span className="text-[var(--text-tertiary)]">—</span>
+                          <span className="text-slate-500">—</span>
                         )}
                       </td>
 
                       {/* High / Low */}
-                      <td className="py-4 px-4 text-right text-[11px] text-[var(--text-tertiary)]">
+                      <td className="py-3.5 px-4 text-right text-[11px] text-slate-400 font-mono">
                         {tick?.high && tick?.low ? (
                           <div className="flex flex-col items-end">
-                            <span className="text-emerald-500 font-bold">H: ₹{tick.high.toFixed(2)}</span>
-                            <span className="text-rose-500 font-bold">L: ₹{tick.low.toFixed(2)}</span>
+                            <span className="text-emerald-400">H: ₹{tick.high.toFixed(2)}</span>
+                            <span className="text-rose-400">L: ₹{tick.low.toFixed(2)}</span>
                           </div>
                         ) : (
                           '—'
@@ -349,7 +339,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                       </td>
 
                       {/* Price Status Badge */}
-                      <td className="py-4 px-4 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <PriceBadge
                           state={freshness?.state || 'LIVE'}
                           timeSinceLastTick={freshness?.timeSinceLastTick}
@@ -358,17 +348,17 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                       </td>
 
                       {/* Actions: Buy / Sell / Remove */}
-                      <td className="py-4 px-6 text-center">
+                      <td className="py-3.5 px-5 text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleOpenOrder(item, 'BUY', ltp)}
-                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs transition-transform active:scale-95"
+                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
                           >
                             BUY
                           </button>
                           <button
                             onClick={() => handleOpenOrder(item, 'SELL', ltp)}
-                            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-xs transition-transform active:scale-95"
+                            className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
                           >
                             SELL
                           </button>
@@ -376,17 +366,17 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                             <button
                               onClick={() => onSelectSymbolForTerminal(item.symbol)}
                               title="Open Terminal View"
-                              className="p-1.5 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-indigo-500 hover:border-indigo-500 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-500 transition-colors cursor-pointer"
                             >
-                              <TrendingUp size={14} />
+                              <TrendingUp size={13} />
                             </button>
                           )}
                           <button
                             onClick={() => handleRemoveSymbol(item.token)}
                             title="Remove from Watchlist"
-                            className="p-1.5 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-rose-500/70 hover:text-rose-500 hover:border-rose-500/40 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-rose-400/80 hover:text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </td>

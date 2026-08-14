@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, TrendingUp, TrendingDown, Filter, Search, ArrowUpRight, ArrowDownRight, Layers, Target, Activity } from 'lucide-react';
+import { Zap, TrendingUp, TrendingDown, Filter, Search, ArrowUpRight, ArrowDownRight, Layers, Target, Activity, Sparkles } from 'lucide-react';
 
 interface MarketScannerProps {
   onSelectSymbol?: (symbol: string) => void;
@@ -39,40 +39,40 @@ export const MarketScanner: React.FC<MarketScannerProps> = ({ onSelectSymbol }) 
 
   const getRatingBadge = (rating: string) => {
     switch (rating) {
-      case 'STRONG BUY': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
-      case 'BUY': return 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/30';
-      case 'NEUTRAL': return 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border-[var(--border-color)]';
-      case 'SELL': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
-      case 'STRONG SELL': return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
-      default: return 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)]';
+      case 'STRONG BUY': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'BUY': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+      case 'NEUTRAL': return 'bg-slate-800 text-slate-400 border-slate-700';
+      case 'SELL': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      case 'STRONG SELL': return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+      default: return 'bg-slate-800 text-slate-400';
     }
   };
 
   return (
-    <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-6 flex flex-col gap-5 h-full overflow-y-auto pr-1 shadow-sm">
+    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 flex flex-col gap-5 h-full overflow-y-auto pr-1 shadow-md backdrop-blur-xl font-body text-slate-100">
       {/* HEADER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-light)] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
-          <h2 className="text-xl font-extrabold text-[var(--text-main)] flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-500 animate-pulse" /> Automated Technical Screener & Algo Signals
+          <h2 className="text-xl font-black text-white flex items-center gap-2">
+            <Zap className="w-5 h-5 text-emerald-400 animate-pulse" /> AI Technical Scanner & Algo Signals
           </h2>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5 font-semibold">Real-time breakout detection, EMA crossovers, RSI extremes, and institutional volume surge alerts</p>
+          <p className="text-xs text-slate-400 mt-0.5 font-medium">Real-time breakout detection, EMA crossovers, RSI extremes, and institutional volume alerts</p>
         </div>
 
         {/* SEARCH & FILTERS */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="Search ticker or company..."
-              className="w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl pl-10 pr-3 py-2 text-xs text-[var(--text-main)] placeholder-[var(--text-tertiary)] focus:outline-none focus:border-indigo-500 font-semibold"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-3 py-2 text-xs font-bold text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-all shadow-inner"
             />
           </div>
 
-          <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl gap-1 text-xs font-bold">
+          <div className="flex bg-slate-950 border border-slate-800 p-1 rounded-xl gap-1 text-xs font-bold">
             {[
               { key: 'ALL', label: 'All Signals' },
               { key: 'BREAKOUTS', label: 'Breakouts' },
@@ -84,9 +84,10 @@ export const MarketScanner: React.FC<MarketScannerProps> = ({ onSelectSymbol }) 
             ].map(c => (
               <button
                 key={c.key}
+                type="button"
                 onClick={() => setActiveCategory(c.key as any)}
-                className={`px-3 py-1.5 rounded-lg transition-all text-[11px] font-bold ${
-                  activeCategory === c.key ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                className={`px-3 py-1.5 rounded-lg transition-all text-[11px] font-bold cursor-pointer ${
+                  activeCategory === c.key ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {c.label}
@@ -98,43 +99,43 @@ export const MarketScanner: React.FC<MarketScannerProps> = ({ onSelectSymbol }) 
 
       {/* STRATEGY PRESETS SUMMARY CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="tg-stat-card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 font-bold">
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold block">Bullish Breakouts</span>
-            <span className="text-lg font-extrabold text-[var(--text-main)]">4 Active Signals</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Bullish Breakouts</span>
+            <span className="text-base font-black text-white">4 Active Signals</span>
           </div>
         </div>
 
-        <div className="tg-stat-card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold">
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
             <Zap className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold block">Volume Surges</span>
-            <span className="text-lg font-extrabold text-[var(--text-main)]">3 High-Vol Tickers</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Volume Surges</span>
+            <span className="text-base font-black text-white">3 High-Vol Tickers</span>
           </div>
         </div>
 
-        <div className="tg-stat-card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-500 font-bold">
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 font-bold">
             <Activity className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold block">RSI Oversold (&lt; 30)</span>
-            <span className="text-lg font-extrabold text-emerald-500">2 Mean Reversion</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">RSI Oversold (&lt; 30)</span>
+            <span className="text-base font-black text-emerald-400">2 Mean Reversion</span>
           </div>
         </div>
 
-        <div className="tg-stat-card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-500 font-bold">
+        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold">
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-extrabold block">Golden Cross (20/50)</span>
-            <span className="text-lg font-extrabold text-[var(--text-main)]">3 EMA Crosses</span>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Golden Cross (20/50)</span>
+            <span className="text-base font-black text-white">3 EMA Crosses</span>
           </div>
         </div>
       </div>
@@ -142,48 +143,48 @@ export const MarketScanner: React.FC<MarketScannerProps> = ({ onSelectSymbol }) 
       {/* SCREENER RESULTS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(s => (
-          <div key={s.symbol} className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-2xl p-5 flex flex-col justify-between hover:border-indigo-400 transition-all shadow-sm group">
+          <div key={s.symbol} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4.5 flex flex-col justify-between hover:border-emerald-500/50 transition-all shadow-md group">
             <div className="flex justify-between items-start">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-[var(--text-main)] text-base group-hover:text-indigo-600 transition-colors">{s.symbol}</h3>
-                  <span className="text-[10px] bg-[var(--bg-surface)] text-indigo-500 px-2 py-0.5 rounded-md font-mono font-bold border border-[var(--border-color)]">{s.exchange}</span>
+                  <h3 className="font-bold text-white text-base group-hover:text-emerald-400 transition-colors">{s.symbol}</h3>
+                  <span className="text-[10px] bg-slate-900 text-slate-300 px-2 py-0.5 rounded-md font-mono font-bold border border-slate-800">{s.exchange}</span>
                 </div>
-                <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate max-w-[200px] font-semibold">{s.name}</p>
+                <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px] font-medium">{s.name}</p>
               </div>
 
-              <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-lg border uppercase tracking-wider ${getRatingBadge(s.rating)}`}>
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider ${getRatingBadge(s.rating)}`}>
                 {s.rating}
               </span>
             </div>
 
             {/* SIGNAL BADGE */}
-            <div className="my-3 flex items-center justify-between bg-[var(--bg-surface)] p-2.5 rounded-xl border border-[var(--border-color)]">
-              <span className="text-xs font-bold text-amber-500 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-500" /> {s.signal}
+            <div className="my-3 flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+              <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-400" /> {s.signal}
               </span>
-              <span className={`text-[10px] num-font font-bold ${s.macd === 'BULLISH' ? 'text-emerald-500' : s.macd === 'BEARISH' ? 'text-rose-500' : 'text-[var(--text-muted)]'}`}>
+              <span className={`text-[10px] num-font font-bold ${s.macd === 'BULLISH' ? 'text-emerald-400' : s.macd === 'BEARISH' ? 'text-rose-400' : 'text-slate-400'}`}>
                 MACD {s.macd}
               </span>
             </div>
 
             {/* METRICS & PRICES */}
-            <div className="flex justify-between items-end num-font border-t border-[var(--border-light)] pt-3">
+            <div className="flex justify-between items-end num-font border-t border-slate-800 pt-3">
               <div>
-                <span className="text-[10px] text-[var(--text-tertiary)] uppercase block font-sans font-bold">Current Price</span>
-                <div className="text-base font-extrabold text-[var(--text-main)]">₹{s.ltp.toFixed(2)}</div>
+                <span className="text-[10px] text-slate-400 uppercase block font-sans font-bold">LTP Price</span>
+                <div className="text-base font-bold text-white">₹{s.ltp.toFixed(2)}</div>
               </div>
 
               <div className="text-center">
-                <span className="text-[10px] text-[var(--text-tertiary)] uppercase block font-sans font-bold">RSI (14)</span>
-                <div className={`text-xs font-bold ${s.rsi < 30 ? 'text-emerald-500' : s.rsi > 70 ? 'text-rose-500' : 'text-[var(--text-main)]'}`}>
+                <span className="text-[10px] text-slate-400 uppercase block font-sans font-bold">RSI (14)</span>
+                <div className={`text-xs font-bold ${s.rsi < 30 ? 'text-emerald-400' : s.rsi > 70 ? 'text-rose-400' : 'text-white'}`}>
                   {s.rsi}
                 </div>
               </div>
 
               <div className="text-right">
-                <span className="text-[10px] text-[var(--text-tertiary)] uppercase block font-sans font-bold">24H Change</span>
-                <div className={`text-xs font-bold flex items-center justify-end gap-0.5 ${s.change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <span className="text-[10px] text-slate-400 uppercase block font-sans font-bold">24H Change</span>
+                <div className={`text-xs font-bold flex items-center justify-end gap-0.5 ${s.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {s.change >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
                   {s.change >= 0 ? '+' : ''}{s.change.toFixed(2)}%
                 </div>
@@ -193,10 +194,11 @@ export const MarketScanner: React.FC<MarketScannerProps> = ({ onSelectSymbol }) 
             {/* ACTION FOOTER */}
             {onSelectSymbol && (
               <button
+                type="button"
                 onClick={() => onSelectSymbol(s.symbol)}
-                className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                className="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
               >
-                Trade {s.symbol} →
+                Open Terminal ({s.symbol}) →
               </button>
             )}
           </div>
@@ -204,7 +206,7 @@ export const MarketScanner: React.FC<MarketScannerProps> = ({ onSelectSymbol }) 
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-12 text-[var(--text-tertiary)] text-xs font-semibold">
+        <div className="text-center py-12 text-slate-400 text-xs font-medium">
           No tickers match the selected technical screener filter.
         </div>
       )}
