@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken, checkRole, AuthenticatedRequest } from '../middleware/auth';
-import { query, queryOne, execute } from '../db/schema';
+import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { logAuditAction } from '../middleware/audit';
 import { VirtualWalletLedger } from '../trading/VirtualWalletLedger';
 import { MarketDataEngine } from '../marketData/MarketDataEngine';
@@ -1072,6 +1072,143 @@ router.post('/orders/create', authenticateToken, checkRole(ADMIN_ROLES), async (
     await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_PLACE_ORDER', 'ORDER', orderResult.orderId, null, { userId, symbol, side, quantity, price }, getClientIp(req));
 
     res.json({ success: true, message: `Admin successfully placed order for client. Order ID: ${orderResult.orderId}`, order: orderResult });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// ADMIN POSITION MANAGEMENT & EXCLUSIVE RIGHTS
+// ============================================================
+router.post('/positions/:id/edit', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const positionId = req.params.id as string;
+    const { netQty, averagePrice, buyPrice, sellPrice } = req.body;
+
+    const pos = await queryOne<any>('SELECT * FROM positions WHERE id = $1', [positionId]);
+    if (!pos) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Position not found' } });
+      return;
+    }
+
+    const nQty = netQty !== undefined ? parseInt(netQty, 10) : parseInt(pos.net_qty, 10);
+    const avgPx = averagePrice !== undefined ? parseFloat(averagePrice) : parseFloat(pos.average_price);
+    const bPx = buyPrice !== undefined ? parseFloat(buyPrice) : parseFloat(pos.buy_price);
+    const sPx = sellPrice !== undefined ? parseFloat(sellPrice) : parseFloat(pos.sell_price);
+
+    await execute(
+      `UPDATE positions
+       SET net_qty = $1, average_price = $2, buy_price = $3, sell_price = $4, updated_at = NOW()
+       WHERE id = $5`,
+      [nQty, avgPx, bPx, sPx, positionId]
+    );
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_EDIT_POSITION', 'POSITION', positionId, null, { netQty: nQty, averagePrice: avgPx }, getClientIp(req));
+
+    res.json({ success: true, message: `Position updated successfully. Net Qty: ${nQty}, Avg Price: ₹${avgPx}` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/positions/:id/square-off', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const positionId = req.params.id as string;
+    const { price } = req.body;
+
+    const pos = await queryOne<any>('SELECT * FROM positions WHERE id = $1', [positionId]);
+    if (!pos || parseInt(pos.net_qty, 10) === 0) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_POSITION', message: 'Position is already closed or not found' } });
+      return;
+    }
+
+    const netQty = parseInt(pos.net_qty, 10);
+    const exitSide = netQty > 0 ? 'SELL' : 'BUY';
+    const exitQty = Math.abs(netQty);
+    const exitPrice = price ? parseFloat(price) : (parseFloat(pos.ltp) || parseFloat(pos.average_price) || 100);
+
+    const { PortfolioService } = require('../trading/PortfolioService');
+    const { VirtualWalletLedger } = require('../trading/VirtualWalletLedger');
+
+    await withTransaction(async (client: any) => {
+      const res = await PortfolioService.recordExecutionInTransaction(
+        client,
+        pos.user_id,
+        pos.symbol,
+        pos.exchange || 'NSE',
+        pos.product_type || 'MIS',
+        exitSide,
+        exitQty,
+        exitPrice,
+        'ADMIN_SQUARE_OFF',
+        'ADMIN_FORCE_EXIT',
+        'exc_' + generateUUID()
+      );
+
+      const tradeVal = exitPrice * exitQty;
+      const blockedMargin = pos.product_type === 'MIS' ? tradeVal * 0.20 : tradeVal;
+
+      await VirtualWalletLedger.settleTradeExecutionInTransaction(
+        client,
+        pos.user_id,
+        exitSide,
+        tradeVal,
+        blockedMargin,
+        res.releasedPositionCapital,
+        res.realizedPnlDelta,
+        'ADMIN_SQUARE_OFF'
+      );
+    });
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_SQUARE_OFF_POSITION', 'POSITION', positionId, null, { exitSide, exitQty, exitPrice }, getClientIp(req));
+
+    res.json({ success: true, message: `Position ${pos.symbol} squared off by admin @ ₹${exitPrice}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// ADMIN CLIENT FUNDS MANAGEMENT
+// ============================================================
+router.post('/customers/:id/funds', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { amount, action, reason } = req.body;
+
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt <= 0 || !['ADD', 'DEDUCT'].includes(action)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Valid positive amount and action (ADD/DEDUCT) required' } });
+      return;
+    }
+
+    const wallet = await queryOne<any>('SELECT * FROM virtual_wallets WHERE user_id = $1', [customerId]);
+    if (!wallet) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User wallet not found' } });
+      return;
+    }
+
+    const currentCash = parseFloat(wallet.cash_balance);
+    const newCash = action === 'ADD' ? currentCash + amt : Math.max(0, currentCash - amt);
+
+    await withTransaction(async (client: any) => {
+      await client.query('UPDATE virtual_wallets SET cash_balance = $1, updated_at = NOW() WHERE user_id = $2', [newCash, customerId]);
+      await client.query(
+        `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ADMIN', $9)`,
+        [
+          'led_' + generateUUID(), generateUUID(), customerId,
+          action === 'ADD' ? 'CREDIT' : 'DEBIT',
+          amt, currentCash, newCash,
+          'ADMIN_' + action,
+          JSON.stringify({ reason: reason || 'Admin Manual Capital Adjustment', adminUserId: req.user!.userId })
+        ]
+      );
+    });
+
+    await logAuditAction(req.user!.userId, req.user!.role, `ADMIN_${action}_FUNDS`, 'WALLET', wallet.id, null, { amount: amt, action, reason }, getClientIp(req));
+
+    res.json({ success: true, message: `Successfully ${action === 'ADD' ? 'added' : 'deducted'} ₹${amt.toLocaleString('en-IN')} ${action === 'ADD' ? 'to' : 'from'} customer wallet. New Balance: ₹${newCash.toLocaleString('en-IN')}` });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
