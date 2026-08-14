@@ -456,7 +456,7 @@ export function App() {
                     </div>
                   )}
 
-                  {activeSubView === 'ANALYTICS' && (
+                  {(activeSubView as any) === 'ANALYTICS' && (
                     <PortfolioAnalyticsView
                       token={token}
                       wallet={wallet}
