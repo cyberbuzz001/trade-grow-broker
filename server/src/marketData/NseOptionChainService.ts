@@ -221,6 +221,13 @@ export class NseOptionChainService extends EventEmitter {
       return this.parseNseResponse(data, expiry);
     } catch (e: any) {
       this.consecutiveFailures++;
+      if (this.consecutiveFailures >= 3) {
+        this.fallbackUntil = Date.now() + 15 * 60 * 1000; // 15-minute backoff
+        if (!this.hasLoggedFallback) {
+          console.info(`[NseOI] NSE direct scraper network error (${e.message}). Active fallback mode enabled for 15m.`);
+          this.hasLoggedFallback = true;
+        }
+      }
       return this.generateFallbackSummary(symbol);
     }
   }

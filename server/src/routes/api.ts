@@ -629,7 +629,7 @@ router.get('/market/option-chain/stream', async (req, res) => {
   };
 
   await sendChain(); // send immediately on connect
-  const interval = setInterval(sendChain, 500); // push every 500ms
+  const interval = setInterval(sendChain, 5000); // 5s — was 500ms, reduced to cut per-client CPU load
   req.on('close', () => clearInterval(interval));
 });
 

@@ -88,35 +88,36 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return avgPrice;
   };
 
-  const fetchData = () => {
+  const fetchData = async () => {
+    if (!token) return;
     setLoading(true);
-    fetch('/api/v1/orders?todayOnly=true', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.orders)) setOrders(data.orders);
-      });
 
-    fetch('/api/v1/portfolio/positions?todayOnly=true', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.positions)) {
-          setPositions(data.positions);
-        }
-      });
+    const headers = { Authorization: `Bearer ${token}` };
 
-    fetch('/api/v1/portfolio/closed-trades?todayOnly=true', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.closedTrades)) setClosedTrades(data.closedTrades);
-      });
-
-    fetch('/api/v1/portfolio/holdings', { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.holdings)) setHoldings(data.holdings);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    await Promise.allSettled([
+      fetch('/api/v1/orders?todayOnly=true', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.orders)) setOrders(data.orders);
+        }),
+      fetch('/api/v1/portfolio/positions?todayOnly=true', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.positions)) setPositions(data.positions);
+        }),
+      fetch('/api/v1/portfolio/closed-trades?todayOnly=true', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.closedTrades)) setClosedTrades(data.closedTrades);
+        }),
+      fetch('/api/v1/portfolio/holdings', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.holdings)) setHoldings(data.holdings);
+        })
+    ]).finally(() => {
+      setLoading(false);
+    });
   };
 
   useEffect(() => {
@@ -124,9 +125,9 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
   }, [initialTab]);
 
   useEffect(() => {
+    // Load once on mount. P&L updates are applied in real-time from WebSocket ticks.
+    // Use the manual refresh button in the UI to reload from server.
     fetchData();
-    const interval = setInterval(fetchData, 2500);
-    return () => clearInterval(interval);
   }, [token]);
 
   // Find active open target order for a position

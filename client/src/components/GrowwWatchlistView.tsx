@@ -3,7 +3,7 @@ import { MarketTick } from '../types';
 import { Search, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Star, ShieldCheck, ArrowUpRight, ArrowDownRight, Layers, Eye, Bookmark } from 'lucide-react';
 import { PriceBadge } from './PriceBadge';
 import { useTickFreshness, useMultiTickFreshness } from '../hooks/useTickFreshness';
-import { useSubscribeTokens } from '../hooks/useMarketSocket';
+import { useSubscribeTokens, useMarketSocket } from '../hooks/useMarketSocket';
 import { OrderPreviewModal, OrderPreviewDetails } from './OrderPreviewModal';
 
 interface WatchlistItem {
@@ -47,10 +47,12 @@ interface GrowwWatchlistViewProps {
 
 export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
   token,
-  ticks,
+  ticks: propsTicks,
   onRefreshWallet,
   onSelectSymbolForTerminal,
 }) => {
+  const { ticks: socketTicks } = useMarketSocket();
+  const ticks = socketTicks.size > 0 ? socketTicks : (propsTicks ?? new Map<string, MarketTick>());
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
     try {
       const saved = localStorage.getItem('user_custom_watchlist');

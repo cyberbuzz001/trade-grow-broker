@@ -15,6 +15,7 @@ interface GrowwHeaderProps {
   onOpenWalletModal?: () => void;
   onNavigateView: (view: SubView) => void;
   onOpenSupport?: () => void;
+  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT') => void;
 }
 
 export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
@@ -29,6 +30,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
   onOpenWalletModal,
   onNavigateView,
   onOpenSupport,
+  onOpenProfileModal,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -238,37 +240,93 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
 
               {/* Menu Links List */}
               <div className="mt-3 space-y-1 text-xs font-bold border-b border-slate-800 pb-3">
+                {/* 1. MY PROFILE */}
+                <button
+                  onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('PROFILE'); }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+                      <Settings className="w-3.5 h-3.5" />
+                    </div>
+                    <span>My Profile & Account</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                </button>
+
+                {/* 2. KYC VERIFICATION */}
+                <button
+                  onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('KYC'); }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-left">
+                      <div>KYC & Documents</div>
+                      <div className="text-[10px] text-emerald-400 font-medium">PAN • Aadhaar • Bank</div>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+                    Verify
+                  </span>
+                </button>
+
+                {/* 3. ORDERS */}
                 <button
                   onClick={() => { setIsProfileOpen(false); onNavigateView('ORDERS'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <Receipt className="w-4 h-4 text-slate-400" />
+                    <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center">
+                      <Receipt className="w-3.5 h-3.5" />
+                    </div>
                     <span>Orders & Trade History</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
+                {/* 4. BANK & FUNDS */}
                 <button
-                  onClick={() => { setIsProfileOpen(false); onNavigateView('HOLDINGS'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('FUNDS'); }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <Building2 className="w-4 h-4 text-slate-400" />
-                    <span>Bank & UPI Details</span>
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center">
+                      <Building2 className="w-3.5 h-3.5" />
+                    </div>
+                    <span>Bank & Deposit Methods</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
+                {/* 5. 2FA & SECURITY */}
+                <button
+                  onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('SECURITY'); }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-500/15 text-cyan-400 flex items-center justify-center">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <span>Security & 2FA / Password</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                </button>
+
+                {/* 6. SUPPORT */}
                 <button
                   onClick={() => { setIsProfileOpen(false); if (onOpenSupport) onOpenSupport(); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <Headset className="w-4 h-4 text-emerald-400" />
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                      <Headset className="w-3.5 h-3.5" />
+                    </div>
                     <span>24x7 Trade Support</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
                 {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT'].includes(user?.role || '') && (

@@ -5,7 +5,7 @@ import {
   ArrowUp, ArrowDown, Activity, Sun, Moon
 } from 'lucide-react';
 import { MarketTick, Wallet } from '../types';
-import { useSubscribeTokens } from '../hooks/useMarketSocket';
+import { useSubscribeTokens, useMarketSocket } from '../hooks/useMarketSocket';
 
 interface GrowwTerminalViewProps {
   token: string | null;
@@ -19,13 +19,15 @@ interface GrowwTerminalViewProps {
 
 export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
   token,
-  ticks,
+  ticks: propsTicks,
   wallet,
   onRefreshWallet,
   initialSymbol = 'RELIANCE',
   theme = 'dark',
   onToggleTheme,
 }) => {
+  const { ticks: socketTicks } = useMarketSocket();
+  const ticks = socketTicks.size > 0 ? socketTicks : (propsTicks ?? new Map<string, MarketTick>());
   const [selectedSymbol, setSelectedSymbol] = useState<string>(initialSymbol);
   const [exchange, setExchange] = useState<'NSE' | 'BSE'>('NSE');
   const [activeWatchlistTab, setActiveWatchlistTab] = useState<'DEFAULT' | 'FO' | 'CUSTOM'>('DEFAULT');

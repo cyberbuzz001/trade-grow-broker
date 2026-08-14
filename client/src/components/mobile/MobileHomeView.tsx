@@ -1,6 +1,7 @@
 import React from 'react';
 import { Search, ArrowUpRight, ArrowDownRight, Zap, Sun, Moon, Sparkles, TrendingUp, Layers, Award, Shield, FileText, SlidersHorizontal } from 'lucide-react';
 import { MarketTick, User, Wallet } from '../../types';
+import { useMarketSocket, useSubscribeTokens } from '../../hooks/useMarketSocket';
 
 interface MobileHomeViewProps {
   user: User;
@@ -16,13 +17,18 @@ interface MobileHomeViewProps {
 export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
   user,
   wallet,
-  ticks,
+  ticks: ticksProp,
   onSelectStock,
   onOpenSearch,
   onOpenQuickOrder,
   theme = 'dark',
   onToggleTheme,
 }) => {
+  // Subscribe to key index tokens and read from context
+  const INDEX_TOKENS = ['NSE_NIFTY50', 'BSE_SENSEX', 'NSE_BANKNIFTY', 'NSE_FINNIFTY'];
+  useSubscribeTokens(INDEX_TOKENS);
+  const { ticks: contextTicks } = useMarketSocket();
+  const ticks = contextTicks.size > 0 ? contextTicks : (ticksProp ?? new Map<string, MarketTick>());
   const getNifty = () => ticks?.get('NSE_NIFTY50') || ticks?.get('NIFTY50');
   const getSensex = () => ticks?.get('BSE_SENSEX') || ticks?.get('SENSEX');
   const getBankNifty = () => ticks?.get('NSE_BANKNIFTY') || ticks?.get('BANKNIFTY');

@@ -34,51 +34,39 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
   const [isSubmittingExit, setIsSubmittingExit] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchPortfolio = () => {
+  const fetchPortfolio = async () => {
     const userToken = token || localStorage.getItem('token') || localStorage.getItem('stocksharp_token');
     if (!userToken) return;
 
-    fetch('/api/v1/portfolio/holdings', {
-      headers: { Authorization: `Bearer ${userToken}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.holdings)) setHoldings(data.holdings);
-      })
-      .catch(() => {});
+    const headers = { Authorization: `Bearer ${userToken}` };
 
-    fetch('/api/v1/portfolio/positions?todayOnly=true', {
-      headers: { Authorization: `Bearer ${userToken}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.positions)) setPositions(data.positions);
-      })
-      .catch(() => {});
-
-    fetch('/api/v1/portfolio/closed-trades?todayOnly=true', {
-      headers: { Authorization: `Bearer ${userToken}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.closedTrades)) setClosedTrades(data.closedTrades);
-      })
-      .catch(() => {});
-
-    fetch('/api/v1/orders?todayOnly=true', {
-      headers: { Authorization: `Bearer ${userToken}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.orders)) setOrders(data.orders);
-      })
-      .catch(() => {});
+    await Promise.allSettled([
+      fetch('/api/v1/portfolio/holdings', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.holdings)) setHoldings(data.holdings);
+        }),
+      fetch('/api/v1/portfolio/positions?todayOnly=true', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.positions)) setPositions(data.positions);
+        }),
+      fetch('/api/v1/portfolio/closed-trades?todayOnly=true', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.closedTrades)) setClosedTrades(data.closedTrades);
+        }),
+      fetch('/api/v1/orders?todayOnly=true', { headers })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.success && Array.isArray(data.orders)) setOrders(data.orders);
+        })
+    ]);
   };
 
   useEffect(() => {
+    // Load once on mount. P&L is updated in real-time via WebSocket ticks through getLiveLtp().
     fetchPortfolio();
-    const interval = setInterval(fetchPortfolio, 2500);
-    return () => clearInterval(interval);
   }, [token]);
 
   const getLiveLtp = (item: any): number => {

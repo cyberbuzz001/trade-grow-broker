@@ -102,6 +102,10 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
 
         if (isSubscribed) {
           try {
+            // Backpressure check: Skip frame if client write buffer is backlogged (>1MB)
+            if (client.bufferedAmount > 1024 * 1024) {
+              return;
+            }
             client.send(payload);
           } catch (err: any) {
             // Suppress send errors for dead connections

@@ -1,8 +1,9 @@
 import React from 'react';
-import { SlidersHorizontal, Compass, Briefcase, TrendingUp, Receipt, Bookmark, Layers, ShieldCheck, Activity } from 'lucide-react';
+import { SlidersHorizontal, Compass, Briefcase, TrendingUp, Receipt, Bookmark, Layers, ShieldCheck, Activity, User as UserIcon } from 'lucide-react';
 import { MarketTick } from '../types';
+import { useMarketSocket } from '../hooks/useMarketSocket';
 
-export type SubView = 'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'OPTION_CHAIN' | 'ADMIN' | 'ANALYTICS';
+export type SubView = 'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'OPTION_CHAIN' | 'ADMIN' | 'ANALYTICS' | 'PROFILE';
 
 interface GrowwSubNavProps {
   activeView: SubView;
@@ -18,9 +19,13 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   onSelectView,
   isTerminalMode,
   onToggleTerminal,
-  ticks,
+  ticks: ticksProp,
   user,
 }) => {
+  // Primary: get ticks from MarketSocketProvider context
+  // Fallback: use prop if provided (for compatibility)
+  const { ticks: contextTicks } = useMarketSocket();
+  const ticks = contextTicks.size > 0 ? contextTicks : (ticksProp ?? new Map<string, MarketTick>());
   const getNifty = () => ticks?.get('NSE_NIFTY50') || ticks?.get('NIFTY50') || ticks?.get('NIFTY 50');
   const getSensex = () => ticks?.get('BSE_SENSEX') || ticks?.get('SENSEX');
   const getBankNifty = () => ticks?.get('NSE_BANKNIFTY') || ticks?.get('NIFTY BANK') || ticks?.get('BANKNIFTY');
@@ -60,6 +65,7 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
     { id: 'ORDERS', label: 'Orders', icon: <Receipt className="w-3.5 h-3.5" />, shortcut: '4' },
     { id: 'OPTION_CHAIN', label: 'Option Chain', icon: <Layers className="w-3.5 h-3.5" />, shortcut: '5' },
     { id: 'HOLDINGS', label: 'Holdings', icon: <Briefcase className="w-3.5 h-3.5" />, shortcut: '6' },
+    { id: 'PROFILE' as SubView, label: 'Profile & KYC', icon: <UserIcon className="w-3.5 h-3.5 text-emerald-400" />, shortcut: '7' },
     ...(isStaff ? [{ id: 'ADMIN' as SubView, label: 'Admin Control', icon: <ShieldCheck className="w-3.5 h-3.5 text-rose-400" /> }] : []),
   ];
 

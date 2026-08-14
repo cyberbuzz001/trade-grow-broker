@@ -62,7 +62,7 @@ export const McxCommodityView: React.FC<McxCommodityViewProps> = ({ ticks, onRef
 
   useEffect(() => {
     fetchMcxContracts();
-    const interval = setInterval(fetchMcxContracts, 1000);
+    const interval = setInterval(fetchMcxContracts, 15000); // 15s — MCX contract data is stable
     return () => clearInterval(interval);
   }, []);
 

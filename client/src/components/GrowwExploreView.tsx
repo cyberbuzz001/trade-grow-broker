@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, ArrowUpRight, ArrowDownRight, Layers, Award, Landmark, TrendingUp, ChevronDown, Activity, Sparkles, Shield, Cpu, Zap } from 'lucide-react';
 import { MarketTick, Wallet, Position } from '../types';
-import { useSubscribeTokens } from '../hooks/useMarketSocket';
+import { useSubscribeTokens, useMarketSocket } from '../hooks/useMarketSocket';
 
 interface GrowwExploreViewProps {
   ticks?: Map<string, MarketTick>;
@@ -9,15 +9,19 @@ interface GrowwExploreViewProps {
   wallet?: Wallet | null;
   onRefreshWallet?: () => void;
   onSelectSymbol?: (symbol: string) => void;
+  onOpenProfile?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT') => void;
 }
 
 export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({ 
-  ticks, 
+  ticks: propsTicks, 
   token,
   wallet,
   onRefreshWallet,
-  onSelectSymbol 
+  onSelectSymbol,
+  onOpenProfile,
 }) => {
+  const { ticks: socketTicks } = useMarketSocket();
+  const ticks = socketTicks.size > 0 ? socketTicks : (propsTicks ?? new Map<string, MarketTick>());
   const [moverTab, setMoverTab] = useState<'GAINERS' | 'LOSERS' | 'VOLUME'>('GAINERS');
   const [serverMovers, setServerMovers] = useState<{ gainers: any[]; losers: any[]; volumeShockers: any[] }>({
     gainers: [],
@@ -431,16 +435,40 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
             </div>
           </div>
 
-          {/* RISK & MARGIN BANNER */}
-          <div className="bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/30 p-5 rounded-2xl">
-            <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-bold text-xs text-white">Virtual Paper Trading Enabled</h4>
-                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                  All orders execute instantly against real-time NSE/BSE tick feeds with real margin calculation.
-                </p>
+          {/* CLIENT PROFILE & KYC VERIFICATION CARD */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-950/40 border border-slate-800 hover:border-emerald-500/40 p-5 rounded-2xl transition-all shadow-md">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-white">Profile & KYC Verification</h4>
+                  <p className="text-[10px] text-slate-400">Account status & compliance</p>
+                </div>
               </div>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+                Active
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-400 mb-3.5 leading-relaxed">
+              Ensure your profile details, PAN/Aadhaar documents, and bank payout methods are up to date.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onOpenProfile?.('KYC')}
+                className="w-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-slate-950 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Update KYC</span>
+              </button>
+              <button
+                onClick={() => onOpenProfile?.('PROFILE')}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Edit Profile</span>
+              </button>
             </div>
           </div>
 

@@ -11,6 +11,7 @@ export class DhanAdapter implements IMarketDataProvider {
   private healthy = false;
   private ws: WebSocket | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private tokenCheckInterval: NodeJS.Timeout | null = null;
   private callbacks: Set<TickCallback> = new Set();
   private tickCache: Map<string, MarketTick> = new Map();
   private subscribedTokens: Set<string> = new Set();
@@ -37,7 +38,7 @@ export class DhanAdapter implements IMarketDataProvider {
 
   constructor() {
     this.clientId = process.env.DHAN_CLIENT_ID || '1113019677';
-    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3OiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg2NzA1MDUzLCJpYXQiOjE3ODY2MTg2NTMsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.C5StvdyrkGnhy_e5Jiyn_ukUHUbsHu878jlrhGDqiEOyMVP-RqFT8XLu6l7l0F_Z7UAIo0dcVTbHHmrjr_M1ZA';
+    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3OiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg2NzkyODc1LCJpYXQiOjE3ODY3MDY0NzUsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.wa3ewYuc_GhjriAUMDMjMZu06pqoEkpYy3MaqkgcQNFCQ7dYmKrEtQf_tRFo0RuDEzbnYTE8bYozCa-eN14Uag';
     this.apiKey = process.env.DHAN_API_KEY || '21483ef7';
     this.apiSecret = process.env.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09';
   }
@@ -57,7 +58,8 @@ export class DhanAdapter implements IMarketDataProvider {
     await this.connectWebSocket();
 
     // Start periodic JWT expiry check — every 30 minutes
-    setInterval(() => {
+    // Store ref so it can be cleared on stop()
+    this.tokenCheckInterval = setInterval(() => {
       this.checkTokenExpiry();
     }, 30 * 60 * 1000);
 
@@ -124,6 +126,10 @@ export class DhanAdapter implements IMarketDataProvider {
   public stop(): void {
     console.log('[DhanAdapter] Stopping Dhan Market Data Adapter...');
     this.healthy = false;
+    if (this.tokenCheckInterval) {
+      clearInterval(this.tokenCheckInterval);
+      this.tokenCheckInterval = null;
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
