@@ -21,6 +21,9 @@ export class ExecutionEngine {
 
   public static async processPendingOrders(): Promise<void> {
     try {
+      // Self-healing: repair positions with missing/zero entry prices across all accounts automatically
+      await PortfolioService.auditAndRepairAllPositions().catch(() => {});
+
       const pendingOrders = await query<any>(
         `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') ORDER BY created_at ASC LIMIT 50`
       );

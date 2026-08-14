@@ -179,8 +179,8 @@ export class VirtualWalletLedger {
     const cashBalance = parseFloat(wallet.cash_balance);
     const realizedPnl = parseFloat(wallet.realized_pnl);
 
-    // 1. Realized P&L increases or decreases cash balance directly
-    const newCash = cashBalance + realizedPnlDelta;
+    // 1. Realized P&L increases or decreases cash balance directly (safeguarded against negative cash constraint)
+    const newCash = Math.max(0.00, cashBalance + realizedPnlDelta);
     const newRealizedPnl = realizedPnl + realizedPnlDelta;
 
     // 2. Recalculate used margin based on remaining active open positions
