@@ -534,6 +534,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                   <th className="py-3 px-4 text-right">Avg Price (₹)</th>
                   <th className="py-3 px-4 text-right">Live LTP (₹)</th>
                   <th className="py-3 px-4 text-right">Unrealized P&L</th>
+                  <th className="py-3 px-4 text-right">Realized P&L</th>
                   <th className="py-3 px-4 text-center">Active Target</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -541,7 +542,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
               <tbody className="divide-y divide-slate-800 num-font">
                 {filteredPositions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-slate-400 text-xs">No positions found in account.</td>
+                    <td colSpan={9} className="text-center py-12 text-slate-400 text-xs">No positions found in account.</td>
                   </tr>
                 ) : (
                   filteredPositions.map(p => {
@@ -549,6 +550,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                     const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
                     const ltp = getLiveLtp(p);
                     const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : netQty < 0 ? Math.abs(netQty) * (avgPrice - ltp) : 0;
+                    const realizedPnl = parseFloat(p.realizedPnl || p.realized_pnl || 0);
                     const activeTarget = getActiveTargetOrder(p);
 
                     return (
@@ -573,6 +575,9 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                         <td className="py-3 px-4 text-right font-bold text-white">₹{ltp.toFixed(2)}</td>
                         <td className={`py-3 px-4 text-right font-bold ${unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {netQty !== 0 ? `${unrealizedPnl >= 0 ? '+' : ''}₹${unrealizedPnl.toFixed(2)}` : '₹0.00'}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-bold ${realizedPnl > 0 ? 'text-emerald-400' : (realizedPnl < 0 ? 'text-rose-400' : 'text-slate-400')}`}>
+                          {realizedPnl !== 0 ? `${realizedPnl > 0 ? '+' : ''}₹${realizedPnl.toFixed(2)}` : '₹0.00'}
                         </td>
                         
                         {/* Active Target Indicator Column */}

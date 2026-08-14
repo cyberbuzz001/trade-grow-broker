@@ -436,6 +436,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
               const ltp = getLiveLtp(pos);
               const uPnl = netQty > 0 ? (ltp - avgPrice) * netQty : absQty * (avgPrice - ltp);
               const isGain = uPnl >= 0;
+              const realizedPnl = parseFloat(pos.realizedPnl || pos.realized_pnl || 0);
               const activeTarget = getActiveTargetOrder(pos);
 
               return (
@@ -467,6 +468,16 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                       <strong className="text-cyan-300 font-extrabold">₹{ltp.toFixed(2)}</strong>
                     </div>
                   </div>
+
+                  {/* Released Profit (Realized P&L) Row */}
+                  {realizedPnl !== 0 && (
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60 font-mono">
+                      <span className="text-slate-400">Released Profit:</span>
+                      <strong className={`font-bold ${realizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {realizedPnl >= 0 ? '+' : ''}₹{realizedPnl.toFixed(2)}
+                      </strong>
+                    </div>
+                  )}
 
                   {/* Active Target Indicator Badge */}
                   {activeTarget && (
