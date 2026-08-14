@@ -765,6 +765,21 @@ router.delete('/orders/:id', authenticateToken, async (req: AuthenticatedRequest
   res.json({ success: true, message: 'Order Cancelled' });
 });
 
+router.put('/orders/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const price = parseFloat(req.body.price || '0');
+    const quantity = parseInt(req.body.quantity || '0', 10);
+    const result = await OMS.modifyOrder(req.params.id as string, req.user!.userId, price, quantity);
+    if (!result.success) {
+      res.status(400).json({ success: false, error: { code: 'MODIFY_FAILED', message: result.error } });
+      return;
+    }
+    res.json({ success: true, message: 'Order Modified' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 // ============================================================
 // 5. PORTFOLIO, POSITIONS & HOLDINGS API
 // ============================================================

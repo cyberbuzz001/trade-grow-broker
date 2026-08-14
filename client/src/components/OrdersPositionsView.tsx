@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Filter, CheckCircle2, XCircle, Clock, TrendingUp, TrendingDown, Zap, PieChart, Layers, DollarSign, Search, MoreVertical, Sliders, ShieldCheck, Check, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { RefreshCw, Filter, CheckCircle2, XCircle, Clock, TrendingUp, TrendingDown, Zap, PieChart, DollarSign, Search, MoreVertical, Sliders, ShieldCheck, Check, ArrowUpRight, ArrowDownRight, ShieldAlert, AlertTriangle, Target, X } from 'lucide-react';
 import { useMarketSocket, useSubscribeTokens } from '../hooks/useMarketSocket';
 
 interface OrdersPositionsViewProps {
@@ -11,11 +11,23 @@ interface OrdersPositionsViewProps {
 export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token, initialTab = 'ORDERS', onRefreshWallet }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'POSITIONS' | 'HOLDINGS'>(initialTab);
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'ACCEPTED' | 'FILLED' | 'CANCELLED' | 'REJECTED'>('ALL');
+  const [positionStatusFilter, setPositionStatusFilter] = useState<'OPEN' | 'CLOSED' | 'ALL'>('ALL');
+
   const [orders, setOrders] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [holdings, setHoldings] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Modal States for Position Exits & Target Orders
+  const [squareOffModalPos, setSquareOffModalPos] = useState<any | null>(null);
+  const [targetModalPos, setTargetModalPos] = useState<any | null>(null);
+  const [targetPrice, setTargetPrice] = useState<string>('');
+  const [targetPriceError, setTargetPriceError] = useState<string | null>(null);
+  const [isTargetConfirmStep, setIsTargetConfirmStep] = useState<boolean>(false);
+  const [editingTargetOrder, setEditingTargetOrder] = useState<any | null>(null);
+  const [cancelTargetModalOrder, setCancelTargetModalOrder] = useState<any | null>(null);
+  const [isSubmittingExit, setIsSubmittingExit] = useState<boolean>(false);
 
   // Subscribed tokens generation for real-time WebSocket ticks
   const subscribedTokens = useMemo(() => {
@@ -75,8 +87,6 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return avgPrice;
   };
 
-  const [positionStatusFilter, setPositionStatusFilter] = useState<'OPEN' | 'CLOSED' | 'ALL'>('ALL');
-
   const fetchData = () => {
     setLoading(true);
     fetch('/api/v1/orders?todayOnly=true', { headers: { Authorization: `Bearer ${token}` } })
@@ -102,57 +112,42 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
       .catch(() => setLoading(false));
   };
 
-  const handleClearOldPositions = () => {
-    setLoading(true);
-    fetch('/api/v1/portfolio/positions/clear', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.positions)) {
-          setPositions(data.positions);
-          setActionMessage("Cleared yesterday's positions.");
-          setTimeout(() => setActionMessage(null), 3000);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  };
-
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 2000);
+    const interval = setInterval(fetchData, 2500);
     return () => clearInterval(interval);
   }, [token]);
 
-  const handleCancelOrder = async (orderId: string) => {
-    try {
-      const res = await fetch(`/api/v1/orders/${orderId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setActionMessage(`Order ${orderId} cancelled.`);
-        fetchData();
-      } else {
-        setActionMessage(`Failed to cancel: ${data.error?.message || 'Unknown'}`);
-      }
-    } catch (_) {
-      setActionMessage('Failed to cancel order.');
-    }
+  // Find active open target order for a position
+  const getActiveTargetOrder = (pos: any) => {
+    const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
+    if (netQty === 0) return null;
+    const targetSide = netQty > 0 ? 'SELL' : 'BUY';
+
+    return orders.find(o =>
+      (o.status === 'ACCEPTED' || o.status === 'PENDING') &&
+      o.symbol === pos.symbol &&
+      o.side === targetSide &&
+      (o.orderType === 'LIMIT' || o.order_type === 'LIMIT')
+    );
   };
 
-  const handleSquareOffPosition = async (pos: any) => {
-    try {
-      const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
-      if (netQty === 0) return;
+  // 1. SQUARE OFF HANDLERS
+  const handleOpenSquareOffModal = (pos: any) => {
+    setSquareOffModalPos(pos);
+  };
 
+  const confirmSquareOff = async () => {
+    if (!squareOffModalPos || isSubmittingExit) return;
+    setIsSubmittingExit(true);
+
+    try {
+      const pos = squareOffModalPos;
+      const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
       const side = netQty > 0 ? 'SELL' : 'BUY';
       const quantity = Math.abs(netQty);
       const livePrice = getLiveLtp(pos);
@@ -177,14 +172,185 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
 
       const data = await res.json();
       if (data.success) {
-        setActionMessage(`Square-off order submitted for ${pos.symbol}`);
+        setActionMessage({
+          type: 'success',
+          text: `Square-off MARKET order executed for ${pos.symbol} (${quantity} qty) @ ₹${livePrice.toFixed(2)}`
+        });
         fetchData();
         if (onRefreshWallet) onRefreshWallet();
       } else {
-        setActionMessage(`Square-off failed: ${data.error?.message}`);
+        setActionMessage({
+          type: 'error',
+          text: `Square-off rejected: ${data.error?.message || 'Unknown error'}`
+        });
       }
     } catch (err: any) {
-      setActionMessage(`Square-off error: ${err.message}`);
+      setActionMessage({
+        type: 'error',
+        text: `Square-off network error: ${err.message}`
+      });
+    } finally {
+      setIsSubmittingExit(false);
+      setSquareOffModalPos(null);
+    }
+  };
+
+  // 2. SET TARGET HANDLERS
+  const handleOpenSetTargetModal = (pos: any, existingTargetOrder?: any) => {
+    setTargetModalPos(pos);
+    setEditingTargetOrder(existingTargetOrder || null);
+    setTargetPrice(existingTargetOrder ? (existingTargetOrder.price || '').toString() : '');
+    setTargetPriceError(null);
+    setIsTargetConfirmStep(false);
+  };
+
+  const handleProceedToTargetConfirm = () => {
+    if (!targetModalPos) return;
+    const priceNum = parseFloat(targetPrice);
+
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setTargetPriceError('Please enter a valid target exit price.');
+      return;
+    }
+
+    // Tick size validation (0.05 increments)
+    const cents = Math.round(priceNum * 100);
+    if (cents % 5 !== 0) {
+      setTargetPriceError('Target price must be in ₹0.05 tick increments (e.g. ₹165.05).');
+      return;
+    }
+
+    const netQty = targetModalPos.netQty !== undefined ? targetModalPos.netQty : (targetModalPos.net_qty !== undefined ? parseInt(targetModalPos.net_qty, 10) : ((targetModalPos.buyQty || 0) - (targetModalPos.sellQty || 0)));
+    const liveLtp = getLiveLtp(targetModalPos);
+    const avgPrice = parseFloat(targetModalPos.averagePrice || targetModalPos.average_price || liveLtp);
+
+    // Price direction validation
+    if (netQty > 0 && priceNum <= Math.min(avgPrice, liveLtp)) {
+      setTargetPriceError(`For a LONG position, the target exit price (₹${priceNum.toFixed(2)}) must be above the entry/current price (₹${liveLtp.toFixed(2)}).`);
+      return;
+    }
+
+    if (netQty < 0 && priceNum >= Math.max(avgPrice, liveLtp)) {
+      setTargetPriceError(`For a SHORT position, the target exit price (₹${priceNum.toFixed(2)}) must be below the entry/current price (₹${liveLtp.toFixed(2)}).`);
+      return;
+    }
+
+    setTargetPriceError(null);
+    setIsTargetConfirmStep(true);
+  };
+
+  const confirmPlaceTargetOrder = async () => {
+    if (!targetModalPos || isSubmittingExit) return;
+    setIsSubmittingExit(true);
+
+    try {
+      const pos = targetModalPos;
+      const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
+      const side = netQty > 0 ? 'SELL' : 'BUY';
+      const quantity = Math.abs(netQty);
+      const priceNum = parseFloat(targetPrice);
+
+      if (editingTargetOrder) {
+        // Modify existing order
+        const res = await fetch(`/api/v1/orders/${editingTargetOrder.orderId || editingTargetOrder.id || editingTargetOrder.order_id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ price: priceNum, quantity })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setActionMessage({
+            type: 'success',
+            text: `Target LIMIT order updated to ₹${priceNum.toFixed(2)} for ${pos.symbol}`
+          });
+          fetchData();
+        } else {
+          setActionMessage({ type: 'error', text: `Target modification failed: ${data.error?.message}` });
+        }
+      } else {
+        // Submit new target order
+        const res = await fetch('/api/v1/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            instrumentToken: pos.instrumentToken || pos.instrument_token || `NSE_${pos.symbol}`,
+            exchange: pos.exchange || 'NSE',
+            symbol: pos.symbol,
+            side,
+            quantity,
+            price: priceNum,
+            orderType: 'LIMIT',
+            productType: pos.productType || pos.product_type || 'MIS'
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          setActionMessage({
+            type: 'success',
+            text: `Target LIMIT exit order placed for ${pos.symbol} @ ₹${priceNum.toFixed(2)} (${quantity} qty)`
+          });
+          fetchData();
+        } else {
+          setActionMessage({ type: 'error', text: `Target placement failed: ${data.error?.message}` });
+        }
+      }
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: `Target order error: ${err.message}` });
+    } finally {
+      setIsSubmittingExit(false);
+      setTargetModalPos(null);
+      setIsTargetConfirmStep(false);
+    }
+  };
+
+  // 3. CANCEL TARGET HANDLERS
+  const confirmCancelTargetOrder = async () => {
+    if (!cancelTargetModalOrder) return;
+    try {
+      const orderId = cancelTargetModalOrder.orderId || cancelTargetModalOrder.order_id || cancelTargetModalOrder.id;
+      const res = await fetch(`/api/v1/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage({
+          type: 'success',
+          text: `Target order for ${cancelTargetModalOrder.symbol} cancelled. Position remains open.`
+        });
+        fetchData();
+      } else {
+        setActionMessage({ type: 'error', text: `Failed to cancel target order: ${data.error?.message}` });
+      }
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: `Error cancelling target order: ${err.message}` });
+    } finally {
+      setCancelTargetModalOrder(null);
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/v1/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMessage({ type: 'success', text: `Order ${orderId} cancelled.` });
+        fetchData();
+      } else {
+        setActionMessage({ type: 'error', text: `Failed to cancel: ${data.error?.message}` });
+      }
+    } catch (_) {
+      setActionMessage({ type: 'error', text: 'Failed to cancel order.' });
     }
   };
 
@@ -201,7 +367,6 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     .filter(isTodayOrder)
     .filter(o => orderFilter === 'ALL' || o.status === orderFilter);
 
-  // Split positions into open vs closed
   const openPositions = positions.filter((p: any) => {
     const qty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
     return qty !== 0;
@@ -212,7 +377,6 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return qty === 0;
   });
 
-  // Sort positions so OPEN positions are on top, CLOSED positions are on bottom
   const sortedPositions = [...positions].sort((a, b) => {
     const qtyA = a.netQty !== undefined ? a.netQty : (a.net_qty !== undefined ? parseInt(a.net_qty, 10) : ((a.buyQty || 0) - (a.sellQty || 0)));
     const qtyB = b.netQty !== undefined ? b.netQty : (b.net_qty !== undefined ? parseInt(b.net_qty, 10) : ((b.buyQty || 0) - (b.sellQty || 0)));
@@ -228,7 +392,6 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return true;
   });
 
-  // Real-time Position & Holding Summary Aggregates
   const totalUnrealizedPnl = openPositions.reduce((acc, p) => {
     const netQty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
     const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
@@ -244,60 +407,76 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
   const totalPositionPnl = totalUnrealizedPnl + totalRealizedPnl;
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-1 pb-28 select-none">
+    <div className="flex flex-col gap-5 h-full overflow-y-auto pb-28 font-body text-slate-100 select-none">
       
-      {/* ------------------------------------------------------------ */}
+      {/* REAL-TIME PORTFOLIO SUMMARY CARD */}
+      <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-md backdrop-blur-xl flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Portfolio P&L Today</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          </div>
+          <div className="flex items-baseline gap-3 mt-1 font-mono">
+            <span className={`text-3xl font-black ${totalPositionPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {totalPositionPnl >= 0 ? '+' : ''}₹{totalPositionPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-xs text-slate-400 font-bold">
+              (Unrealized: ₹{totalUnrealizedPnl.toFixed(2)} | Realized: ₹{totalRealizedPnl.toFixed(2)})
+            </span>
+          </div>
+        </div>
+
+        {openPositions.length > 0 && (
+          <button
+            onClick={() => {
+              if (openPositions.length > 0) handleOpenSquareOffModal(openPositions[0]);
+            }}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/40 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 min-h-[44px]"
+          >
+            <ShieldAlert size={15} /> EXIT ALL POSITIONS ({openPositions.length})
+          </button>
+        )}
+      </div>
+
       {/* DESKTOP TOOLBAR & TAB SWITCHER */}
-      {/* ------------------------------------------------------------ */}
-      <div className="hidden md:flex flex-wrap items-center justify-between gap-4 bg-[var(--bg-surface)] border border-[var(--border-color)] p-4 rounded-2xl shadow-sm font-headline">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl text-xs font-bold">
-            <button
-              onClick={() => setActiveTab('ORDERS')}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${activeTab === 'ORDERS' ? 'bg-indigo-600 text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
-            >
-              <Clock className="w-3.5 h-3.5" /> Orders Book ({orders.filter(isTodayOrder).length})
-            </button>
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl shadow-sm backdrop-blur-xl">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
             <button
               onClick={() => setActiveTab('POSITIONS')}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${activeTab === 'POSITIONS' ? 'bg-indigo-600 text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer min-h-[44px] ${
+                activeTab === 'POSITIONS' ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
             >
-              <Zap className="w-3.5 h-3.5 text-amber-500" /> Positions ({openPositions.length} Open / {closedPositions.length} Closed)
+              <Zap className="w-3.5 h-3.5" /> Positions ({openPositions.length} Open)
+            </button>
+            <button
+              onClick={() => setActiveTab('ORDERS')}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer min-h-[44px] ${
+                activeTab === 'ORDERS' ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5" /> Orders ({orders.filter(isTodayOrder).length})
             </button>
             <button
               onClick={() => setActiveTab('HOLDINGS')}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${activeTab === 'HOLDINGS' ? 'bg-indigo-600 text-white shadow-md' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer min-h-[44px] ${
+                activeTab === 'HOLDINGS' ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
             >
-              <PieChart className="w-3.5 h-3.5 text-purple-500" /> Demat Holdings ({holdings.length})
+              <PieChart className="w-3.5 h-3.5" /> Holdings ({holdings.length})
             </button>
           </div>
 
-          {activeTab === 'ORDERS' && (
-            <div className="flex items-center gap-1 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] px-2 py-1 rounded-xl text-xs">
-              <Filter className="w-3.5 h-3.5 text-[var(--text-tertiary)] mr-1" />
-              {(['ALL', 'ACCEPTED', 'FILLED', 'CANCELLED', 'REJECTED'] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setOrderFilter(f)}
-                  className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-bold ${
-                    orderFilter === f ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-          )}
-
           {activeTab === 'POSITIONS' && (
-            <div className="flex items-center gap-1 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] px-2 py-1 rounded-xl text-xs">
-              <Filter className="w-3.5 h-3.5 text-[var(--text-tertiary)] mr-1" />
+            <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 px-2 py-1 rounded-xl text-xs">
+              <Filter className="w-3.5 h-3.5 text-slate-400 mr-1" />
               {(['ALL', 'OPEN', 'CLOSED'] as const).map(pf => (
                 <button
                   key={pf}
                   onClick={() => setPositionStatusFilter(pf)}
-                  className={`px-2.5 py-1 rounded-lg transition-all text-[11px] font-bold ${
-                    positionStatusFilter === pf ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+                  className={`px-2.5 py-1.5 rounded-lg transition-all text-[11px] font-bold cursor-pointer min-h-[36px] ${
+                    positionStatusFilter === pf ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   {pf === 'OPEN' ? `Open (${openPositions.length})` : pf === 'CLOSED' ? `Closed (${closedPositions.length})` : `All (${positions.length})`}
@@ -307,385 +486,528 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {activeTab === 'POSITIONS' && (
-            <button
-              onClick={handleClearOldPositions}
-              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold px-3 py-2 rounded-xl border border-rose-500/30 flex items-center gap-1.5 transition-all"
-              title="Clear old positions from previous days"
-            >
-              Clear Yesterday's Positions
-            </button>
-          )}
-          <button
-            onClick={fetchData}
-            className="bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface)] text-[var(--text-muted)] text-xs font-bold px-3.5 py-2 rounded-xl border border-[var(--border-color)] flex items-center gap-2 transition-all"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </button>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------------ */}
-      {/* MOBILE TOP NAVIGATION HEADER & INDEX TICKER STRIP */}
-      {/* ------------------------------------------------------------ */}
-      <div className="md:hidden bg-[#0D1117] text-white -mx-2 -mt-2 p-3 border-b border-[#1C2128]">
-        
-        {/* Mobile Header Title */}
-        <div className="flex items-center justify-between mb-3 font-headline">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setActiveTab('ORDERS')}
-              className={`text-lg font-extrabold ${activeTab === 'ORDERS' ? 'text-white border-b-2 border-[#00E676] pb-0.5' : 'text-[#8B949E]'}`}
-            >
-              Orders
-            </button>
-            <button
-              onClick={() => setActiveTab('POSITIONS')}
-              className={`text-lg font-extrabold ${activeTab === 'POSITIONS' ? 'text-white border-b-2 border-[#00E676] pb-0.5' : 'text-[#8B949E]'}`}
-            >
-              Positions
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 text-[#8B949E]">
-            <Search className="w-5 h-5" />
-            <MoreVertical className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Horizontal Mini Index Ticker Strip */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-none py-1">
-          <div className="bg-[#161B22] border border-[#30363D] px-3 py-1.5 rounded-xl flex items-center gap-2 flex-shrink-0 text-xs font-label">
-            <span className="font-bold text-white">SENSEX</span>
-            <span className="bg-[#00E676]/10 text-[#00E676] text-[9px] font-bold px-1.5 py-0.5 rounded">Expiry Tomorrow</span>
-            <span className="text-[#FF5252] font-bold tabular-nums">76,884.72 (-0.76%)</span>
-          </div>
-
-          <div className="bg-[#161B22] border border-[#30363D] px-3 py-1.5 rounded-xl flex items-center gap-2 flex-shrink-0 text-xs font-label">
-            <span className="font-bold text-white">NIFTY</span>
-            <span className="bg-purple-500/10 text-purple-400 text-[9px] font-bold px-1.5 py-0.5 rounded">Expiry Tue</span>
-            <span className="text-[#FF5252] font-bold tabular-nums">24,024.35 (-0.68%)</span>
-          </div>
-        </div>
-
-        {/* Controls Bar */}
-        <div className="flex items-center justify-between pt-3 text-xs font-headline">
-          <div className="flex items-center gap-3 text-[#8B949E]">
-            <Sliders className="w-4 h-4" />
-            <Search className="w-4 h-4" />
-          </div>
-
-          <button className="text-[#8B949E] hover:text-white text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider">
-            <ShieldCheck className="w-4 h-4 text-[#00E676]" /> SECURE EXIT
-          </button>
-        </div>
-
+        <button
+          onClick={fetchData}
+          className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-700 flex items-center gap-2 transition-all cursor-pointer min-h-[44px]"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        </button>
       </div>
 
       {actionMessage && (
-        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs p-3.5 rounded-xl flex items-center justify-between font-bold">
-          <span>{actionMessage}</span>
-          <button onClick={() => setActionMessage(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] font-bold">✕</button>
+        <div className={`p-3.5 rounded-xl text-xs font-bold border flex items-center justify-between ${
+          actionMessage.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+        }`}>
+          <span>{actionMessage.text}</span>
+          <button onClick={() => setActionMessage(null)} className="text-slate-400 hover:text-white font-bold cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* MAIN CONTENT AREA */}
-      <div className="bg-[#161B22] border border-[#30363D] rounded-2xl overflow-hidden shadow-sm flex-1">
+      {/* MAIN CONTENT TABLE */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-md flex-1 backdrop-blur-xl">
         
-        {/* ============================================================ */}
-        {/* 1. ORDERS BOOK VIEW (FIXED: RENDERS BOTH DESKTOP & MOBILE) */}
-        {/* ============================================================ */}
-        {activeTab === 'ORDERS' && (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-[#0D1117] text-[#8B949E] uppercase text-[10px] sticky top-0 border-b border-[#30363D] font-extrabold font-headline">
-                  <tr>
-                    <th className="py-3 px-4">Time</th>
-                    <th className="py-3 px-4">Order ID</th>
-                    <th className="py-3 px-4">Symbol</th>
-                    <th className="py-3 px-4">Side</th>
-                    <th className="py-3 px-4 text-right">Qty</th>
-                    <th className="py-3 px-4 text-right">Price (₹)</th>
-                    <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#30363D] font-label tabular-nums">
-                  {filteredOrders.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="text-center py-12 text-[#8B949E] font-body">
-                        No orders recorded today.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredOrders.map(o => (
-                      <tr key={o.id || o.order_id} className="hover:bg-[#1C2128] transition-colors">
-                        <td className="py-3 px-4 text-[#8B949E]">
-                          {o.createdAt || o.created_at ? new Date(o.createdAt || o.created_at).toLocaleTimeString() : 'Today'}
-                        </td>
-                        <td className="py-3 px-4 font-mono font-bold text-white">{o.orderId || o.order_id || o.id?.slice(0, 8)}</td>
-                        <td className="py-3 px-4 font-headline font-bold text-white">{o.symbol}</td>
-                        <td className="py-3 px-4">
-                          <span className={`font-black text-xs px-2 py-0.5 rounded ${o.side === 'BUY' ? 'bg-[#00E676]/20 text-[#00E676]' : 'bg-[#FF5252]/20 text-[#FF5252]'}`}>
-                            {o.side}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-bold text-white">{o.quantity}</td>
-                        <td className="py-3 px-4 text-right text-white">₹{parseFloat(o.price || 0).toFixed(2)}</td>
-                        <td className="py-3 px-4"><span className="bg-[#0D1117] text-[#8B949E] px-2 py-0.5 rounded border border-[#30363D]">{o.orderType || o.order_type || 'MARKET'}</span></td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                            o.status === 'FILLED' ? 'bg-[#00E676]/20 text-[#00E676]' :
-                            o.status === 'REJECTED' ? 'bg-[#FF5252]/20 text-[#FF5252]' :
-                            o.status === 'CANCELLED' ? 'bg-slate-500/20 text-slate-400' : 'bg-amber-500/20 text-amber-400'
-                          }`}>
-                            {o.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          {(o.status === 'ACCEPTED' || o.status === 'PENDING') && (
-                            <button
-                              onClick={() => handleCancelOrder(o.id || o.order_id)}
-                              className="text-xs text-[#FF5252] hover:underline font-bold"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Order Cards View */}
-            <div className="md:hidden flex flex-col divide-y divide-[#30363D]/40 bg-[#0D1117]">
-              {filteredOrders.length === 0 ? (
-                <div className="text-center py-12 text-[#8B949E] text-xs font-body">No orders recorded today.</div>
-              ) : (
-                filteredOrders.map(o => (
-                  <div key={o.id || o.order_id} className="p-4 flex flex-col gap-2 bg-[#161B22] border-b border-[#30363D]/40">
-                    <div className="flex items-center justify-between font-headline">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded font-black text-xs ${
-                          o.side === 'BUY' ? 'bg-[#00E676]/20 text-[#00E676]' : 'bg-[#FF5252]/20 text-[#FF5252]'
-                        }`}>
-                          {o.side}
-                        </span>
-                        <span className="font-bold text-sm text-white">{o.symbol}</span>
-                      </div>
-
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                        o.status === 'FILLED' ? 'bg-[#00E676]/20 text-[#00E676]' :
-                        o.status === 'REJECTED' ? 'bg-[#FF5252]/20 text-[#FF5252]' :
-                        o.status === 'CANCELLED' ? 'bg-slate-500/20 text-slate-400' : 'bg-amber-500/20 text-amber-400'
-                      }`}>
-                        {o.status}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs font-label text-[#8B949E] pt-1">
-                      <div>Qty: <strong className="text-white">{o.quantity}</strong> ({o.productType || o.product_type || 'MIS'})</div>
-                      <div className="tabular-nums">Price: <strong className="text-white">₹{parseFloat(o.price || 0).toFixed(2)}</strong></div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-[#8B949E] pt-1 border-t border-[#30363D]/30 font-mono">
-                      <span>ID: #{o.orderId || o.order_id || o.id?.slice(0, 8)}</span>
-                      <span>{o.createdAt || o.created_at ? new Date(o.createdAt || o.created_at).toLocaleTimeString() : 'Today'}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ============================================================ */}
-        {/* 2. POSITIONS LIST */}
-        {/* ============================================================ */}
+        {/* 1. POSITIONS LIST (Matching Desktop Specification) */}
         {activeTab === 'POSITIONS' && (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-[#0D1117] text-[#8B949E] uppercase text-[10px] sticky top-0 border-b border-[#30363D] font-extrabold font-headline">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800 font-bold font-mono">
+                <tr>
+                  <th className="py-3 px-4">Instrument</th>
+                  <th className="py-3 px-4">Product</th>
+                  <th className="py-3 px-4 text-right">Net Qty</th>
+                  <th className="py-3 px-4 text-right">Avg Price (₹)</th>
+                  <th className="py-3 px-4 text-right">Live LTP (₹)</th>
+                  <th className="py-3 px-4 text-right">Unrealized P&L</th>
+                  <th className="py-3 px-4 text-center">Active Target</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 num-font">
+                {filteredPositions.length === 0 ? (
                   <tr>
-                    <th className="py-3 px-4">Instrument</th>
-                    <th className="py-3 px-4">Product</th>
-                    <th className="py-3 px-4 text-right">Net Qty</th>
-                    <th className="py-3 px-4 text-right">Avg Price (₹)</th>
-                    <th className="py-3 px-4 text-right">Live LTP (₹)</th>
-                    <th className="py-3 px-4 text-right">Unrealized P&L</th>
-                    <th className="py-3 px-4 text-right">Realized P&L</th>
-                    <th className="py-3 px-4 text-right">Action</th>
+                    <td colSpan={8} className="text-center py-12 text-slate-400 text-xs">No positions found in account.</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[#30363D] font-label tabular-nums">
-                  {filteredPositions.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-12 text-[#8B949E] font-body">No positions found.</td>
-                    </tr>
-                  ) : (
-                    filteredPositions.map(p => {
-                      const netQty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
-                      const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
-                      const ltp = getLiveLtp(p);
-                      const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : netQty < 0 ? Math.abs(netQty) * (avgPrice - ltp) : 0;
-                      const realizedPnl = parseFloat(p.realizedPnl || p.realized_pnl || 0);
+                ) : (
+                  filteredPositions.map(p => {
+                    const netQty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
+                    const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
+                    const ltp = getLiveLtp(p);
+                    const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : netQty < 0 ? Math.abs(netQty) * (avgPrice - ltp) : 0;
+                    const activeTarget = getActiveTargetOrder(p);
 
-                      return (
-                        <tr key={p.id || p.symbol} className="hover:bg-[#1C2128] transition-colors">
-                          <td className="py-3 px-4 font-headline font-bold text-white text-sm">
-                            {p.symbol}
-                            {netQty === 0 && (
-                              <span className="ml-2 text-[9px] bg-slate-500/20 text-slate-400 px-1.5 py-0.5 rounded border border-slate-500/20 font-mono">
-                                CLOSED
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4"><span className="bg-[#0D1117] text-amber-500 text-[10px] px-2 py-0.5 rounded font-bold border border-[#30363D]">{p.productType || p.product_type || 'MIS'}</span></td>
-                          <td className={`py-3 px-4 text-right font-bold ${netQty > 0 ? 'text-[#00E676]' : (netQty < 0 ? 'text-[#FF5252]' : 'text-[#8B949E]')}`}>
-                            {netQty > 0 ? `+${netQty}` : netQty}
-                          </td>
-                          <td className="py-3 px-4 text-right text-white">₹{avgPrice.toFixed(2)}</td>
-                          <td className="py-3 px-4 text-right font-bold text-white">₹{ltp.toFixed(2)}</td>
-                          <td className={`py-3 px-4 text-right font-bold ${unrealizedPnl >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
-                            {netQty !== 0 ? `${unrealizedPnl >= 0 ? '+' : ''}₹${unrealizedPnl.toFixed(2)}` : '₹0.00'}
-                          </td>
-                          <td className={`py-3 px-4 text-right font-bold ${realizedPnl >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
-                            {realizedPnl !== 0 ? `${realizedPnl >= 0 ? '+' : ''}₹${realizedPnl.toFixed(2)}` : '₹0.00'}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            {netQty !== 0 ? (
-                              <button
-                                onClick={() => handleSquareOffPosition(p)}
-                                className="bg-[#FF5252] hover:bg-rose-600 text-white text-[10px] font-bold px-3 py-1 rounded transition-all shadow-sm"
-                              >
-                                Square Off
-                              </button>
-                            ) : (
-                              <span className="bg-[#0D1117] text-[#8B949E] text-[10px] font-bold px-2.5 py-1 rounded border border-[#30363D] uppercase">
-                                Squared Off
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Positions List (Dark Open / Light Closed) */}
-            <div className="md:hidden flex flex-col divide-y divide-[#30363D]/40 bg-[#0D1117]">
-              {filteredPositions.length === 0 ? (
-                <div className="text-center py-12 text-[#8B949E] text-xs">No positions in portfolio.</div>
-              ) : (
-                filteredPositions.map(p => {
-                  const netQty = p.netQty !== undefined ? p.netQty : (p.net_qty !== undefined ? parseInt(p.net_qty, 10) : ((p.buyQty || 0) - (p.sellQty || 0)));
-                  const isOpen = netQty !== 0;
-                  const avgPrice = parseFloat(p.averagePrice || p.average_price || 0);
-                  const ltp = getLiveLtp(p);
-                  const unrealizedPnl = netQty > 0 ? (ltp - avgPrice) * netQty : Math.abs(netQty) * (avgPrice - ltp);
-                  const realizedPnl = parseFloat(p.realizedPnl || p.realized_pnl || 0);
-                  const displayPnl = isOpen ? unrealizedPnl : realizedPnl;
-                  const isGain = displayPnl >= 0;
-
-                  const buyAvg = parseFloat(p.buyAvgPrice || p.buy_price || avgPrice);
-                  const sellAvg = parseFloat(p.sellAvgPrice || p.sell_price || (isOpen ? ltp : avgPrice));
-
-                  return (
-                    <div
-                      key={p.id || p.symbol}
-                      className={`p-4 flex flex-col gap-1.5 transition-all ${
-                        isOpen
-                          ? 'bg-[#161B22] border-l-4 border-l-[#00E676] shadow-sm'
-                          : 'bg-[#161B22]/40 opacity-60 border-l-2 border-l-slate-600'
-                      }`}
-                    >
-                      {/* Line 1: Symbol Name & Total P&L */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-headline font-bold text-sm tracking-tight ${
-                            isOpen ? 'text-white font-extrabold' : 'text-slate-400 font-semibold'
-                          }`}>
-                            {p.symbol}
-                          </span>
-                          {!isOpen && (
-                            <span className="text-[9px] bg-slate-500/20 text-slate-400 px-1.5 py-0.5 rounded font-extrabold font-mono">
+                    return (
+                      <tr key={p.id || p.symbol} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="py-3 px-4 font-bold text-white text-sm">
+                          {p.symbol}
+                          {netQty === 0 && (
+                            <span className="ml-2 text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-mono">
                               CLOSED
                             </span>
                           )}
-                        </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="bg-slate-950 text-indigo-400 text-[10px] px-2 py-0.5 rounded font-bold border border-slate-800">
+                            {p.productType || p.product_type || 'MIS'}
+                          </span>
+                        </td>
+                        <td className={`py-3 px-4 text-right font-bold ${netQty > 0 ? 'text-emerald-400' : (netQty < 0 ? 'text-rose-400' : 'text-slate-400')}`}>
+                          {netQty > 0 ? `+${netQty}` : netQty}
+                        </td>
+                        <td className="py-3 px-4 text-right text-white">₹{avgPrice.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right font-bold text-white">₹{ltp.toFixed(2)}</td>
+                        <td className={`py-3 px-4 text-right font-bold ${unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {netQty !== 0 ? `${unrealizedPnl >= 0 ? '+' : ''}₹${unrealizedPnl.toFixed(2)}` : '₹0.00'}
+                        </td>
+                        
+                        {/* Active Target Indicator Column */}
+                        <td className="py-3 px-4 text-center">
+                          {activeTarget ? (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/30 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Target ₹{parseFloat(activeTarget.price).toFixed(2)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setCancelTargetModalOrder(activeTarget)}
+                                className="text-slate-400 hover:text-rose-400 transition-colors p-1"
+                                title="Cancel Target Order"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-mono font-semibold">No Target</span>
+                          )}
+                        </td>
 
-                        <div className={`font-label font-bold text-sm tabular-nums ${
-                          isOpen
-                            ? (isGain ? 'text-[#00E676]' : 'text-[#FF5252]')
-                            : (isGain ? 'text-[#00E676]/70' : 'text-[#FF5252]/70')
+                        {/* Dual Action Buttons: Set Target & Square Off */}
+                        <td className="py-3 px-4 text-right">
+                          {netQty !== 0 ? (
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Set Target Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSetTargetModal(p, activeTarget)}
+                                className="bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-bold px-3 py-1.5 rounded-xl border border-cyan-500/30 transition-all cursor-pointer shadow-sm flex items-center gap-1 min-h-[38px]"
+                              >
+                                <Target className="w-3.5 h-3.5" />
+                                {activeTarget ? 'Modify Target' : 'Set Target'}
+                              </button>
+
+                              {/* Square Off Button (High Priority Exit Action) */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSquareOffModal(p)}
+                                className="bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-md active:scale-95 min-h-[38px]"
+                              >
+                                Square Off
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="bg-slate-950 text-slate-500 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-800 uppercase">
+                              Closed
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 2. ORDERS BOOK VIEW */}
+        {activeTab === 'ORDERS' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800 font-bold font-mono">
+                <tr>
+                  <th className="py-3 px-4">Time</th>
+                  <th className="py-3 px-4">Order ID</th>
+                  <th className="py-3 px-4">Symbol</th>
+                  <th className="py-3 px-4">Side</th>
+                  <th className="py-3 px-4 text-right">Qty</th>
+                  <th className="py-3 px-4 text-right">Price (₹)</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 num-font">
+                {filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-12 text-slate-400 text-xs">
+                      No orders recorded for today.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.map(o => (
+                    <tr key={o.id || o.order_id} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-3 px-4 text-slate-400">
+                        {o.createdAt || o.created_at ? new Date(o.createdAt || o.created_at).toLocaleTimeString() : 'Today'}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-amber-400">{o.orderId || o.order_id || o.id?.slice(0, 8)}</td>
+                      <td className="py-3 px-4 font-bold text-white">{o.symbol}</td>
+                      <td className="py-3 px-4">
+                        <span className={`font-black text-xs px-2 py-0.5 rounded ${o.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                          {o.side}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-bold text-white">{o.quantity}</td>
+                      <td className="py-3 px-4 text-right text-white">₹{parseFloat(o.price || 0).toFixed(2)}</td>
+                      <td className="py-3 px-4"><span className="bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800 text-[10px]">{o.orderType || o.order_type || 'MARKET'}</span></td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                          o.status === 'FILLED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                          o.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                          o.status === 'CANCELLED' ? 'bg-slate-500/20 text-slate-400 border border-slate-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                         }`}>
-                          {isGain ? '+' : ''}₹{displayPnl.toFixed(2)}
-                        </div>
-                      </div>
-
-                      {/* Line 2: Qty / Lots & LTP */}
-                      <div className="flex items-center justify-between text-xs font-label text-[#8B949E]">
-                        <div>
-                          <span>{Math.abs(netQty)} {Math.abs(netQty) === 1 ? 'Lot' : 'Lots'} • {p.productType || p.product_type || 'CF'}</span>
-                        </div>
-                        <div className="tabular-nums">
-                          <span>LTP ₹{ltp.toFixed(2)}</span>
-                          <span className="ml-1 text-[11px]">({isGain ? '+' : ''}{((displayPnl / (Math.abs(netQty || 1) * avgPrice || 1)) * 100).toFixed(2)}%)</span>
-                        </div>
-                      </div>
-
-                      {/* Line 3: Buy Price & Sell Price */}
-                      <div className="flex items-center justify-between text-xs font-label text-[#8B949E] pt-1">
-                        <div>Buy ₹{buyAvg.toFixed(2)}</div>
-                        <div>Sell ₹{sellAvg.toFixed(2)}</div>
-                      </div>
-
-                      {/* Square Off Button for Open Positions */}
-                      {isOpen && (
-                        <div className="pt-2 flex justify-end">
+                          {o.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {(o.status === 'ACCEPTED' || o.status === 'PENDING') && (
                           <button
-                            onClick={() => handleSquareOffPosition(p)}
-                            className="bg-[#FF5252] hover:bg-rose-600 text-white font-headline font-bold text-xs px-3 py-1 rounded-lg shadow-sm transition-all"
+                            onClick={() => handleCancelOrder(o.id || o.order_id)}
+                            className="text-xs text-rose-400 hover:underline font-bold cursor-pointer min-h-[36px]"
                           >
-                            Square Off
+                            Cancel
                           </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 3. HOLDINGS LIST */}
+        {activeTab === 'HOLDINGS' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800 font-bold font-mono">
+                <tr>
+                  <th className="py-3 px-4">Instrument</th>
+                  <th className="py-3 px-4 text-right">Quantity</th>
+                  <th className="py-3 px-4 text-right">Avg Price (₹)</th>
+                  <th className="py-3 px-4 text-right">Current Value (₹)</th>
+                  <th className="py-3 px-4 text-right">P&L</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 num-font">
+                {holdings.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-12 text-slate-400 text-xs">No demat holdings in portfolio.</td>
+                  </tr>
+                ) : (
+                  holdings.map(h => (
+                    <tr key={h.id || h.symbol} className="hover:bg-slate-800/50 transition-colors">
+                      <td className="py-3 px-4 font-bold text-white text-sm">{h.symbol}</td>
+                      <td className="py-3 px-4 text-right text-white font-bold">{h.quantity}</td>
+                      <td className="py-3 px-4 text-right text-white">₹{parseFloat(h.averagePrice || 0).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-right text-white font-bold">₹{parseFloat(h.currentValue || 0).toFixed(2)}</td>
+                      <td className={`py-3 px-4 text-right font-bold ${h.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {h.pnl >= 0 ? '+' : ''}₹{parseFloat(h.pnl || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
 
       </div>
 
-      {/* STICKY BOTTOM TOTAL FOOTER BAR */}
-      {activeTab === 'POSITIONS' && (
-        <div className="md:hidden fixed bottom-14 left-0 right-0 bg-[#161B22]/95 backdrop-blur-md border-t border-[#30363D] p-3 flex items-center justify-between z-40 px-4 shadow-lg">
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-[#00E676] text-[#0D1117] flex items-center justify-center font-black text-xs">
-              ✓
-            </span>
-            <span className="font-headline font-bold text-sm text-white">Total</span>
-          </div>
+      {/* ── MODAL 1: SQUARE OFF CONFIRMATION MODAL ───────────────────────── */}
+      {squareOffModalPos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 font-mono">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <AlertTriangle className="text-amber-400 w-5 h-5" /> Square Off Position?
+              </h3>
+              <button type="button" onClick={() => setSquareOffModalPos(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-          <div className={`font-headline font-black text-base tabular-nums flex items-center gap-1 ${
-            totalPositionPnl >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'
-          }`}>
-            <span>{totalPositionPnl >= 0 ? '+' : ''}₹{totalPositionPnl.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            <span>▲</span>
+            {(() => {
+              const pos = squareOffModalPos;
+              const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
+              const absQty = Math.abs(netQty);
+              const liveLtp = getLiveLtp(pos);
+              const exitSide = netQty > 0 ? 'SELL' : 'BUY';
+              const estimatedExitVal = liveLtp * absQty;
+
+              return (
+                <>
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Instrument:</span>
+                      <span className="font-bold text-white text-sm">{pos.symbol}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Quantity:</span>
+                      <span className="font-bold text-emerald-400">{absQty} Units ({exitSide})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Current LTP:</span>
+                      <span className="font-bold text-white">₹{liveLtp.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Exit Order Type:</span>
+                      <span className="font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">MARKET</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-800 pt-2 font-bold">
+                      <span className="text-slate-300">Estimated Exit Value:</span>
+                      <span className="text-cyan-300 font-mono text-sm">₹{estimatedExitVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-[11px] text-amber-300 font-sans leading-relaxed">
+                    ⚠️ You are about to exit this position using a <strong>MARKET</strong> order. The actual execution price will come from the exchange fill and may differ from the currently displayed LTP.
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSquareOffModalPos(null)}
+                      disabled={isSubmittingExit}
+                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer min-h-[44px]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmSquareOff}
+                      disabled={isSubmittingExit}
+                      className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 min-h-[44px]"
+                    >
+                      {isSubmittingExit ? 'Submitting Exit...' : 'Confirm Square Off'}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 2: SET TARGET MODAL (Step 1: Price Input / Step 2: Confirmation) ──────── */}
+      {targetModalPos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 font-mono">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Target className="text-cyan-400 w-5 h-5" />
+                {isTargetConfirmStep ? 'Confirm Target Exit Order' : `Set Target — ${targetModalPos.symbol}`}
+              </h3>
+              <button type="button" onClick={() => { setTargetModalPos(null); setIsTargetConfirmStep(false); }} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(() => {
+              const pos = targetModalPos;
+              const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
+              const absQty = Math.abs(netQty);
+              const liveLtp = getLiveLtp(pos);
+              const avgPrice = parseFloat(pos.averagePrice || pos.average_price || liveLtp);
+              const exitSide = netQty > 0 ? 'SELL' : 'BUY';
+              const targetPriceNum = parseFloat(targetPrice || '0');
+              const estTargetPnl = netQty > 0
+                ? (targetPriceNum - avgPrice) * absQty
+                : (avgPrice - targetPriceNum) * absQty;
+
+              if (!isTargetConfirmStep) {
+                // Step 1: Input Price & Validate
+                return (
+                  <>
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Current LTP:</span>
+                        <span className="text-cyan-300 font-bold">₹{liveLtp.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Average Entry Price:</span>
+                        <span className="text-white font-bold">₹{avgPrice.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Position Quantity:</span>
+                        <span className={`font-bold ${netQty > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {netQty > 0 ? `+${absQty}` : `-${absQty}`} Units
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Target Exit Side:</span>
+                        <span className="font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                          {exitSide} LIMIT
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Target Exit Price (₹) <span className="text-slate-400 font-normal">(0.05 tick size)</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        value={targetPrice}
+                        onChange={(e) => {
+                          setTargetPrice(e.target.value);
+                          setTargetPriceError(null);
+                        }}
+                        placeholder={netQty > 0 ? `Above ₹${liveLtp.toFixed(2)} (e.g. 165.00)` : `Below ₹${liveLtp.toFixed(2)} (e.g. 140.00)`}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-cyan-500"
+                      />
+                      {targetPriceError && (
+                        <p className="text-xs text-rose-400 font-bold mt-1.5">{targetPriceError}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setTargetModalPos(null)}
+                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs min-h-[44px]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleProceedToTargetConfirm}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-lg min-h-[44px]"
+                      >
+                        Proceed to Confirmation
+                      </button>
+                    </div>
+                  </>
+                );
+              }
+
+              // Step 2: Final Confirmation
+              return (
+                <>
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Instrument:</span>
+                      <span className="font-bold text-white">{pos.symbol}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Action & Type:</span>
+                      <span className="font-black text-emerald-400">{exitSide} LIMIT</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Quantity:</span>
+                      <span className="font-bold text-white">{absQty} Units</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Target Price:</span>
+                      <span className="font-black text-cyan-300 text-sm">₹{targetPriceNum.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Current LTP:</span>
+                      <span className="font-bold text-white">₹{liveLtp.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-800 pt-2 font-bold">
+                      <span className="text-slate-300">Estimated Target P&L:</span>
+                      <span className={`text-sm ${estTargetPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {estTargetPnl >= 0 ? '+' : ''}₹{estTargetPnl.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-cyan-500/10 border border-cyan-500/30 p-3 rounded-xl text-[11px] text-cyan-300 font-sans leading-relaxed">
+                    ℹ️ Placing a target order will submit a real LIMIT exit order to the exchange. Your position will automatically close when the target limit price is hit.
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsTargetConfirmStep(false)}
+                      disabled={isSubmittingExit}
+                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs min-h-[44px]"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmPlaceTargetOrder}
+                      disabled={isSubmittingExit}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 min-h-[44px]"
+                    >
+                      {isSubmittingExit ? 'Placing Target...' : 'Place Target Order'}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 3: CANCEL TARGET CONFIRMATION MODAL ────────────────────── */}
+      {cancelTargetModalOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 font-mono">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <AlertTriangle className="text-rose-400 w-5 h-5" /> Cancel Target Order?
+              </h3>
+              <button type="button" onClick={() => setCancelTargetModalOrder(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Instrument:</span>
+                <span className="font-bold text-white">{cancelTargetModalOrder.symbol}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Order Side & Type:</span>
+                <span className="font-bold text-rose-400">{cancelTargetModalOrder.side} LIMIT</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Target Price:</span>
+                <span className="font-bold text-cyan-300">₹{parseFloat(cancelTargetModalOrder.price).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Quantity:</span>
+                <span className="font-bold text-white">{cancelTargetModalOrder.quantity} Units</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 font-sans leading-relaxed">
+              Cancelling the target order will remove the exit limit order from the order book. Your underlying position will remain <strong>OPEN</strong>.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancelTargetModalOrder(null)}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs min-h-[44px]"
+              >
+                Keep Order
+              </button>
+              <button
+                type="button"
+                onClick={confirmCancelTargetOrder}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs shadow-lg cursor-pointer min-h-[44px]"
+              >
+                Cancel Target Order
+              </button>
+            </div>
           </div>
         </div>
       )}

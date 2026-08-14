@@ -143,6 +143,38 @@ export class OMS {
     return { success: true };
   }
 
+  public static async modifyOrder(
+    orderId: string,
+    userId: string,
+    newPrice: number,
+    newQuantity?: number
+  ): Promise<{ success: boolean; error?: string }> {
+    const order = await queryOne<any>(
+      'SELECT * FROM orders WHERE (order_id = $1 OR id = $1) AND user_id = $2',
+      [orderId, userId]
+    );
+
+    if (!order) {
+      return { success: false, error: 'Order not found' };
+    }
+
+    if (order.status !== 'ACCEPTED' && order.status !== 'PENDING') {
+      return { success: false, error: `Order cannot be modified in state ${order.status}` };
+    }
+
+    const price = newPrice > 0 ? newPrice : parseFloat(order.price);
+    const quantity = newQuantity && newQuantity > 0 ? newQuantity : parseInt(order.quantity, 10);
+
+    await execute(
+      `UPDATE orders SET price = $1, quantity = $2, updated_at = NOW() WHERE id = $3`,
+      [price, quantity, order.id]
+    );
+
+    await this.recordOrderEvent(order.id, order.status, order.status, `Order modified: price=${price}, qty=${quantity}`);
+
+    return { success: true };
+  }
+
   public static async getUserOrders(userId: string, limit: number = 100, offset: number = 0, todayOnly: boolean = true): Promise<any[]> {
     if (todayOnly) {
       return query(
