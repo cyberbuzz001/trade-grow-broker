@@ -50,7 +50,7 @@ export function App() {
   
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY'>('PROFILE');
+  const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT'>('PROFILE');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isLinkPeModalOpen, setIsLinkPeModalOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');

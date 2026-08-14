@@ -218,14 +218,104 @@ router.post('/auth/login', authLimiter, validateBody(LoginSchema), async (req: R
 
 router.get('/auth/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const wallet = await VirtualWalletLedger.getWallet(req.user!.userId);
+  const uRow = await queryOne<any>('SELECT id, username, email, role, full_name, phone_number, city, address, date_of_birth, is_kyc_completed FROM users WHERE id = $1', [req.user!.userId]);
+  const kycApp = await queryOne<any>('SELECT status FROM kyc_applications WHERE user_id = $1', [req.user!.userId]);
+  const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
+
   const user = {
     id: req.user!.userId,
     userId: req.user!.userId,
-    username: req.user!.username,
-    email: req.user!.email,
-    role: req.user!.role
+    username: uRow?.username || req.user!.username,
+    email: uRow?.email || req.user!.email,
+    role: uRow?.role || req.user!.role,
+    fullName: uRow?.full_name || '',
+    phoneNumber: uRow?.phone_number || '',
+    city: uRow?.city || '',
+    address: uRow?.address || '',
+    dateOfBirth: uRow?.date_of_birth || '',
+    isKycCompleted: !!isKycOk,
+    kycStatus: kycApp?.status || (isKycOk ? 'APPROVED' : 'NOT_STARTED')
   };
   res.json({ success: true, user, wallet });
+});
+
+router.get('/user/profile', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const uRow = await queryOne<any>(
+      'SELECT id, username, email, role, status, full_name, phone_number, city, address, date_of_birth, is_kyc_completed, created_at FROM users WHERE id = $1',
+      [req.user!.userId]
+    );
+    const kycApp = await queryOne<any>('SELECT * FROM kyc_applications WHERE user_id = $1', [req.user!.userId]);
+    const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
+
+    res.json({
+      success: true,
+      profile: {
+        id: uRow?.id || req.user!.userId,
+        username: uRow?.username || req.user!.username,
+        email: uRow?.email || req.user!.email,
+        role: uRow?.role || req.user!.role,
+        fullName: uRow?.full_name || '',
+        phoneNumber: uRow?.phone_number || '',
+        city: uRow?.city || '',
+        address: uRow?.address || '',
+        dateOfBirth: uRow?.date_of_birth || '',
+        isKycCompleted: !!isKycOk,
+        status: uRow?.status || 'ACTIVE'
+      },
+      kyc: kycApp || null
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/user/profile', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { fullName, phoneNumber, city, address, dateOfBirth } = req.body;
+    await execute(
+      `UPDATE users
+       SET full_name = $1, phone_number = $2, city = $3, address = $4, date_of_birth = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [fullName || null, phoneNumber || null, city || null, address || null, dateOfBirth || null, req.user!.userId]
+    );
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'UPDATE_PROFILE', 'USER', req.user!.userId, null, { fullName, phoneNumber, city }, getClientIp(req));
+
+    res.json({ success: true, message: 'Personal & profile details saved successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/auth/change-password', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword || newPassword.length < 6) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'New password must be at least 6 characters long' } });
+      return;
+    }
+
+    const user = await queryOne<any>('SELECT password_hash FROM users WHERE id = $1', [req.user!.userId]);
+    if (!user) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+      return;
+    }
+
+    const match = await argon2.verify(user.password_hash, currentPassword).catch(() => false);
+    if (!match) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_PASSWORD', message: 'Current password is incorrect' } });
+      return;
+    }
+
+    const newHash = await argon2.hash(newPassword);
+    await execute('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newHash, req.user!.userId]);
+    await logAuditAction(req.user!.userId, req.user!.role, 'CHANGE_PASSWORD', 'USER', req.user!.userId, null, null, getClientIp(req));
+
+    res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
 });
 
 router.post('/auth/refresh', async (req: Request, res: Response) => {
@@ -705,6 +795,22 @@ router.get('/market/synthetic-candles', async (req: Request, res: Response) => {
 // ============================================================
 router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.user!.userId;
+    const uRow = await queryOne<any>('SELECT is_kyc_completed, role FROM users WHERE id = $1', [userId]);
+    const kycApp = await queryOne<any>('SELECT status FROM kyc_applications WHERE user_id = $1', [userId]);
+    const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
+
+    if (!isKycOk) {
+      res.status(403).json({
+        success: false,
+        error: {
+          code: 'KYC_REQUIRED',
+          message: 'KYC Verification Required: Please complete your KYC details under Profile before placing orders.'
+        }
+      });
+      return;
+    }
+
     const { instrumentToken, exchange, symbol, side, quantity, price, triggerPrice, orderType, productType } = req.body;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
 
@@ -728,8 +834,23 @@ router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrder
 
 // Alias kept for backward compatibility — delegates to canonical /orders endpoint
 router.post('/orders/place', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
-  // Forward to the canonical handler above — identical logic, single source of truth
   try {
+    const userId = req.user!.userId;
+    const uRow = await queryOne<any>('SELECT is_kyc_completed, role FROM users WHERE id = $1', [userId]);
+    const kycApp = await queryOne<any>('SELECT status FROM kyc_applications WHERE user_id = $1', [userId]);
+    const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
+
+    if (!isKycOk) {
+      res.status(403).json({
+        success: false,
+        error: {
+          code: 'KYC_REQUIRED',
+          message: 'KYC Verification Required: Please complete your KYC details under Profile before placing orders.'
+        }
+      });
+      return;
+    }
+
     const { instrumentToken, exchange, symbol, side, quantity, price, triggerPrice, orderType, productType } = req.body;
     const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
     const result = await OMS.submitOrder({

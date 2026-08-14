@@ -1,5 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { X, User as UserIcon, ShieldCheck, Wallet as WalletIcon, Lock, CheckCircle, AlertTriangle, Clock, RefreshCw, Zap, QrCode, ExternalLink, Smartphone } from 'lucide-react';
+import { 
+  X, 
+  User as UserIcon, 
+  ShieldCheck, 
+  Wallet as WalletIcon, 
+  Lock, 
+  CheckCircle, 
+  AlertTriangle, 
+  Clock, 
+  RefreshCw, 
+  Zap, 
+  QrCode, 
+  ExternalLink, 
+  Smartphone,
+  HelpCircle,
+  Save,
+  CheckCircle2,
+  KeyRound,
+  MessageSquare,
+  PlusCircle,
+  Phone,
+  Mail,
+  MapPin,
+  Calendar,
+  FileText
+} from 'lucide-react';
 import { User, Wallet } from '../types';
 
 interface UserProfileModalProps {
@@ -8,7 +33,7 @@ interface UserProfileModalProps {
   user: User;
   wallet: Wallet | null;
   token?: string | null;
-  initialTab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY';
+  initialTab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS';
   onRefreshWallet: () => void;
   onLogout: () => void;
 }
@@ -23,17 +48,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onRefreshWallet,
   onLogout
 }) => {
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS'>(initialTab || 'PROFILE');
   const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
     }
   }, [initialTab, isOpen]);
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  // Helper for authenticated fetch calls with auto-token refresh & fallback
+  // Helper for authenticated fetch calls
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const getFreshToken = () => token || localStorage.getItem('token') || localStorage.getItem('stocksharp_token') || '';
     let currentToken = getFreshToken();
@@ -45,7 +70,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     let res = await fetch(url, { ...options, headers });
     
-    // If 401/403 or invalid token, attempt silent token refresh with refreshToken
     if (res.status === 401 || res.status === 403) {
       const savedRefreshToken = localStorage.getItem('refreshToken');
       if (savedRefreshToken) {
@@ -68,11 +92,64 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     return res;
   };
 
-  // KYC Form State
-  const [kycStatus, setKycStatus] = useState<string>('NOT_STARTED');
-  const [kycApp, setKycApp] = useState<any>(null);
-  const [kycDocs, setKycDocs] = useState<any[]>([]);
+  // ============================================================
+  // 1. PERSONAL PROFILE DETAILS STATE
+  // ============================================================
+  const [fullName, setFullName] = useState<string>('');
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [city, setCity] = useState<string>('');
+  const [address, setAddress] = useState<string>('');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const fetchProfileDetails = async () => {
+    try {
+      const res = await fetchWithAuth('/api/v1/user/profile');
+      const data = await res.json();
+      if (data.success && data.profile) {
+        setFullName(data.profile.fullName || '');
+        setPhoneNumber(data.profile.phoneNumber || '');
+        setCity(data.profile.city || '');
+        setAddress(data.profile.address || '');
+        setDateOfBirth(data.profile.dateOfBirth || '');
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchProfileDetails();
+    }
+  }, [isOpen]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    setProfileMsg(null);
+    try {
+      const res = await fetchWithAuth('/api/v1/user/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName, phoneNumber, city, address, dateOfBirth })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProfileMsg({ type: 'success', text: data.message || 'Profile saved successfully!' });
+      } else {
+        setProfileMsg({ type: 'error', text: data.error?.message || 'Failed to save profile' });
+      }
+    } catch (err: any) {
+      setProfileMsg({ type: 'error', text: err.message });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // ============================================================
+  // 2. KYC STATE
+  // ============================================================
+  const [kycStatus, setKycStatus] = useState<string>('NOT_STARTED');
   const [panNumber, setPanNumber] = useState<string>('');
   const [aadhaarNumber, setAadhaarNumber] = useState<string>('');
   const [bankAccountName, setBankAccountName] = useState<string>('');
@@ -94,8 +171,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       const data = await res.json();
       if (data.success) {
         setKycStatus(data.status || 'NOT_STARTED');
-        setKycApp(data.application || null);
-        setKycDocs(data.documents || []);
         if (data.application) {
           setPanNumber(data.application.pan_number || '');
           setAadhaarNumber(data.application.aadhaar_number || '');
@@ -109,7 +184,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen && activeTab === 'KYC') {
+    if (isOpen && (activeTab === 'KYC' || activeTab === 'PROFILE')) {
       fetchKycStatus();
     }
   }, [isOpen, activeTab]);
@@ -152,9 +227,49 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  // Fund Deposit & Withdrawal Request State
+  // ============================================================
+  // 3. SECURITY & PASSWORD CHANGE STATE
+  // ============================================================
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMsg(null);
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: 'error', text: 'New passwords do not match' });
+      return;
+    }
+    setUpdatingPassword(true);
+    try {
+      const res = await fetchWithAuth('/api/v1/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPasswordMsg({ type: 'success', text: data.message });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPasswordMsg({ type: 'error', text: data.error?.message || 'Failed to change password' });
+      }
+    } catch (err: any) {
+      setPasswordMsg({ type: 'error', text: err.message });
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
+
+  // ============================================================
+  // 4. FUNDS & LINKPE UPI STATE
+  // ============================================================
   const [requestType, setRequestType] = useState<'DEPOSIT' | 'WITHDRAWAL'>('DEPOSIT');
-  const [executionMode, setExecutionMode] = useState<'INSTANT' | 'ADMIN_APPROVAL'>('INSTANT');
   const [fundAmount, setFundAmount] = useState<number>(50000);
   const [paymentMethod, setPaymentMethod] = useState<string>('UPI');
   const [referenceNote, setReferenceNote] = useState<string>('');
@@ -162,7 +277,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [myFundRequests, setMyFundRequests] = useState<any[]>([]);
   const [submittingFundReq, setSubmittingFundReq] = useState(false);
 
-  // LinkPe UPI Payment State
   const [linkpeData, setLinkpeData] = useState<{
     linkpeUrl: string;
     upiDeepLink: string;
@@ -234,6 +348,59 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  // ============================================================
+  // 5. SUPPORT TICKETS STATE
+  // ============================================================
+  const [supportCategory, setSupportCategory] = useState('TRADING');
+  const [supportPriority, setSupportPriority] = useState('MEDIUM');
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportDesc, setSupportDesc] = useState('');
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
+  const [submittingSupport, setSubmittingSupport] = useState(false);
+  const [supportMsg, setSupportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const fetchSupportTickets = async () => {
+    try {
+      const res = await fetchWithAuth('/api/v1/support/tickets');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.tickets)) {
+        setSupportTickets(data.tickets);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'SUPPORT') {
+      fetchSupportTickets();
+    }
+  }, [isOpen, activeTab]);
+
+  const handleSubmitSupportTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSupportMsg(null);
+    setSubmittingSupport(true);
+    try {
+      const res = await fetchWithAuth('/api/v1/support/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: supportCategory, priority: supportPriority, subject: supportSubject, description: supportDesc })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSupportMsg({ type: 'success', text: data.message });
+        setSupportSubject('');
+        setSupportDesc('');
+        fetchSupportTickets();
+      } else {
+        setSupportMsg({ type: 'error', text: data.error?.message || 'Failed to submit ticket' });
+      }
+    } catch (err: any) {
+      setSupportMsg({ type: 'error', text: err.message });
+    } finally {
+      setSubmittingSupport(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const getInitials = (name: string) => {
@@ -258,6 +425,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  const isVerified = kycStatus === 'APPROVED' || user?.isKycCompleted;
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 animate-in fade-in touch-action-manipulation">
       <div className="bg-[#0D1117] border border-[#30363D] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
@@ -265,7 +434,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Modal Header */}
         <div className="bg-[#161B22] p-5 border-b border-[#30363D] flex items-center justify-between font-headline">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-[#00E676] text-[#0D1117] flex items-center justify-center text-lg font-black shadow-lg shadow-[#00E676]/20 border border-[#00E676]/30">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-[#0D1117] flex items-center justify-center text-lg font-black shadow-lg shadow-emerald-500/20 border border-emerald-400/30">
               {getInitials(user.username)}
             </div>
             <div>
@@ -274,11 +443,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded uppercase">
                   {user.role}
                 </span>
-                <span className="bg-[#00E676]/20 text-[#00E676] border border-[#00E676]/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00E676] animate-pulse" /> ACTIVE
-                </span>
+                {isVerified ? (
+                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> VERIFIED
+                  </span>
+                ) : (
+                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> KYC PENDING
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-[#8B949E] mt-0.5 font-mono">{user.email} · ID: {user.id}</p>
+              <p className="text-xs text-[#8B949E] mt-0.5 font-mono">{user.email} · Client ID: {user.id?.slice(0, 10) || '1113019677'}</p>
             </div>
           </div>
 
@@ -291,20 +466,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex bg-[#0D1117] border-b border-[#30363D] px-4 pt-3 gap-2 text-xs font-bold font-headline overflow-x-auto scrollbar-none">
+        <div className="flex bg-[#0D1117] border-b border-[#30363D] px-4 pt-3 gap-1.5 text-xs font-bold font-headline overflow-x-auto scrollbar-none">
           {[
-            { key: 'PROFILE', label: 'User Details', icon: <UserIcon className="w-3.5 h-3.5" /> },
-            { key: 'KYC', label: 'KYC Verification', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
-            { key: 'FUNDS', label: 'Fund', icon: <WalletIcon className="w-3.5 h-3.5 text-[#00E676]" /> },
-            { key: 'PERMISSIONS', label: 'Trading Permissions', icon: <Clock className="w-3.5 h-3.5" /> },
-            { key: 'SECURITY', label: 'Security & Auth', icon: <Lock className="w-3.5 h-3.5" /> },
+            { key: 'PROFILE', label: 'Personal & Profile', icon: <UserIcon className="w-3.5 h-3.5" /> },
+            { key: 'KYC', label: 'KYC Verification', icon: <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> },
+            { key: 'FUNDS', label: 'Wallet & Ledger', icon: <WalletIcon className="w-3.5 h-3.5 text-blue-400" /> },
+            { key: 'SECURITY', label: 'Security & Auth', icon: <Lock className="w-3.5 h-3.5 text-purple-400" /> },
+            { key: 'SUPPORT', label: '24/7 Support', icon: <HelpCircle className="w-3.5 h-3.5 text-amber-400" /> },
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`pb-2.5 px-3 rounded-t-xl transition-all flex items-center gap-2 border-b-2 font-black ${
+              className={`pb-2.5 px-3 rounded-t-xl transition-all flex items-center gap-1.5 border-b-2 font-black shrink-0 ${
                 activeTab === tab.key
-                  ? 'border-[#00E676] text-[#00E676] bg-[#161B22]'
+                  ? 'border-emerald-400 text-emerald-400 bg-[#161B22]'
                   : 'border-transparent text-[#8B949E] hover:text-white'
               }`}
             >
@@ -316,7 +491,280 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         {/* Tab Body Content */}
         <div className="p-5 overflow-y-auto flex-1 font-label text-xs space-y-4">
           
-          {/* FUNDS TAB */}
+          {/* ============================================================ */}
+          {/* 1. PERSONAL & PROFILE DETAILS TAB */}
+          {/* ============================================================ */}
+          {activeTab === 'PROFILE' && (
+            <form onSubmit={handleSaveProfile} className="space-y-4 font-headline">
+              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <UserIcon className="w-4 h-4 text-indigo-400" /> PERSONAL & ACCOUNT DETAILS
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Client / Account ID</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={user.id || ''}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Username</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={user.username || ''}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Registered Email</label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        disabled
+                        value={user.email || ''}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
+                      />
+                      <Mail className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="Enter Full Name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Mobile Number</label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        placeholder="+91 9876543210"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      />
+                      <Phone className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Date of Birth</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={dateOfBirth}
+                        onChange={(e) => setDateOfBirth(e.target.value)}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      />
+                      <Calendar className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">City</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Mumbai"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Full Residential Address</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Flat / Building, Street, Area"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      />
+                      <MapPin className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                    </div>
+                  </div>
+                </div>
+
+                {profileMsg && (
+                  <div className={`p-3 rounded-xl text-xs font-bold ${
+                    profileMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {profileMsg.text}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={savingProfile}
+                  className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
+                >
+                  <Save className="w-4 h-4" /> {savingProfile ? 'Saving Details...' : 'Save Profile Details'}
+                </button>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleResetCapital}
+                  disabled={isResetting}
+                  className="w-full py-2.5 rounded-xl bg-[#1C2128] border border-[#30363D] hover:bg-[#30363D] font-bold text-xs text-white transition flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={14} className={isResetting ? 'animate-spin' : ''} /> Refresh Account Balance
+                </button>
+                {resetMessage && (
+                  <p className="text-center text-xs text-emerald-400 font-bold mt-2">{resetMessage}</p>
+                )}
+              </div>
+            </form>
+          )}
+
+          {/* ============================================================ */}
+          {/* 2. KYC VERIFICATION TAB */}
+          {/* ============================================================ */}
+          {activeTab === 'KYC' && (
+            <form onSubmit={handleSubmitKyc} className="space-y-4 font-headline">
+              
+              {/* KYC Status Header Card */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                isVerified 
+                  ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' 
+                  : kycStatus === 'SUBMITTED' 
+                  ? 'bg-blue-950/40 border-blue-500/30 text-blue-300' 
+                  : 'bg-amber-950/40 border-amber-500/30 text-amber-300'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+                    isVerified ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                  }`}>
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-white">KYC Verification Status</h4>
+                    <p className="text-xs text-[#8B949E]">
+                      {isVerified 
+                        ? 'Your account is fully verified. Trading enabled.' 
+                        : kycStatus === 'SUBMITTED' 
+                        ? 'Details submitted and under review by Compliance.' 
+                        : 'Action Required: Submit PAN, Aadhaar & Bank info to enable trading.'}
+                    </p>
+                  </div>
+                </div>
+
+                <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                  isVerified ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                }`}>
+                  {isVerified ? 'VERIFIED' : kycStatus}
+                </span>
+              </div>
+
+              {/* Form Fields */}
+              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">IDENTITY & BANK DETAILS</h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">PAN Card Number</label>
+                    <input
+                      type="text"
+                      placeholder="ABCDE1234F"
+                      value={panNumber}
+                      onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono uppercase font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Aadhaar Number</label>
+                    <input
+                      type="text"
+                      placeholder="1234 5678 9012"
+                      value={aadhaarNumber}
+                      onChange={(e) => setAadhaarNumber(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Bank Account Holder Name</label>
+                    <input
+                      type="text"
+                      placeholder="Name as in Bank Account"
+                      value={bankAccountName}
+                      onChange={(e) => setBankAccountName(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Bank Account Number</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 9182736450"
+                      value={bankAccountNumber}
+                      onChange={(e) => setBankAccountNumber(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">IFSC Code</label>
+                    <input
+                      type="text"
+                      placeholder="SBIN0001234"
+                      value={bankIfsc}
+                      onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono uppercase font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Bank Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. State Bank of India"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                {kycMessage && (
+                  <div className={`p-3 rounded-xl text-xs font-bold ${
+                    kycMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {kycMessage.text}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submittingKyc}
+                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
+                >
+                  <ShieldCheck className="w-4 h-4" /> {submittingKyc ? 'Submitting Details...' : 'Submit / Update KYC Details'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ============================================================ */}
+          {/* 3. FUNDS & WALLET LEDGER TAB */}
+          {/* ============================================================ */}
           {activeTab === 'FUNDS' && (
             <div className="space-y-4">
               
@@ -332,10 +780,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                 <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
                   <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">AVAILABLE BALANCE</span>
-                  <span className="font-extrabold font-mono text-[#00E676] text-base mt-0.5 block tabular-nums">
+                  <span className="font-extrabold font-mono text-emerald-400 text-base mt-0.5 block tabular-nums">
                     ₹{(wallet?.buyingPower ?? wallet?.cashBalance ?? 50000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Available for new trades</span>
+                  <span className="text-[9px] text-[#8B949E] block mt-0.5 font-bold text-emerald-400/80">Available for new trades</span>
                 </div>
 
                 <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
@@ -348,7 +796,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                 <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
                   <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">REALIZED P&L</span>
-                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.realizedPnl ?? 0) >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.realizedPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {(wallet?.realizedPnl ?? 0) >= 0 ? '+' : ''}₹{(wallet?.realizedPnl ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                   <span className="text-[9px] text-[#8B949E] block mt-0.5">Closed position profits</span>
@@ -356,7 +804,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                 <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
                   <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">UNREALIZED P&L</span>
-                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.unrealizedPnl ?? 0) >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.unrealizedPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {(wallet?.unrealizedPnl ?? 0) >= 0 ? '+' : ''}₹{(wallet?.unrealizedPnl ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                   <span className="text-[9px] text-[#8B949E] block mt-0.5">Live open position P&L</span>
@@ -385,8 +833,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setRequestType('DEPOSIT')}
-                      className={`py-2 rounded-xl font-black text-xs transition border ${
-                        requestType === 'DEPOSIT' ? 'bg-[#00E676] border-[#00E676] text-[#0D1117] shadow-sm' : 'bg-[#0D1117] border-[#30363D] text-[#8B949E]'
+                      className={`py-2 rounded-xl font-black text-xs transition border cursor-pointer ${
+                        requestType === 'DEPOSIT' ? 'bg-emerald-500 border-emerald-500 text-slate-950 shadow-sm' : 'bg-[#0D1117] border-[#30363D] text-[#8B949E]'
                       }`}
                     >
                       + Request Deposit
@@ -394,8 +842,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setRequestType('WITHDRAWAL')}
-                      className={`py-2 rounded-xl font-black text-xs transition border ${
-                        requestType === 'WITHDRAWAL' ? 'bg-[#FF5252] border-[#FF5252] text-white shadow-sm' : 'bg-[#0D1117] border-[#30363D] text-[#8B949E]'
+                      className={`py-2 rounded-xl font-black text-xs transition border cursor-pointer ${
+                        requestType === 'WITHDRAWAL' ? 'bg-rose-500 border-rose-500 text-white shadow-sm' : 'bg-[#0D1117] border-[#30363D] text-[#8B949E]'
                       }`}
                     >
                       - Request Withdrawal
@@ -411,7 +859,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         step="100"
                         value={fundAmount}
                         onChange={(e) => setFundAmount(Math.max(100, parseFloat(e.target.value) || 0))}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-[#00E676] tabular-nums"
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-400 tabular-nums"
                       />
                     </div>
                     <div>
@@ -497,13 +945,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       placeholder="e.g. UTR Number / Reference ID"
                       value={referenceNote}
                       onChange={(e) => setReferenceNote(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-[#00E676]"
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-emerald-400"
                     />
                   </div>
 
                   {fundMessage && (
                     <div className={`p-3 rounded-xl text-xs font-bold ${
-                      fundMessage.type === 'success' ? 'bg-[#00E676]/10 text-[#00E676] border border-[#00E676]/30' : 'bg-[#FF5252]/10 text-[#FF5252] border border-[#FF5252]/30'
+                      fundMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
                     }`}>
                       {fundMessage.text}
                     </div>
@@ -512,8 +960,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <button
                     type="submit"
                     disabled={submittingFundReq}
-                    className={`w-full py-3 rounded-xl font-headline font-black text-xs text-white transition flex items-center justify-center gap-2 shadow-md ${
-                      requestType === 'DEPOSIT' ? 'bg-[#00E676] hover:bg-[#00C853] text-[#0D1117]' : 'bg-[#FF5252] hover:bg-rose-600'
+                    className={`w-full py-3 rounded-xl font-headline font-black text-xs text-white transition flex items-center justify-center gap-2 shadow-md cursor-pointer ${
+                      requestType === 'DEPOSIT' ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-rose-500 hover:bg-rose-600'
                     }`}
                   >
                     {submittingFundReq ? (
@@ -551,8 +999,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <td className="py-2 text-right font-bold text-white">₹{parseFloat(r.amount).toLocaleString('en-IN')}</td>
                             <td className="py-2 text-right font-bold">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                r.status === 'APPROVED' ? 'bg-[#00E676]/20 text-[#00E676]' :
-                                r.status === 'REJECTED' ? 'bg-[#FF5252]/20 text-[#FF5252]' : 'bg-amber-500/20 text-amber-400'
+                                r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' :
+                                r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'
                               }`}>
                                 {r.status}
                               </span>
@@ -568,45 +1016,192 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           )}
 
-          {/* PROFILE TAB */}
-          {activeTab === 'PROFILE' && (
-            <div className="space-y-4">
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-2 font-headline">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-[#8B949E]">Username</span>
-                  <span className="font-bold text-white">{user.username}</span>
+          {/* ============================================================ */}
+          {/* 4. SECURITY & PASSWORD TAB */}
+          {/* ============================================================ */}
+          {activeTab === 'SECURITY' && (
+            <form onSubmit={handleChangePassword} className="space-y-4 font-headline">
+              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-purple-400" /> CHANGE ACCOUNT PASSWORD
+                </h4>
+
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Current Password</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">New Password</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Minimum 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Confirm New Password</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Re-enter new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-[#8B949E]">Email</span>
-                  <span className="font-bold text-white">{user.email}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-[#8B949E]">Role</span>
-                  <span className="font-bold text-[#00E676] uppercase">{user.role}</span>
-                </div>
+
+                {passwordMsg && (
+                  <div className={`p-3 rounded-xl text-xs font-bold ${
+                    passwordMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {passwordMsg.text}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={updatingPassword}
+                  className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
+                >
+                  <Lock className="w-4 h-4" /> {updatingPassword ? 'Updating Password...' : 'Update Password'}
+                </button>
               </div>
 
-              <div className="pt-2">
-                <button
-                  onClick={handleResetCapital}
-                  disabled={isResetting}
-                  className="w-full py-2.5 rounded-xl bg-[#1C2128] border border-[#30363D] hover:bg-[#30363D] font-bold text-xs text-white transition flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={14} className={isResetting ? 'animate-spin' : ''} /> Refresh Account Balance
-                </button>
-                {resetMessage && (
-                  <p className="text-center text-xs text-[#00E676] font-bold mt-2">{resetMessage}</p>
-                )}
+              {/* 2FA Info Card */}
+              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-2">
+                <h4 className="font-bold text-white text-xs">Two-Factor Authentication & Session Security</h4>
+                <p className="text-[#8B949E] text-xs">
+                  Your session is secured using 256-bit JWT encrypted tokens and IP-anchored rate limit protection.
+                </p>
               </div>
-            </div>
+            </form>
           )}
 
-          {/* SECURITY TAB */}
-          {activeTab === 'SECURITY' && (
+          {/* ============================================================ */}
+          {/* 5. 24/7 SUPPORT DESK TAB */}
+          {/* ============================================================ */}
+          {activeTab === 'SUPPORT' && (
             <div className="space-y-4 font-headline">
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
-                <h4 className="font-bold text-white text-xs">Account Security</h4>
-                <p className="text-[#8B949E] text-xs">JWT 256-bit authentication token is active.</p>
+              <form onSubmit={handleSubmitSupportTicket} className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-amber-400" /> CREATE SUPPORT HELP TICKET
+                </h4>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Category</label>
+                    <select
+                      value={supportCategory}
+                      onChange={(e) => setSupportCategory(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs font-bold"
+                    >
+                      <option value="TRADING">Trading & Execution</option>
+                      <option value="KYC">KYC & Account Verification</option>
+                      <option value="FUNDS">Funds & Withdrawal</option>
+                      <option value="TECHNICAL">App & Technical Issue</option>
+                      <option value="OTHER">General Query</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Priority</label>
+                    <select
+                      value={supportPriority}
+                      onChange={(e) => setSupportPriority(e.target.value)}
+                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs font-bold"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High Priority</option>
+                      <option value="URGENT">Urgent / Trade Assistance</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Subject</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Brief summary of your request"
+                    value={supportSubject}
+                    onChange={(e) => setSupportSubject(e.target.value)}
+                    className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Detailed Description</label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Explain your issue in detail..."
+                    value={supportDesc}
+                    onChange={(e) => setSupportDesc(e.target.value)}
+                    className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                {supportMsg && (
+                  <div className={`p-3 rounded-xl text-xs font-bold ${
+                    supportMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {supportMsg.text}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submittingSupport}
+                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
+                >
+                  <MessageSquare className="w-4 h-4" /> {submittingSupport ? 'Submitting Ticket...' : 'Submit Support Ticket'}
+                </button>
+              </form>
+
+              {/* Tickets History List */}
+              <div className="bg-[#161B22] border border-[#30363D] p-4 rounded-2xl space-y-2">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">MY SUPPORT TICKETS</h4>
+                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                  {supportTickets.length === 0 ? (
+                    <p className="text-center py-4 text-[#8B949E] text-xs">No support tickets submitted yet.</p>
+                  ) : (
+                    supportTickets.map((t: any) => (
+                      <div key={t.id} className="p-3 bg-[#0D1117] border border-[#30363D] rounded-xl flex items-center justify-between text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white">{t.subject}</span>
+                            <span className="text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.2 rounded uppercase">
+                              {t.category}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#8B949E] block mt-0.5">
+                            {new Date(t.created_at || Date.now()).toLocaleString()}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          t.status === 'RESOLVED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -620,13 +1215,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-[#8B949E] border border-[#30363D] hover:text-white hover:bg-[#1C2128]"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-[#8B949E] border border-[#30363D] hover:text-white hover:bg-[#1C2128] cursor-pointer"
             >
               Close
             </button>
             <button
               onClick={onLogout}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#FF5252] hover:bg-rose-600 shadow-md"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 shadow-md cursor-pointer"
             >
               Log Out
             </button>

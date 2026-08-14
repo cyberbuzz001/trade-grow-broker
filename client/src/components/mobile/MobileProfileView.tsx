@@ -14,9 +14,7 @@ import {
   Zap, 
   RefreshCw, 
   PlusCircle, 
-  ArrowUpRight,
-  Sliders,
-  Bell
+  AlertTriangle
 } from 'lucide-react';
 import { User, Wallet as WalletType } from '../../types';
 
@@ -28,7 +26,7 @@ interface MobileProfileViewProps {
   onToggleTheme?: () => void;
   onBack: () => void;
   onLogout: () => void;
-  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY') => void;
+  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS') => void;
   onOpenSupportModal?: () => void;
   onOpenAdmin?: () => void;
   onRefreshWallet?: () => void;
@@ -54,6 +52,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
 
   const availableBalance = wallet?.buyingPower ?? wallet?.cashBalance ?? 50000;
   const netWorth = (wallet?.cashBalance ?? 50000) + (wallet?.unrealizedPnl ?? 0);
+  const isKycVerified = (user as any)?.isKycCompleted || user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 
   return (
     <div className="pb-24 pt-4 px-4 space-y-4 bg-slate-950 min-h-screen text-slate-100 font-sans touch-action-manipulation">
@@ -69,7 +68,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
         </button>
 
         <h2 className="text-base font-bold text-white tracking-tight">
-          Profile & Settings
+          Profile & Account
         </h2>
 
         {onToggleTheme ? (
@@ -93,7 +92,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white font-black text-xl flex items-center justify-center shadow-lg border border-emerald-400/30">
               {username.charAt(0).toUpperCase()}
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-900" title="Active" />
+            <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${isKycVerified ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           </div>
 
           <div className="flex-1 min-w-0">
@@ -101,9 +100,15 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
               <h3 className="font-bold text-base text-white capitalize truncate">
                 {username}
               </h3>
-              <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> VERIFIED
-              </span>
+              {isKycVerified ? (
+                <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> VERIFIED
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> KYC PENDING
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 font-medium truncate mt-0.5">
               {email}
@@ -117,17 +122,17 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
         </div>
       </div>
 
-      {/* 3. WALLET & CAPITAL CARD */}
+      {/* 3. WALLET & CAPITAL CARD (Exact Layout matching reference image) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-white shadow-md space-y-3 backdrop-blur-xl">
         <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
           <span className="flex items-center gap-1.5 uppercase tracking-wider">
-            <Wallet className="w-4 h-4 text-emerald-400" /> Available Balance
+            <Wallet className="w-4 h-4 text-emerald-400" /> AVAILABLE BALANCE
           </span>
           {onRefreshWallet && (
             <button 
               type="button"
               onClick={onRefreshWallet} 
-              className="text-xs text-emerald-400 hover:underline flex items-center gap-1 active:scale-95 cursor-pointer min-h-[44px]"
+              className="text-xs text-emerald-400 hover:underline flex items-center gap-1 active:scale-95 cursor-pointer min-h-[36px]"
             >
               <RefreshCw className="w-3 h-3" /> Refresh
             </button>
@@ -175,14 +180,14 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
         </button>
       )}
 
-      {/* 5. ACCOUNT & SETTINGS MENU ROWS */}
+      {/* 5. ACCOUNT & SETTINGS MENU ROWS (Exact 5 Cards from uploaded image) */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-2 shadow-sm space-y-1 backdrop-blur-xl">
         
-        {/* Personal Profile Details */}
+        {/* Card 1: Personal & Profile Details */}
         <button
           type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('PROFILE')}
-          className="w-full min-h-[48px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
+          className="w-full min-h-[52px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
@@ -196,11 +201,11 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </button>
 
-        {/* KYC Verification Status */}
+        {/* Card 2: KYC Verification Status */}
         <button
           type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('KYC')}
-          className="w-full min-h-[48px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
+          className="w-full min-h-[52px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
@@ -212,16 +217,20 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">Verified</span>
+            {isKycVerified ? (
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/30">Verified</span>
+            ) : (
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">Pending</span>
+            )}
             <ChevronRight className="w-4 h-4 text-slate-400" />
           </div>
         </button>
 
-        {/* Funds & Wallet Manager */}
+        {/* Card 3: Wallet & Margin Ledger */}
         <button
           type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('FUNDS')}
-          className="w-full min-h-[48px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
+          className="w-full min-h-[52px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
@@ -235,11 +244,11 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </button>
 
-        {/* Security & Password */}
+        {/* Card 4: Security & Password */}
         <button
           type="button"
           onClick={() => onOpenProfileModal && onOpenProfileModal('SECURITY')}
-          className="w-full min-h-[48px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
+          className="w-full min-h-[52px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
@@ -253,11 +262,14 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
           <ChevronRight className="w-4 h-4 text-slate-400" />
         </button>
 
-        {/* Customer Support Desk */}
+        {/* Card 5: 24/7 Trade Support Desk */}
         <button
           type="button"
-          onClick={onOpenSupportModal}
-          className="w-full min-h-[48px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
+          onClick={() => {
+            if (onOpenSupportModal) onOpenSupportModal();
+            else if (onOpenProfileModal) onOpenProfileModal('SUPPORT');
+          }}
+          className="w-full min-h-[52px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
@@ -278,10 +290,9 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
         <button
           type="button"
           onClick={onLogout}
-          className="w-full min-h-[48px] flex items-center justify-center gap-2 p-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-xs active:scale-95 transition-all cursor-pointer"
+          className="w-full min-h-[48px] flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 font-bold text-xs active:scale-95 transition-all cursor-pointer"
         >
-          <LogOut className="w-4 h-4" />
-          <span>Logout Account</span>
+          <LogOut className="w-4 h-4" /> Log Out of Account
         </button>
       </div>
 

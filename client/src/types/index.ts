@@ -3,6 +3,12 @@ export interface User {
   username: string;
   email: string;
   role: string;
+  isKycCompleted?: boolean;
+  fullName?: string;
+  phoneNumber?: string;
+  city?: string;
+  address?: string;
+  dateOfBirth?: string;
 }
 
 export interface Wallet {
