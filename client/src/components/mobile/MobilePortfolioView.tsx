@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUp, ArrowDown, Bell, ChevronLeft, Briefcase, Zap, ShieldCheck, ShieldAlert, RefreshCw, Target, AlertTriangle, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, Bell, ChevronLeft, Briefcase, Zap, ShieldCheck, ShieldAlert, RefreshCw, Target, AlertTriangle, X, History } from 'lucide-react';
 import { MarketTick, Wallet, Holding } from '../../types';
 
 interface MobilePortfolioViewProps {
@@ -17,10 +17,11 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
   onBack,
   onSelectStock,
 }) => {
-  const [activeSegment, setActiveSegment] = useState<'POSITIONS' | 'HOLDINGS' | 'ORDERS'>('POSITIONS');
+  const [activeSegment, setActiveSegment] = useState<'POSITIONS' | 'CLOSED_TRADES' | 'HOLDINGS'>('POSITIONS');
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [closedTrades, setClosedTrades] = useState<any[]>([]);
 
   // Mobile Exit Modal States
   const [squareOffModalPos, setSquareOffModalPos] = useState<any | null>(null);
@@ -52,6 +53,15 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.positions)) setPositions(data.positions);
+      })
+      .catch(() => {});
+
+    fetch('/api/v1/portfolio/closed-trades?todayOnly=true', {
+      headers: { Authorization: `Bearer ${userToken}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.closedTrades)) setClosedTrades(data.closedTrades);
       })
       .catch(() => {});
 
@@ -292,7 +302,8 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
     return acc + uPnl;
   }, 0);
 
-  const totalCombinedPnl = holdingsPnl + positionsPnl;
+  const closedTradesPnl = closedTrades.reduce((acc, ct) => acc + (ct.netPnl || 0), 0);
+  const totalCombinedPnl = holdingsPnl + positionsPnl + closedTradesPnl;
 
   return (
     <div className="pb-24 pt-3 px-3.5 space-y-4 font-body bg-slate-950 min-h-screen text-slate-100 touch-action-manipulation overscroll-y-contain select-none">
@@ -356,25 +367,40 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
         <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-400 pt-2 border-t border-slate-800 mt-2">
           <span>Positions P&L: <strong className={positionsPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>₹{positionsPnl.toFixed(2)}</strong></span>
-          <span>Holdings: <strong className="text-white">₹{totalCurrent.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</strong></span>
+          <span>Closed P&L: <strong className={closedTradesPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>₹{closedTradesPnl.toFixed(2)}</strong></span>
         </div>
       </div>
 
       {/* 3. SEGMENTED TABS */}
-      <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl font-headline">
+      <div className="grid grid-cols-3 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl font-headline">
         <button
           type="button"
           onClick={() => {
             navigator.vibrate?.(20);
             setActiveSegment('POSITIONS');
           }}
-          className={`py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer min-h-[44px] ${
+          className={`py-2 rounded-lg text-[11px] font-black transition-all cursor-pointer min-h-[44px] ${
             activeSegment === 'POSITIONS'
               ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          Open Positions ({openPositions.length})
+          Open ({openPositions.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            navigator.vibrate?.(20);
+            setActiveSegment('CLOSED_TRADES');
+          }}
+          className={`py-2 rounded-lg text-[11px] font-black transition-all cursor-pointer min-h-[44px] ${
+            activeSegment === 'CLOSED_TRADES'
+              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Closed ({closedTrades.length})
         </button>
 
         <button
@@ -383,7 +409,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
             navigator.vibrate?.(20);
             setActiveSegment('HOLDINGS');
           }}
-          className={`py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer min-h-[44px] ${
+          className={`py-2 rounded-lg text-[11px] font-black transition-all cursor-pointer min-h-[44px] ${
             activeSegment === 'HOLDINGS'
               ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
               : 'text-slate-400 hover:text-white'
@@ -393,7 +419,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         </button>
       </div>
 
-      {/* 4. POSITIONS LIST (Matching Target Mobile Specification) */}
+      {/* 4. POSITIONS OR CLOSED TRADES LIST */}
       <div className="space-y-3">
         {activeSegment === 'POSITIONS' && (
           openPositions.length === 0 ? (
@@ -459,7 +485,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                     </div>
                   )}
 
-                  {/* Row 3: Action Buttons (Touch-Friendly min-h-[44px]) */}
+                  {/* Row 3: Action Buttons */}
                   <div className="pt-1 flex items-center justify-between gap-2">
                     <button
                       type="button"
@@ -478,6 +504,48 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                       <ShieldAlert className="w-4 h-4" />
                       <span>Square Off</span>
                     </button>
+                  </div>
+                </div>
+              );
+            })
+          )
+        )}
+
+        {activeSegment === 'CLOSED_TRADES' && (
+          closedTrades.length === 0 ? (
+            <div className="bg-slate-900/90 border border-slate-800 p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl">
+              <History className="w-8 h-8 text-slate-500 mx-auto" />
+              <h3 className="font-bold text-sm text-white">No Closed Trades Today</h3>
+              <p className="text-xs text-slate-400">Completed trade history will appear here after exiting a position.</p>
+            </div>
+          ) : (
+            closedTrades.map(ct => {
+              const isProfit = (ct.netPnl || 0) >= 0;
+              return (
+                <div key={ct.id || ct.executionId} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-2.5 backdrop-blur-xl shadow-md font-mono">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                    <div>
+                      <h4 className="font-extrabold text-sm text-white">{ct.symbol}</h4>
+                      <span className="text-[11px] text-slate-400">
+                        {ct.quantity} Units • <strong className="text-emerald-400">{ct.entrySide}</strong> → <strong className="text-rose-400">{ct.exitSide}</strong>
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <div className={`font-black text-base tabular-nums ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isProfit ? '+' : ''}₹{parseFloat(ct.netPnl || 0).toFixed(2)}
+                      </div>
+                      <span className="text-[10px] bg-slate-950 text-cyan-300 border border-slate-800 px-1.5 py-0.5 rounded font-mono font-bold">
+                        {ct.exitReason ? ct.exitReason.replace('_', ' ') : 'CLOSED'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-mono pt-0.5 text-slate-300">
+                    <div>Entry: <strong className="text-white">₹{parseFloat(ct.entryPrice || 0).toFixed(2)}</strong></div>
+                    <div>Exit: <strong className="text-cyan-300">₹{parseFloat(ct.exitPrice || 0).toFixed(2)}</strong></div>
+                    <div className="text-slate-400 text-[10px]">
+                      {ct.closedAt ? new Date(ct.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </div>
                   </div>
                 </div>
               );

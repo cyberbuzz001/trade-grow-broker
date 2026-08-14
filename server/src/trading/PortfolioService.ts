@@ -54,7 +54,10 @@ export class PortfolioService {
     productType: string,
     side: 'BUY' | 'SELL',
     quantity: number,
-    price: number
+    price: number,
+    exitReason?: string,
+    exitOrderId?: string,
+    executionId?: string
   ): Promise<RecordExecutionResult> {
     const engine = MarketDataEngine.getInstance();
     const tick = engine.getCachedTick(`NSE_${symbol}`) ||
@@ -187,6 +190,48 @@ export class PortfolioService {
       avgPriceAfter = averagePrice;
     }
 
+    // Record permanent per-trade P&L record when position is closed/partially exited
+    if (closedQty > 0) {
+      const entrySide = side === 'SELL' ? 'BUY' : 'SELL';
+      const exitSide  = side;
+      const grossPnl  = realizedPnlDelta;
+      const netPnl    = grossPnl;
+      const instToken = `NSE_${symbol}`;
+      const execIdVal = executionId || ('exc_' + generateUUID());
+
+      try {
+        await client.query(
+          `INSERT INTO closed_trades (
+             id, user_id, position_id, instrument_token, symbol, exchange, product_type,
+             entry_side, exit_side, quantity, entry_price, exit_price, gross_pnl, charges, net_pnl,
+             exit_reason, exit_order_id, execution_id
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0.0, $14, $15, $16, $17)
+           ON CONFLICT (execution_id) DO NOTHING`,
+          [
+            'trd_' + generateUUID(),
+            userId,
+            existing.rows[0]?.id || null,
+            instToken,
+            symbol,
+            exchange,
+            productType,
+            entrySide,
+            exitSide,
+            closedQty,
+            closedEntryPrice,
+            price,
+            grossPnl,
+            netPnl,
+            exitReason || 'MANUAL_EXIT',
+            exitOrderId || null,
+            execIdVal
+          ]
+        );
+      } catch (err: any) {
+        console.error('[PortfolioService] Failed to record closed trade:', err.message);
+      }
+    }
+
     // Update delivery holdings if CNC product type
     if (productType === 'CNC') {
       await PortfolioService.updateHoldingsInTransaction(client, userId, symbol, exchange, side, quantity, price, ltp);
@@ -209,7 +254,10 @@ export class PortfolioService {
     productType: string,
     side: 'BUY' | 'SELL',
     quantity: number,
-    price: number
+    price: number,
+    exitReason?: string,
+    exitOrderId?: string,
+    executionId?: string
   ): Promise<RecordExecutionResult> {
     let result: RecordExecutionResult = {
       realizedPnlDelta: 0,
@@ -222,7 +270,7 @@ export class PortfolioService {
 
     await withTransaction(async (client) => {
       result = await PortfolioService.recordExecutionInTransaction(
-        client, userId, symbol, exchange, productType, side, quantity, price
+        client, userId, symbol, exchange, productType, side, quantity, price, exitReason, exitOrderId, executionId
       );
     });
 
@@ -390,5 +438,38 @@ export class PortfolioService {
         pnlPercentage
       };
     });
+  }
+
+  public static async getClosedTrades(userId: string, limit: number = 50, offset: number = 0, todayOnly: boolean = true): Promise<any[]> {
+    let sql = 'SELECT * FROM closed_trades WHERE user_id = $1';
+    if (todayOnly) {
+      sql += " AND closed_at >= (NOW() AT TIME ZONE 'Asia/Kolkata')::date";
+    }
+    sql += ' ORDER BY closed_at DESC LIMIT $2 OFFSET $3';
+
+    const rows = await query<any>(sql, [userId, limit, offset]);
+
+    return rows.map(r => ({
+      id: r.id,
+      userId: r.user_id,
+      positionId: r.position_id,
+      instrumentToken: r.instrument_token,
+      symbol: r.symbol,
+      exchange: r.exchange,
+      productType: r.product_type,
+      entrySide: r.entry_side,
+      exitSide: r.exit_side,
+      quantity: parseInt(r.quantity, 10),
+      entryPrice: parseFloat(r.entry_price),
+      exitPrice: parseFloat(r.exit_price),
+      grossPnl: parseFloat(r.gross_pnl),
+      charges: parseFloat(r.charges || 0),
+      netPnl: parseFloat(r.net_pnl),
+      exitReason: r.exit_reason,
+      entryOrderId: r.entry_order_id,
+      exitOrderId: r.exit_order_id,
+      executionId: r.execution_id,
+      closedAt: r.closed_at
+    }));
   }
 }

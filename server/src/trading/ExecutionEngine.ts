@@ -5,6 +5,7 @@ import { VirtualWalletLedger } from './VirtualWalletLedger';
 import { PortfolioService } from './PortfolioService';
 import { generateUUID } from '../utils/crypto';
 import { SymbologyNormalizer } from '../marketData/SymbologyNormalizer';
+import { GreeksEngine } from '../marketData/GreeksEngine';
 
 export class ExecutionEngine {
   private static timer: NodeJS.Timeout | null = null;
@@ -21,7 +22,7 @@ export class ExecutionEngine {
   public static async processPendingOrders(): Promise<void> {
     try {
       const pendingOrders = await query<any>(
-        `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') LIMIT 50`
+        `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') ORDER BY created_at ASC LIMIT 50`
       );
 
       for (const order of pendingOrders) {
@@ -50,58 +51,108 @@ export class ExecutionEngine {
           } catch (_) {}
         }
 
-        // Check for stale ticks (> 30 seconds old)
+        // Check tick freshness (must be within last 30 seconds)
         const STALENESS_THRESHOLD_MS = 30000;
-        const isStale = tick ? (Date.now() - tick.timestamp > STALENESS_THRESHOLD_MS) : true;
+        let isStale = tick ? (Date.now() - tick.timestamp > STALENESS_THRESHOLD_MS) : true;
 
-        // Dynamic fallback for options & stocks when tick is missing/stale in paper trading mode
-        const isOption = (order.symbol || '').includes('CE') || (order.symbol || '').includes('PE');
+        // Dynamic Black-Scholes fallback for options when option tick is missing/stale but underlying spot tick is live
+        const symbolUpper = (order.symbol || '').toUpperCase().trim();
+        const mNifty = symbolUpper.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
+        const mSensex = symbolUpper.match(/SENSEX\s*(\d+)\s*(CE|PE)/i);
 
-        if (!tick || isStale) {
-          const orderPrice = parseFloat(order.price || '0');
-          const estPrice = orderPrice > 0 ? orderPrice : (isOption ? 150.0 : 2500.0);
-          tick = {
-            instrumentToken: order.instrument_token || order.symbol,
-            exchange: order.exchange || 'NSE',
-            symbol: order.symbol,
-            ltp: estPrice,
-            open: estPrice,
-            high: estPrice,
-            low: estPrice,
-            close: estPrice,
-            volume: 1000,
-            change: 0,
-            changePercent: 0,
-            bid: Number((estPrice * 0.995).toFixed(2)),
-            ask: Number((estPrice * 1.005).toFixed(2)),
-            bidQty: 100,
-            askQty: 100,
-            timestamp: Date.now()
-          };
+        if ((!tick || isStale) && (mNifty || mSensex)) {
+          const spotToken = mNifty ? 'NSE_NIFTY50' : 'BSE_SENSEX';
+          const spotTick = engine.getCachedTick(spotToken);
+
+          if (spotTick && spotTick.ltp > 0 && (Date.now() - spotTick.timestamp <= STALENESS_THRESHOLD_MS)) {
+            const strike = parseFloat(mNifty ? mNifty[1] : mSensex![1]);
+            const isCall = (mNifty ? mNifty[2] : mSensex![2]).toUpperCase() === 'CE';
+            const timeToExpiryYears = 1.0 / 365.0; // 1 day to expiry
+            const bsPrice = GreeksEngine.calculateOptionPrice(spotTick.ltp, strike, timeToExpiryYears, isCall, 0.14);
+
+            if (bsPrice > 0) {
+              tick = {
+                instrumentToken: order.instrument_token || order.symbol,
+                exchange: order.exchange || (mNifty ? 'NFO' : 'BFO'),
+                symbol: order.symbol,
+                ltp: Number(bsPrice.toFixed(2)),
+                open: Number(bsPrice.toFixed(2)),
+                high: Number(bsPrice.toFixed(2)),
+                low: Number(bsPrice.toFixed(2)),
+                close: Number(bsPrice.toFixed(2)),
+                volume: 10000,
+                change: 0,
+                changePercent: 0,
+                bid: Number((bsPrice * 0.998).toFixed(2)),
+                ask: Number((bsPrice * 1.002).toFixed(2)),
+                bidQty: 500,
+                askQty: 500,
+                timestamp: spotTick.timestamp
+              };
+              isStale = false;
+            }
+          }
         }
 
-        if (!tick) continue;
+        // STRICT ACCURACY RULE: If market tick is missing or stale, DO NOT EXECUTE LIMIT ORDERS!
+        if (!tick || isStale) {
+          if (process.env.DEBUG_ORDER_ENGINE === 'true') {
+            console.log(`[LIMIT_CHECK] Order ${order.order_id} (${order.symbol}): Waiting for live market tick (tick missing or stale)`);
+          }
+          continue;
+        }
 
-        const price     = parseFloat(order.price);
+        const price     = parseFloat(order.price || '0');
         const trigPrice = parseFloat(order.trigger_price || '0');
         const ltp       = tick.ltp;
+        const bidPrice  = tick.bid && tick.bid > 0 ? tick.bid : ltp;
+        const askPrice  = tick.ask && tick.ask > 0 ? tick.ask : ltp;
         let executePrice: number | null = null;
 
+        // Evaluate order execution criteria against live market tick
         if (order.order_type === 'MARKET') {
-          executePrice = order.side === 'BUY' ? (tick.ask || ltp) : (tick.bid || ltp);
+          executePrice = order.side === 'BUY' ? askPrice : bidPrice;
         } else if (order.order_type === 'LIMIT') {
-          if (order.side === 'BUY'  && ltp <= price) executePrice = price;
-          if (order.side === 'SELL' && ltp >= price) executePrice = price;
+          // BUY LIMIT: Execute only when market ask/LTP is AT OR BELOW target limit price
+          if (order.side === 'BUY' && askPrice <= price) {
+            executePrice = Math.min(askPrice, price);
+          }
+          // SELL LIMIT: Execute only when market bid/LTP is AT OR ABOVE target limit price
+          if (order.side === 'SELL' && bidPrice >= price) {
+            executePrice = Math.max(bidPrice, price);
+          }
         } else if (order.order_type === 'SL' || order.order_type === 'SL_M') {
-          if (order.side === 'BUY'  && ltp >= trigPrice) executePrice = order.order_type === 'SL_M' ? ltp : price;
-          if (order.side === 'SELL' && ltp <= trigPrice) executePrice = order.order_type === 'SL_M' ? ltp : price;
+          // BUY SL: Execute when market price reaches or exceeds trigger price
+          if (order.side === 'BUY' && askPrice >= trigPrice) {
+            executePrice = order.order_type === 'SL_M' ? askPrice : Math.max(askPrice, price);
+          }
+          // SELL SL: Execute when market price drops to or below trigger price
+          if (order.side === 'SELL' && bidPrice <= trigPrice) {
+            executePrice = order.order_type === 'SL_M' ? bidPrice : Math.min(bidPrice, price);
+          }
+        }
+
+        if (process.env.DEBUG_ORDER_ENGINE === 'true' || process.env.NODE_ENV !== 'production') {
+          console.log(`[LIMIT_CHECK] Order: ${order.order_id} | Symbol: ${order.symbol} | Side: ${order.side} | Type: ${order.order_type} | TargetPrice: ₹${price.toFixed(2)} | MarketLTP: ₹${ltp.toFixed(2)} | Bid: ₹${bidPrice.toFixed(2)} | Ask: ₹${askPrice.toFixed(2)} | ConditionMet: ${executePrice !== null}`);
         }
 
         if (executePrice && executePrice > 0) {
+          console.log(`[LIMIT_TRIGGERED] Order ${order.order_id} (${order.symbol} ${order.side} ${order.order_type}) triggered! Target: ₹${price.toFixed(2)} | Executing @ ₹${executePrice.toFixed(2)}`);
+
+          // Atomic claim guard: ensure only one worker/cycle executes this order
+          const claimed = await queryOne<any>(
+            `UPDATE orders SET status = 'EXECUTING', updated_at = NOW() WHERE id = $1 AND status IN ('ACCEPTED', 'PENDING') RETURNING id`,
+            [order.id]
+          );
+
+          if (!claimed) continue;
+
           try {
             await this.executeOrder(order, executePrice);
           } catch (err: any) {
             console.error(`[ExecutionEngine] Failed to execute order ${order.order_id}:`, err.message);
+            // Revert status to ACCEPTED on unexpected failure
+            await execute(`UPDATE orders SET status = 'ACCEPTED', updated_at = NOW() WHERE id = $1`, [order.id]);
           }
         }
       }
@@ -119,6 +170,7 @@ export class ExecutionEngine {
     if (existingExec) return;
 
     const tradeId  = 'trd_' + generateUUID();
+    const excId    = 'exc_' + generateUUID();
     const qty      = parseInt(order.quantity, 10);
     const tradeVal = price * qty;
 
@@ -130,32 +182,41 @@ export class ExecutionEngine {
     const stampDuty       = 0.00;
     const totalCharges    = 0.00;
 
+    const exitReason = order.order_type === 'LIMIT'
+      ? 'TARGET_LIMIT'
+      : (order.order_type === 'MARKET' ? 'MARKET_SQUARE_OFF' : 'STOP_LOSS');
+
     const posResult = await withTransaction(async (client) => {
-      // 1. Record execution
+      // 1. Record execution fill
       await client.query(
         `INSERT INTO executions (id, order_id, user_id, trade_id, symbol, exchange, side, quantity, price, brokerage, stt, gst, exchange_charges, total_charges)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
-          'exc_' + generateUUID(), order.id, order.user_id, tradeId,
+          excId, order.id, order.user_id, tradeId,
           order.symbol, order.exchange || 'NSE', order.side,
           qty, price, brokerage, stt, gst, exchangeCharges, totalCharges
         ]
       );
 
-      // 2. Update order status
+      // 2. Update order status to FILLED
       await client.query(
         `UPDATE orders SET status = 'FILLED', filled_quantity = quantity, average_price = $1, updated_at = NOW() WHERE id = $2`,
         [price, order.id]
       );
 
-      // 3. Record order event
+      // 3. Record order event audit trail
       await client.query(
-        `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
-         VALUES ($1, $2, 'ACCEPTED', 'FILLED', $3, 'EXECUTION_ENGINE')`,
-        ['evt_' + generateUUID(), order.id, `Simulated fill @ ₹${price}`]
+        `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor, metadata)
+         VALUES ($1, $2, 'ACCEPTED', 'FILLED', $3, 'EXECUTION_ENGINE', $4)`,
+        [
+          'evt_' + generateUUID(),
+          order.id,
+          `Execution fill @ ₹${price.toFixed(2)} (${exitReason})`,
+          JSON.stringify({ fillPrice: price, quantity: qty, exitReason, tradeId, excId })
+        ]
       );
 
-      // 4. Update Position & compute Realized P&L
+      // 4. Update Position & record permanent per-trade P&L in closed_trades
       const res = await PortfolioService.recordExecutionInTransaction(
         client,
         order.user_id,
@@ -164,7 +225,10 @@ export class ExecutionEngine {
         order.product_type || 'MIS',
         order.side as 'BUY' | 'SELL',
         qty,
-        price
+        price,
+        exitReason,
+        order.id,
+        excId
       );
 
       // 5. Settle Virtual Money Ledger atomically
@@ -184,6 +248,6 @@ export class ExecutionEngine {
       return res;
     });
 
-    console.log(`[ExecutionEngine] SIMULATED EXECUTION SUCCESS: Order ${order.order_id} filled @ ₹${price} (Qty: ${qty}, Realized P&L: ₹${(posResult?.realizedPnlDelta || 0).toFixed(2)}, Zero Charges)`);
+    console.log(`[ExecutionEngine] EXECUTION SUCCESS: Order ${order.order_id} filled @ ₹${price.toFixed(2)} (Qty: ${qty}, ExitReason: ${exitReason}, Realized P&L: ₹${(posResult?.realizedPnlDelta || 0).toFixed(2)})`);
   }
 }

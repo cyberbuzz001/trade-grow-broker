@@ -1,21 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Filter, CheckCircle2, XCircle, Clock, TrendingUp, TrendingDown, Zap, PieChart, DollarSign, Search, MoreVertical, Sliders, ShieldCheck, Check, ArrowUpRight, ArrowDownRight, ShieldAlert, AlertTriangle, Target, X } from 'lucide-react';
+import { RefreshCw, Filter, CheckCircle2, XCircle, Clock, TrendingUp, TrendingDown, Zap, PieChart, DollarSign, Search, MoreVertical, Sliders, ShieldCheck, Check, ArrowUpRight, ArrowDownRight, ShieldAlert, AlertTriangle, Target, X, History } from 'lucide-react';
 import { useMarketSocket, useSubscribeTokens } from '../hooks/useMarketSocket';
 
 interface OrdersPositionsViewProps {
   token: string;
-  initialTab?: 'ORDERS' | 'POSITIONS' | 'HOLDINGS';
+  initialTab?: 'ORDERS' | 'POSITIONS' | 'HOLDINGS' | 'CLOSED_TRADES';
   onRefreshWallet?: () => void;
 }
 
-export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token, initialTab = 'ORDERS', onRefreshWallet }) => {
-  const [activeTab, setActiveTab] = useState<'ORDERS' | 'POSITIONS' | 'HOLDINGS'>(initialTab);
+export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token, initialTab = 'POSITIONS', onRefreshWallet }) => {
+  const [activeTab, setActiveTab] = useState<'ORDERS' | 'POSITIONS' | 'HOLDINGS' | 'CLOSED_TRADES'>(initialTab);
   const [orderFilter, setOrderFilter] = useState<'ALL' | 'ACCEPTED' | 'FILLED' | 'CANCELLED' | 'REJECTED'>('ALL');
   const [positionStatusFilter, setPositionStatusFilter] = useState<'OPEN' | 'CLOSED' | 'ALL'>('ALL');
 
   const [orders, setOrders] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
   const [holdings, setHoldings] = useState<any[]>([]);
+  const [closedTrades, setClosedTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -101,6 +102,12 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
         if (data.success && Array.isArray(data.positions)) {
           setPositions(data.positions);
         }
+      });
+
+    fetch('/api/v1/portfolio/closed-trades?todayOnly=true', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.closedTrades)) setClosedTrades(data.closedTrades);
       });
 
     fetch('/api/v1/portfolio/holdings', { headers: { Authorization: `Bearer ${token}` } })
@@ -400,9 +407,8 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return acc + uPnl;
   }, 0);
 
-  const totalRealizedPnl = positions.reduce((acc, p) => {
-    return acc + parseFloat(p.realizedPnl || p.realized_pnl || 0);
-  }, 0);
+  const totalRealizedPnl = closedTrades.reduce((acc, ct) => acc + (ct.netPnl || 0), 0) +
+    positions.reduce((acc, p) => acc + parseFloat(p.realizedPnl || p.realized_pnl || 0), 0);
 
   const totalPositionPnl = totalUnrealizedPnl + totalRealizedPnl;
 
@@ -449,6 +455,14 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
               }`}
             >
               <Zap className="w-3.5 h-3.5" /> Positions ({openPositions.length} Open)
+            </button>
+            <button
+              onClick={() => setActiveTab('CLOSED_TRADES')}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 cursor-pointer min-h-[44px] ${
+                activeTab === 'CLOSED_TRADES' ? 'bg-emerald-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" /> Trade History ({closedTrades.length} Closed)
             </button>
             <button
               onClick={() => setActiveTab('ORDERS')}
@@ -508,7 +522,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
       {/* MAIN CONTENT TABLE */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-md flex-1 backdrop-blur-xl">
         
-        {/* 1. POSITIONS LIST (Matching Desktop Specification) */}
+        {/* 1. POSITIONS LIST */}
         {activeTab === 'POSITIONS' && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
@@ -587,7 +601,6 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                         <td className="py-3 px-4 text-right">
                           {netQty !== 0 ? (
                             <div className="flex items-center justify-end gap-2">
-                              {/* Set Target Button */}
                               <button
                                 type="button"
                                 onClick={() => handleOpenSetTargetModal(p, activeTarget)}
@@ -597,7 +610,6 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                                 {activeTarget ? 'Modify Target' : 'Set Target'}
                               </button>
 
-                              {/* Square Off Button (High Priority Exit Action) */}
                               <button
                                 type="button"
                                 onClick={() => handleOpenSquareOffModal(p)}
@@ -621,7 +633,71 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
           </div>
         )}
 
-        {/* 2. ORDERS BOOK VIEW */}
+        {/* 2. CLOSED TRADES & TRADE HISTORY VIEW */}
+        {activeTab === 'CLOSED_TRADES' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] border-b border-slate-800 font-bold font-mono">
+                <tr>
+                  <th className="py-3 px-4">Closed Time</th>
+                  <th className="py-3 px-4">Instrument</th>
+                  <th className="py-3 px-4">Product</th>
+                  <th className="py-3 px-4">Direction</th>
+                  <th className="py-3 px-4 text-right">Quantity</th>
+                  <th className="py-3 px-4 text-right">Entry Price (₹)</th>
+                  <th className="py-3 px-4 text-right">Exit Price (₹)</th>
+                  <th className="py-3 px-4 text-right">Realized P&L (₹)</th>
+                  <th className="py-3 px-4 text-center">Exit Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 num-font">
+                {closedTrades.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-12 text-slate-400 text-xs">
+                      No closed trades recorded for today.
+                    </td>
+                  </tr>
+                ) : (
+                  closedTrades.map(ct => {
+                    const isProfit = (ct.netPnl || 0) >= 0;
+                    return (
+                      <tr key={ct.id || ct.executionId} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="py-3 px-4 text-slate-400 font-mono">
+                          {ct.closedAt ? new Date(ct.closedAt).toLocaleTimeString() : 'Today'}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-white text-sm">{ct.symbol}</td>
+                        <td className="py-3 px-4">
+                          <span className="bg-slate-950 text-indigo-400 text-[10px] px-2 py-0.5 rounded font-bold border border-slate-800">
+                            {ct.productType || 'MIS'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-300">
+                          <span className={ct.entrySide === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}>{ct.entrySide}</span> → <span className={ct.exitSide === 'SELL' ? 'text-rose-400' : 'text-emerald-400'}>{ct.exitSide}</span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-white">{ct.quantity}</td>
+                        <td className="py-3 px-4 text-right text-white">₹{parseFloat(ct.entryPrice || 0).toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right text-white font-bold">₹{parseFloat(ct.exitPrice || 0).toFixed(2)}</td>
+                        <td className={`py-3 px-4 text-right font-black text-sm ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isProfit ? '+' : ''}₹{parseFloat(ct.netPnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                            ct.exitReason === 'TARGET_LIMIT' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' :
+                            ct.exitReason === 'MARKET_SQUARE_OFF' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-slate-500/20 text-slate-300 border-slate-500/30'
+                          }`}>
+                            {ct.exitReason ? ct.exitReason.replace('_', ' ') : 'SQUARE OFF'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 3. ORDERS BOOK VIEW */}
         {activeTab === 'ORDERS' && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
@@ -688,7 +764,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
           </div>
         )}
 
-        {/* 3. HOLDINGS LIST */}
+        {/* 4. HOLDINGS LIST */}
         {activeTab === 'HOLDINGS' && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">

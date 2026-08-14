@@ -809,6 +809,14 @@ router.get('/portfolio/holdings', authenticateToken, async (req: AuthenticatedRe
   res.json({ success: true, holdings });
 });
 
+router.get('/portfolio/closed-trades', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
+  const offset = parseInt(req.query.offset as string || '0', 10);
+  const todayOnly = req.query.todayOnly !== 'false';
+  const closedTrades = await PortfolioService.getClosedTrades(req.user!.userId, limit, offset, todayOnly);
+  res.json({ success: true, closedTrades });
+});
+
 // ============================================================
 // 5B. CLIENT FUND DEPOSIT & WITHDRAWAL REQUESTS
 // ============================================================
