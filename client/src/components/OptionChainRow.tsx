@@ -1,12 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { OptionChainItem, MarketTick } from '../types';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface OptionChainRowProps {
   row: OptionChainItem;
   isAtm: boolean;
-  showAdvancedGreeks: boolean;
+  spotPrice: number;
+  viewMode: 'LTP_OI' | 'GREEKS' | 'VOLUME';
   ceTick?: MarketTick;
   peTick?: MarketTick;
+  activeLtpKey: string | null;
+  onSelectLtp: (key: string | null) => void;
   onOpenOrder: (
     optionToken: string,
     strike: number,
@@ -14,19 +18,41 @@ interface OptionChainRowProps {
     ltp: number,
     side: 'BUY' | 'SELL'
   ) => void;
+  isMobile?: boolean;
 }
+
+export const formatQty = (num?: number): string => {
+  if (!num || num === 0) return '-';
+  if (num >= 10000000) return `${(num / 10000000).toFixed(2)}Cr`;
+  if (num >= 100000) return `${(num / 100000).toFixed(2)}L`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return num.toString();
+};
+
+export const formatChangePct = (val?: number): { text: string; isPos: boolean } => {
+  if (val === undefined || val === null || isNaN(val)) return { text: '0.00%', isPos: true };
+  const sign = val >= 0 ? '+' : '';
+  return { text: `${sign}${val.toFixed(2)}%`, isPos: val >= 0 };
+};
 
 export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
   row,
   isAtm,
-  showAdvancedGreeks,
+  spotPrice,
+  viewMode,
   ceTick,
   peTick,
+  activeLtpKey,
+  onSelectLtp,
   onOpenOrder,
+  isMobile = false,
 }) => {
-  // Resolve live LTP from WebSocket tick or static row fallback
+  // Resolve live LTP and change% from WebSocket tick or static row fallback
   const ceLtp = ceTick?.ltp && ceTick.ltp > 0 ? ceTick.ltp : row.ce.ltp;
   const peLtp = peTick?.ltp && peTick.ltp > 0 ? peTick.ltp : row.pe.ltp;
+
+  const ceChangePct = ceTick?.changePercent !== undefined ? ceTick.changePercent : (row.ce.change ? (row.ce.change / (ceLtp - row.ce.change || 1)) * 100 : 0);
+  const peChangePct = peTick?.changePercent !== undefined ? peTick.changePercent : (row.pe.change ? (row.pe.change / (peLtp - row.pe.change || 1)) * 100 : 0);
 
   const prevCeLtpRef = useRef<number>(ceLtp);
   const prevPeLtpRef = useRef<number>(peLtp);
@@ -37,7 +63,6 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
   // Call (CE) Price Flash Animation
   useEffect(() => {
     if (ceLtp === prevCeLtpRef.current) return;
-
     if (ceLtp > prevCeLtpRef.current) {
       setCeFlashClass('price-flash-up');
     } else if (ceLtp < prevCeLtpRef.current) {
@@ -48,14 +73,12 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
     const timer = setTimeout(() => {
       setCeFlashClass('');
     }, 350);
-
     return () => clearTimeout(timer);
   }, [ceLtp]);
 
   // Put (PE) Price Flash Animation
   useEffect(() => {
     if (peLtp === prevPeLtpRef.current) return;
-
     if (peLtp > prevPeLtpRef.current) {
       setPeFlashClass('price-flash-up');
     } else if (peLtp < prevPeLtpRef.current) {
@@ -66,94 +89,333 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
     const timer = setTimeout(() => {
       setPeFlashClass('');
     }, 350);
-
     return () => clearTimeout(timer);
   }, [peLtp]);
 
-  return (
-    <tr
-      className={`hover:bg-[#1C2128] transition-colors ${
-        isAtm ? 'bg-amber-500/10 border-y-2 border-amber-500/50 font-bold' : ''
-      }`}
-    >
-      {/* CALLS (CE) GREEKS */}
-      {showAdvancedGreeks && (
-        <td className="py-2.5 px-2 text-[10px] text-[#8B949E]">
-          Δ {row.ce.delta.toFixed(2)} | IV {row.ce.iv.toFixed(1)}%
-        </td>
-      )}
+  // ITM Calculations
+  const isCeItm = row.strikePrice < spotPrice;
+  const isPeItm = row.strikePrice > spotPrice;
 
-      {/* CALL LTP CELL (WITH LIVE FLASH ANIMATION) */}
-      <td className={`py-2.5 px-2 font-bold text-[#00E676] text-sm tabular-nums transition-colors duration-150 ${ceFlashClass}`}>
-        ₹{ceLtp.toFixed(2)}
-      </td>
+  // PCR Calculation for Strike
+  const callOi = row.ce.openInterest || 1;
+  const putOi = row.pe.openInterest || 0;
+  const pcrVal = (putOi / callOi).toFixed(2);
 
-      {/* CALL TRADE BUTTONS */}
-      <td className="py-2.5 px-2 border-r border-[#30363D]">
-        <div className="flex items-center justify-center gap-1">
-          <button
-            onClick={() => onOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'BUY')}
-            className="bg-[#00E676] text-[#0D1117] hover:bg-[#00C853] text-[10px] font-black px-2 py-1 rounded shadow-xs active:scale-95 transition-all"
-          >
-            BUY
-          </button>
-          <button
-            onClick={() => onOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'SELL')}
-            className="bg-[#FF5252]/20 text-[#FF5252] hover:bg-[#FF5252] hover:text-white text-[10px] font-black px-2 py-1 rounded active:scale-95 transition-all"
-          >
-            SELL
-          </button>
-        </div>
-      </td>
+  const ceKey = `${row.strikePrice}_CE`;
+  const peKey = `${row.strikePrice}_PE`;
 
-      {/* STRIKE PRICE (CENTER STICKY COLUMN) */}
-      <td
-        className={`py-2.5 px-4 font-extrabold text-sm border-r border-[#30363D] ${
-          isAtm ? 'text-amber-400 bg-amber-500/20 font-black tracking-wider' : 'text-white bg-[#0D1117]'
+  const isCeActive = activeLtpKey === ceKey;
+  const isPeActive = activeLtpKey === peKey;
+
+  const formattedCePct = formatChangePct(ceChangePct);
+  const formattedPePct = formatChangePct(peChangePct);
+
+  // Render Mobile Row View
+  if (isMobile) {
+    return (
+      <tr
+        className={`transition-colors border-b border-slate-800/80 text-xs font-mono tabular-nums ${
+          isAtm
+            ? 'bg-amber-950/40 font-bold border-amber-500/50'
+            : 'hover:bg-slate-800/40'
         }`}
       >
-        {row.strikePrice}
-        {isAtm && (
-          <span className="text-[9px] bg-amber-500 text-[#0D1117] px-1 py-0.5 rounded ml-1 font-mono">
-            ATM
-          </span>
+        {/* Call Volume */}
+        <td className={`py-2 px-1.5 text-left text-[11px] text-slate-400 ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+          {formatQty(row.ce.volume)}
+        </td>
+
+        {/* CALL LTP Cell (Tap to reveal BUY/SELL) */}
+        <td
+          onClick={() => onSelectLtp(isCeActive ? null : ceKey)}
+          className={`py-2 px-1 text-center cursor-pointer transition-all duration-150 relative min-h-[44px] min-w-[70px] ${
+            isCeItm ? 'bg-cyan-950/30 text-cyan-300' : 'text-slate-200'
+          } ${isCeActive ? 'ring-2 ring-cyan-400 bg-cyan-950/60 z-10' : 'hover:bg-cyan-950/20'} ${ceFlashClass}`}
+        >
+          {isCeActive ? (
+            <div className="flex items-center justify-center gap-1 animate-in fade-in zoom-in-95 duration-150">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.vibrate?.(30);
+                  onOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'BUY');
+                }}
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] px-2.5 py-1.5 rounded shadow cursor-pointer active:scale-95 min-h-[44px] min-w-[44px]"
+              >
+                BUY
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.vibrate?.(30);
+                  onOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'SELL');
+                }}
+                className="bg-rose-500 hover:bg-rose-400 text-white font-black text-[11px] px-2.5 py-1.5 rounded shadow cursor-pointer active:scale-95 min-h-[44px] min-w-[44px]"
+              >
+                SELL
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <span className={`font-bold text-xs ${formattedCePct.isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                ₹{ceLtp.toFixed(2)}
+              </span>
+              <span className={`text-[10px] ${formattedCePct.isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {formattedCePct.text}
+              </span>
+            </div>
+          )}
+        </td>
+
+        {/* STRIKE PRICE (Center Column with PCR) */}
+        <td
+          className={`py-2 px-1.5 text-center font-extrabold border-x border-slate-800/80 ${
+            isAtm ? 'text-amber-300 bg-amber-950/60 font-black' : 'text-slate-200 bg-slate-950/60'
+          }`}
+        >
+          <div className="flex flex-col items-center">
+            <span className="text-xs font-bold text-white flex items-center gap-1">
+              {row.strikePrice}
+              {isAtm && <span className="text-[9px] bg-amber-400 text-slate-950 px-1 rounded font-black">ATM</span>}
+            </span>
+            <span className="text-[9px] text-slate-400 font-medium">PCR: {pcrVal}</span>
+          </div>
+        </td>
+
+        {/* PUT LTP Cell (Tap to reveal BUY/SELL) */}
+        <td
+          onClick={() => onSelectLtp(isPeActive ? null : peKey)}
+          className={`py-2 px-1 text-center cursor-pointer transition-all duration-150 relative min-h-[44px] min-w-[70px] ${
+            isPeItm ? 'bg-purple-950/30 text-purple-300' : 'text-slate-200'
+          } ${isPeActive ? 'ring-2 ring-purple-400 bg-purple-950/60 z-10' : 'hover:bg-purple-950/20'} ${peFlashClass}`}
+        >
+          {isPeActive ? (
+            <div className="flex items-center justify-center gap-1 animate-in fade-in zoom-in-95 duration-150">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.vibrate?.(30);
+                  onOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'BUY');
+                }}
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] px-2.5 py-1.5 rounded shadow cursor-pointer active:scale-95 min-h-[44px] min-w-[44px]"
+              >
+                BUY
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.vibrate?.(30);
+                  onOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'SELL');
+                }}
+                className="bg-rose-500 hover:bg-rose-400 text-white font-black text-[11px] px-2.5 py-1.5 rounded shadow cursor-pointer active:scale-95 min-h-[44px] min-w-[44px]"
+              >
+                SELL
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <span className={`font-bold text-xs ${formattedPePct.isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                ₹{peLtp.toFixed(2)}
+              </span>
+              <span className={`text-[10px] ${formattedPePct.isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {formattedPePct.text}
+              </span>
+            </div>
+          )}
+        </td>
+
+        {/* Put Volume */}
+        <td className={`py-2 px-1.5 text-right text-[11px] text-slate-400 ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+          {formatQty(row.pe.volume)}
+        </td>
+      </tr>
+    );
+  }
+
+  // Render Desktop Multi-Column Table Row (Matching Image 1)
+  return (
+    <tr
+      className={`transition-colors border-b border-slate-800/60 text-xs font-mono tabular-nums ${
+        isAtm
+          ? 'bg-amber-950/30 border-y border-amber-400/50 font-bold'
+          : 'hover:bg-slate-800/50'
+      }`}
+    >
+      {/* --- CALLS (CE) SIDE --- */}
+      {viewMode === 'GREEKS' ? (
+        <>
+          <td className={`py-2.5 px-3 text-slate-400 ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+            Δ {row.ce.delta?.toFixed(2) || '0.50'}
+          </td>
+          <td className={`py-2.5 px-3 text-slate-400 ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+            IV {row.ce.iv?.toFixed(1) || '12.0'}%
+          </td>
+        </>
+      ) : (
+        <>
+          {/* CALL Volume */}
+          <td className={`py-2.5 px-3 text-slate-300 text-left ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+            {formatQty(row.ce.volume)}
+          </td>
+
+          {/* CALL OI Change (Change%) */}
+          <td className={`py-2.5 px-3 text-slate-400 text-left ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+            {formatQty(row.ce.openInterestChange)} {row.ce.openInterestChange ? `(${(row.ce.openInterestChange / (row.ce.openInterest || 1) * 100).toFixed(1)}%)` : ''}
+          </td>
+
+          {/* CALL OI */}
+          <td className={`py-2.5 px-3 text-slate-300 text-left ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+            {formatQty(row.ce.openInterest)}
+          </td>
+        </>
+      )}
+
+      {/* CALL LTP CELL (Hover / Click Contextual BUY/SELL interaction) */}
+      <td
+        onClick={() => onSelectLtp(isCeActive ? null : ceKey)}
+        className={`py-2.5 px-3 text-right cursor-pointer transition-all duration-150 relative min-w-[120px] ${
+          isCeItm ? 'bg-cyan-950/30 text-cyan-300 font-bold' : 'text-cyan-400 font-bold'
+        } ${isCeActive ? 'ring-2 ring-emerald-400 bg-cyan-950/80 shadow-lg z-10' : 'hover:bg-cyan-950/40 group'} ${ceFlashClass}`}
+      >
+        {isCeActive ? (
+          <div className="flex items-center justify-end gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.vibrate?.(30);
+                onOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'BUY');
+              }}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-3 py-1 rounded shadow cursor-pointer active:scale-95 transition-transform"
+            >
+              BUY
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.vibrate?.(30);
+                onOpenOrder(row.ce.instrumentToken, row.strikePrice, 'CE', ceLtp, 'SELL');
+              }}
+              className="bg-rose-500 hover:bg-rose-400 text-white font-black text-xs px-3 py-1 rounded shadow cursor-pointer active:scale-95 transition-transform"
+            >
+              SELL
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-1.5">
+            <span className={`text-xs font-bold ${formattedCePct.isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+              ₹{ceLtp.toFixed(2)}
+            </span>
+            <span className={`text-[11px] ${formattedCePct.isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
+              ({formattedCePct.text})
+            </span>
+            {/* Hover arrow indicator on desktop */}
+            <ArrowRight className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
         )}
       </td>
 
-      {/* PUT TRADE BUTTONS */}
-      <td className="py-2.5 px-2 border-r border-[#30363D]">
-        <div className="flex items-center justify-center gap-1">
-          <button
-            onClick={() => onOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'BUY')}
-            className="bg-[#00E676] text-[#0D1117] hover:bg-[#00C853] text-[10px] font-black px-2 py-1 rounded shadow-xs active:scale-95 transition-all"
-          >
-            BUY
-          </button>
-          <button
-            onClick={() => onOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'SELL')}
-            className="bg-[#FF5252]/20 text-[#FF5252] hover:bg-[#FF5252] hover:text-white text-[10px] font-black px-2 py-1 rounded active:scale-95 transition-all"
-          >
-            SELL
-          </button>
+      {/* --- STRIKE PRICE (CENTER COLUMN) --- */}
+      <td
+        className={`py-2.5 px-4 font-extrabold text-sm border-x border-slate-800/80 text-center ${
+          isAtm
+            ? 'text-amber-300 bg-amber-950/60 font-black tracking-wider shadow-inner'
+            : 'text-white bg-slate-950'
+        }`}
+      >
+        <div className="flex items-center justify-center gap-1 font-mono">
+          <span>{row.strikePrice}</span>
+          {isAtm && (
+            <span className="text-[9px] bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded font-black">
+              ATM
+            </span>
+          )}
         </div>
       </td>
 
-      {/* PUT LTP CELL (WITH LIVE FLASH ANIMATION) */}
-      <td className={`py-2.5 px-2 font-bold text-[#FF5252] text-sm tabular-nums transition-colors duration-150 ${peFlashClass}`}>
-        ₹{peLtp.toFixed(2)}
+      {/* --- PUTS (PE) SIDE --- */}
+      {/* PUT LTP CELL (Hover / Click Contextual BUY/SELL interaction) */}
+      <td
+        onClick={() => onSelectLtp(isPeActive ? null : peKey)}
+        className={`py-2.5 px-3 text-left cursor-pointer transition-all duration-150 relative min-w-[120px] ${
+          isPeItm ? 'bg-purple-950/30 text-purple-300 font-bold' : 'text-purple-400 font-bold'
+        } ${isPeActive ? 'ring-2 ring-emerald-400 bg-purple-950/80 shadow-lg z-10' : 'hover:bg-purple-950/40 group'} ${peFlashClass}`}
+      >
+        {isPeActive ? (
+          <div className="flex items-center justify-start gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.vibrate?.(30);
+                onOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'BUY');
+              }}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-3 py-1 rounded shadow cursor-pointer active:scale-95 transition-transform"
+            >
+              BUY
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.vibrate?.(30);
+                onOpenOrder(row.pe.instrumentToken, row.strikePrice, 'PE', peLtp, 'SELL');
+              }}
+              className="bg-rose-500 hover:bg-rose-400 text-white font-black text-xs px-3 py-1 rounded shadow cursor-pointer active:scale-95 transition-transform"
+            >
+              SELL
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-start gap-1.5">
+            {/* Hover arrow indicator on desktop */}
+            <ArrowLeft className="w-3.5 h-3.5 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <span className={`text-xs font-bold ${formattedPePct.isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+              ₹{peLtp.toFixed(2)}
+            </span>
+            <span className={`text-[11px] ${formattedPePct.isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
+              ({formattedPePct.text})
+            </span>
+          </div>
+        )}
       </td>
 
-      {/* PUTS (PE) GREEKS */}
-      {showAdvancedGreeks && (
-        <td className="py-2.5 px-2 text-[10px] text-[#8B949E]">
-          Δ {row.pe.delta.toFixed(2)} | IV {row.pe.iv.toFixed(1)}%
-        </td>
+      {viewMode === 'GREEKS' ? (
+        <>
+          <td className={`py-2.5 px-3 text-slate-400 ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+            IV {row.pe.iv?.toFixed(1) || '12.0'}%
+          </td>
+          <td className={`py-2.5 px-3 text-slate-400 ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+            Δ {row.pe.delta?.toFixed(2) || '0.50'}
+          </td>
+        </>
+      ) : (
+        <>
+          {/* PUT OI */}
+          <td className={`py-2.5 px-3 text-slate-300 text-right ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+            {formatQty(row.pe.openInterest)}
+          </td>
+
+          {/* PUT OI Change (Change%) */}
+          <td className={`py-2.5 px-3 text-slate-400 text-right ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+            {formatQty(row.pe.openInterestChange)} {row.pe.openInterestChange ? `(${(row.pe.openInterestChange / (row.pe.openInterest || 1) * 100).toFixed(1)}%)` : ''}
+          </td>
+
+          {/* PUT Volume */}
+          <td className={`py-2.5 px-3 text-slate-300 text-right ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+            {formatQty(row.pe.volume)}
+          </td>
+        </>
       )}
     </tr>
   );
 };
 
-// High-performance memoization: only re-render row if strike, ATM status, greeks mode, or ticks actually change
 export const OptionChainRow = React.memo(
   OptionChainRowComponent,
   (prevProps, nextProps) => {
@@ -166,7 +428,10 @@ export const OptionChainRow = React.memo(
     return (
       prevProps.row.strikePrice === nextProps.row.strikePrice &&
       prevProps.isAtm === nextProps.isAtm &&
-      prevProps.showAdvancedGreeks === nextProps.showAdvancedGreeks &&
+      prevProps.spotPrice === nextProps.spotPrice &&
+      prevProps.viewMode === nextProps.viewMode &&
+      prevProps.activeLtpKey === nextProps.activeLtpKey &&
+      prevProps.isMobile === nextProps.isMobile &&
       prevCeLtp === nextCeLtp &&
       prevPeLtp === nextPeLtp
     );

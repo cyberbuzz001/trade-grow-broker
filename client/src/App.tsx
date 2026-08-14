@@ -17,6 +17,7 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { CustomerSupportModal } from './components/CustomerSupportModal';
 import { LinkPeAddFundsModal } from './components/LinkPeAddFundsModal';
 import { McxCommodityView } from './components/McxCommodityView';
+import { PortfolioAnalyticsView } from './components/PortfolioAnalyticsView';
 
 // GoGrow Mobile App View Components (from Frontend/mobileapp)
 import { MobileBottomNav } from './components/mobile/MobileBottomNav';
@@ -453,6 +454,14 @@ export function App() {
                         onRefreshWallet={fetchWallet}
                       />
                     </div>
+                  )}
+
+                  {activeSubView === 'ANALYTICS' && (
+                    <PortfolioAnalyticsView
+                      token={token}
+                      wallet={wallet}
+                      onRefreshWallet={fetchWallet}
+                    />
                   )}
 
                   {activeSubView === 'ADMIN' && (
