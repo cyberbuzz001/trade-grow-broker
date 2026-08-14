@@ -6,7 +6,7 @@
 
 export class SymbologyNormalizer {
   /**
-   * Given any input token or symbol (e.g. 'NFO_NIFTY_24500_CE', 'NSE_NIFTY24500CE', 'NIFTY30DEC2524500CE', 'BFO_SENSEX_78400_CE'),
+   * Given any input token or symbol (e.g. 'NIFTY 24200 CE', 'NFO_NIFTY_24500_CE', 'NSE_NIFTY24500CE', 'NIFTY30DEC2524500CE', 'BFO_SENSEX_78400_CE'),
    * returns an array of ALL possible lookup alias keys for MarketDataEngine cache matching.
    */
   public static normalizeToken(raw: string): string[] {
@@ -19,9 +19,19 @@ export class SymbologyNormalizer {
     const noPrefix = input.replace(/^(NSE_|BSE_|NFO_|BFO_)/, '');
     keys.add(noPrefix);
 
+    // Normalize spacing and underscores (e.g. 'NIFTY 24200 CE' -> 'NIFTY_24200_CE')
+    const cleanedWithUnderscores = noPrefix.replace(/[\s\-_]+/g, '_');
+    const compactNoSpaces = noPrefix.replace(/\s+/g, '');
+    const spacedFormat = noPrefix.replace(/[\s\-_]+/g, ' ');
+
+    keys.add(cleanedWithUnderscores);
+    keys.add(compactNoSpaces);
+    keys.add(spacedFormat);
+
     // Regex match option format: [UNDERLYING][STRIKE][CE|PE]
-    // e.g. NIFTY_24500_CE or NIFTY24500CE or SENSEX78400CE
-    const match = noPrefix.match(/^([A-Z0-9]+?)(?:_)?(\d+)(?:_)?(CE|PE)$/);
+    // Handles: NIFTY 24500 CE, NIFTY_24500_CE, NIFTY24500CE, NFO_NIFTY_24500_CE, SENSEX 78400 PE
+    const match = cleanedWithUnderscores.match(/^([A-Z0-9]+)_(\d+)_(CE|PE)$/) ||
+                  compactNoSpaces.match(/^([A-Z0-9]+?)(\d+)(CE|PE)$/);
 
     if (match) {
       const underlying = match[1].replace(/^(NFO_|BFO_|NSE_|BSE_)/, '');
@@ -35,12 +45,15 @@ export class SymbologyNormalizer {
       keys.add(`${segment}_${underlying}_${strike}_${optType}`);
       keys.add(`${exchSegment}_${underlying}_${strike}_${optType}`);
 
-      // Compact standard token: NSE_NIFTY24500CE
+      // Compact standard token: NSE_NIFTY24500CE / NIFTY24500CE
       keys.add(`${exchSegment}_${underlying}${strike}${optType}`);
       keys.add(`${underlying}${strike}${optType}`);
 
       // Underscore format: NIFTY_24500_CE
       keys.add(`${underlying}_${strike}_${optType}`);
+
+      // Spaced format: NIFTY 24500 CE
+      keys.add(`${underlying} ${strike} ${optType}`);
     }
 
     return Array.from(keys);

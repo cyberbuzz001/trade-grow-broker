@@ -28,29 +28,33 @@ export class ExecutionEngine {
         `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') ORDER BY created_at ASC LIMIT 50`
       );
 
+      if (pendingOrders.length === 0) return;
+
+      // Pre-warm option chain ticks for NIFTY & SENSEX to ensure 100% tick accuracy across all strike tokens
+      try {
+        const { OptionChainEngine } = await import('../marketData/OptionChainEngine');
+        await OptionChainEngine.generateOptionChain({ symbol: 'NIFTY', strikeRange: '20' }).catch(() => {});
+        await OptionChainEngine.generateOptionChain({ symbol: 'SENSEX', strikeRange: '20' }).catch(() => {});
+      } catch (_) {}
+
       for (const order of pendingOrders) {
         const engine = MarketDataEngine.getInstance();
-        let tick: MarketTick | undefined | null = engine.getCachedTick(order.instrument_token) || engine.getCachedTick(order.symbol);
+        let tick: MarketTick | undefined | null = undefined;
 
-        if (!tick && order.symbol) {
-          const aliases = SymbologyNormalizer.normalizeToken(order.symbol);
-          for (const alias of aliases) {
-            tick = engine.getCachedTick(alias);
-            if (tick) break;
-          }
+        // Try direct lookup with all possible symbology alias keys
+        const symbolAliases = [
+          ...(order.symbol ? SymbologyNormalizer.normalizeToken(order.symbol) : []),
+          ...(order.instrument_token ? SymbologyNormalizer.normalizeToken(order.instrument_token) : [])
+        ];
+
+        for (const alias of symbolAliases) {
+          tick = engine.getCachedTick(alias);
+          if (tick && tick.ltp > 0) break;
         }
 
-        if (!tick && order.instrument_token) {
-          const aliases = SymbologyNormalizer.normalizeToken(order.instrument_token);
-          for (const alias of aliases) {
-            tick = engine.getCachedTick(alias);
-            if (tick) break;
-          }
-        }
-
-        if (!tick) {
+        if (!tick && (order.instrument_token || order.symbol)) {
           try {
-            tick = await engine.getQuote(order.instrument_token) || await engine.getQuote(order.symbol);
+            tick = await engine.getQuote(order.instrument_token || order.symbol);
           } catch (_) {}
         }
 

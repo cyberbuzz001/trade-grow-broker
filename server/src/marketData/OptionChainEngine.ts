@@ -131,6 +131,49 @@ export class OptionChainEngine {
         const ceGreeks = GreeksEngine.calculateGreeks(spotPrice, item.strikePrice, timeToExpiryYears, true, ceIv / 100);
         const peGreeks = GreeksEngine.calculateGreeks(spotPrice, item.strikePrice, timeToExpiryYears, false, peIv / 100);
 
+        const engine = MarketDataEngine.getInstance();
+        const nowMs = Date.now();
+
+        // Register CE tick across all alias formats
+        engine.setCachedTick({
+          instrumentToken: `${segment}_${underlying}_${item.strikePrice}_CE`,
+          exchange: segment,
+          symbol: `${underlying} ${item.strikePrice} CE`,
+          ltp: Number(ceLtp.toFixed(2)),
+          open: Number(ceLtp.toFixed(2)),
+          high: Number((ceLtp * 1.02).toFixed(2)),
+          low: Number((ceLtp * 0.98).toFixed(2)),
+          close: Number(ceLtp.toFixed(2)),
+          volume: item.ce?.volume || 50000,
+          change: 0,
+          changePercent: 0,
+          bid: Number((ceLtp * 0.998).toFixed(2)),
+          ask: Number((ceLtp * 1.002).toFixed(2)),
+          bidQty: 500,
+          askQty: 500,
+          timestamp: nowMs
+        });
+
+        // Register PE tick across all alias formats
+        engine.setCachedTick({
+          instrumentToken: `${segment}_${underlying}_${item.strikePrice}_PE`,
+          exchange: segment,
+          symbol: `${underlying} ${item.strikePrice} PE`,
+          ltp: Number(peLtp.toFixed(2)),
+          open: Number(peLtp.toFixed(2)),
+          high: Number((peLtp * 1.02).toFixed(2)),
+          low: Number((peLtp * 0.98).toFixed(2)),
+          close: Number(peLtp.toFixed(2)),
+          volume: item.pe?.volume || 50000,
+          change: 0,
+          changePercent: 0,
+          bid: Number((peLtp * 0.998).toFixed(2)),
+          ask: Number((peLtp * 1.002).toFixed(2)),
+          bidQty: 500,
+          askQty: 500,
+          timestamp: nowMs
+        });
+
         return {
           strikePrice: item.strikePrice,
           expiry: item.expiry || expiry,
