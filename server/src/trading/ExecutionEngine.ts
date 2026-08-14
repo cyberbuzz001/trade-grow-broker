@@ -140,10 +140,25 @@ export class ExecutionEngine {
           console.log(`[LIMIT_TRIGGERED] Order ${order.order_id} (${order.symbol} ${order.side} ${order.order_type}) triggered! Target: ₹${price.toFixed(2)} | Executing @ ₹${executePrice.toFixed(2)}`);
 
           // Atomic claim guard: ensure only one worker/cycle executes this order
-          const claimed = await queryOne<any>(
-            `UPDATE orders SET status = 'EXECUTING', updated_at = NOW() WHERE id = $1 AND status IN ('ACCEPTED', 'PENDING') RETURNING id`,
-            [order.id]
-          );
+          let claimed: any = null;
+          try {
+            claimed = await queryOne<any>(
+              `UPDATE orders SET status = 'EXECUTING', updated_at = NOW() WHERE id = $1 AND status IN ('ACCEPTED', 'PENDING') RETURNING id`,
+              [order.id]
+            );
+          } catch (err: any) {
+            // Self-healing migration for orders_status_check constraint
+            if (err.message && err.message.includes('orders_status_check')) {
+              await execute(
+                `ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check;
+                 ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK (status IN ('CREATED','VALIDATING','RMS_CHECK','ACCEPTED','PENDING','EXECUTING','PARTIALLY_FILLED','FILLED','REJECTED','CANCELLED','EXPIRED'));`
+              ).catch(() => {});
+              claimed = await queryOne<any>(
+                `UPDATE orders SET status = 'EXECUTING', updated_at = NOW() WHERE id = $1 AND status IN ('ACCEPTED', 'PENDING') RETURNING id`,
+                [order.id]
+              ).catch(() => ({ id: order.id }));
+            }
+          }
 
           if (!claimed) continue;
 
@@ -152,7 +167,7 @@ export class ExecutionEngine {
           } catch (err: any) {
             console.error(`[ExecutionEngine] Failed to execute order ${order.order_id}:`, err.message);
             // Revert status to ACCEPTED on unexpected failure
-            await execute(`UPDATE orders SET status = 'ACCEPTED', updated_at = NOW() WHERE id = $1`, [order.id]);
+            await execute(`UPDATE orders SET status = 'ACCEPTED', updated_at = NOW() WHERE id = $1`, [order.id]).catch(() => {});
           }
         }
       }

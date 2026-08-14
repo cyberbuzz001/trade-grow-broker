@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS orders (
   order_type       TEXT NOT NULL CHECK (order_type IN ('MARKET','LIMIT','SL','SL_M')),
   product_type     TEXT NOT NULL CHECK (product_type IN ('MIS','CNC','NRML')),
   status           TEXT NOT NULL DEFAULT 'CREATED'
-                   CHECK (status IN ('CREATED','VALIDATING','RMS_CHECK','ACCEPTED','PENDING','PARTIALLY_FILLED','FILLED','REJECTED','CANCELLED','EXPIRED')),
+                   CHECK (status IN ('CREATED','VALIDATING','RMS_CHECK','ACCEPTED','PENDING','EXECUTING','PARTIALLY_FILLED','FILLED','REJECTED','CANCELLED','EXPIRED')),
   rejection_reason TEXT,
   idempotency_key  TEXT UNIQUE,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
