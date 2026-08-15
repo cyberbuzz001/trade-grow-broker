@@ -171,8 +171,27 @@ export class ExecutionEngine {
 
           if (!claimed) continue;
 
+          // Determine fill provenance metadata
+          const isBsModel = (tick as any)?.bidQty === 500 && (tick as any)?.askQty === 500;
+          const freshnessTag = (Date.now() - (tick.timestamp || Date.now()) <= 15000)
+            ? 'live'
+            : (isBsModel ? 'synthetic_skew' : 'cached_stale');
+          const fillLogic = order.order_type === 'MARKET'
+            ? (order.side === 'BUY' ? 'MARKET_ASK' : 'MARKET_BID')
+            : (order.order_type === 'LIMIT' ? 'LIMIT_MATCH' : 'STOP_LOSS');
+
+          const provenance = {
+            tickSource: isBsModel ? 'BLACK_SCHOLES_SYNTHETIC' : 'LIVE_FEED',
+            tickTimestamp: tick.timestamp || Date.now(),
+            tickLtp: tick.ltp,
+            tickBid: tick.bid && tick.bid > 0 ? tick.bid : tick.ltp,
+            tickAsk: tick.ask && tick.ask > 0 ? tick.ask : tick.ltp,
+            freshnessTag,
+            fillLogic
+          };
+
           try {
-            await this.executeOrder(order, executePrice);
+            await this.executeOrder(order, executePrice, provenance);
           } catch (err: any) {
             console.error(`[ExecutionEngine] Failed to execute order ${order.order_id}:`, err.message);
             // Revert status to ACCEPTED on unexpected failure
@@ -185,7 +204,19 @@ export class ExecutionEngine {
     }
   }
 
-  public static async executeOrder(order: any, price: number): Promise<void> {
+  public static async executeOrder(
+    order: any, 
+    price: number,
+    provenance?: {
+      tickSource?: string;
+      tickTimestamp?: number;
+      tickLtp?: number;
+      tickBid?: number;
+      tickAsk?: number;
+      freshnessTag?: string;
+      fillLogic?: string;
+    }
+  ): Promise<void> {
     // Idempotency Guard: prevent duplicate execution processing
     const existingExec = await queryOne<any>(
       'SELECT id FROM executions WHERE order_id = $1',
@@ -211,14 +242,29 @@ export class ExecutionEngine {
       : (order.order_type === 'MARKET' ? 'MARKET_SQUARE_OFF' : 'STOP_LOSS');
 
     const posResult = await withTransaction(async (client) => {
-      // 1. Record execution fill
+      // 1. Record execution fill with Immutable Provenance
       await client.query(
-        `INSERT INTO executions (id, order_id, user_id, trade_id, symbol, exchange, side, quantity, price, brokerage, stt, gst, exchange_charges, total_charges)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        `INSERT INTO executions (
+          id, order_id, user_id, trade_id, symbol, exchange, side, quantity, price, 
+          brokerage, stt, gst, exchange_charges, total_charges,
+          tick_source, tick_timestamp, tick_ltp, tick_bid, tick_ask, freshness_tag, fill_logic
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, 
+          $10, $11, $12, $13, $14,
+          $15, $16, $17, $18, $19, $20, $21
+        )`,
         [
           excId, order.id, order.user_id, tradeId,
           order.symbol, order.exchange || 'NSE', order.side,
-          qty, price, brokerage, stt, gst, exchangeCharges, totalCharges
+          qty, price, brokerage, stt, gst, exchangeCharges, totalCharges,
+          provenance?.tickSource || 'LIVE_FEED',
+          provenance?.tickTimestamp || Date.now(),
+          provenance?.tickLtp || price,
+          provenance?.tickBid || price,
+          provenance?.tickAsk || price,
+          provenance?.freshnessTag || 'live',
+          provenance?.fillLogic || 'MARKET'
         ]
       );
 
@@ -235,8 +281,15 @@ export class ExecutionEngine {
         [
           'evt_' + generateUUID(),
           order.id,
-          `Execution fill @ ₹${price.toFixed(2)} (${exitReason})`,
-          JSON.stringify({ fillPrice: price, quantity: qty, exitReason, tradeId, excId })
+          `Execution fill @ ₹${price.toFixed(2)} (${exitReason}) [Freshness: ${provenance?.freshnessTag || 'live'}]`,
+          JSON.stringify({ 
+            fillPrice: price, 
+            quantity: qty, 
+            exitReason, 
+            tradeId, 
+            excId, 
+            provenance: provenance || {} 
+          })
         ]
       );
 

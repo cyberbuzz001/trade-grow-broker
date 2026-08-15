@@ -37,14 +37,22 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
   const [submittingPaymentSettings, setSubmittingPaymentSettings] = useState(false);
   const [paymentSettingMsg, setPaymentSettingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Platform Solvency & Real Bank Reserves State
+  const [solvency, setSolvency] = useState<any | null>(null);
+  const [showReconcileModal, setShowReconcileModal] = useState(false);
+  const [bankCashInput, setBankCashInput] = useState<number>(1000000);
+  const [reconcileNotes, setReconcileNotes] = useState<string>('Daily Platform Liquidity & Bank Reserve Audit');
+  const [submittingReconcile, setSubmittingReconcile] = useState(false);
+
   const fetchFundsData = () => {
     setLoading(true);
     Promise.all([
       fetch('/api/v1/admin/funds/overview', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
       fetch('/api/v1/admin/funds/requests', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
       fetch('/api/v1/admin/customers', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch('/api/v1/admin/funds/payment-settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
-    ]).then(([overviewData, requestsData, customersData, settingsData]) => {
+      fetch('/api/v1/admin/funds/payment-settings', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('/api/v1/admin/finance/reserves', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+    ]).then(([overviewData, requestsData, customersData, settingsData, solvencyData]) => {
       if (overviewData.success) setFunds(overviewData.funds);
       if (requestsData.success && Array.isArray(requestsData.requests)) setRequests(requestsData.requests);
       if (customersData.success && Array.isArray(customersData.customers)) {
@@ -56,8 +64,38 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       if (settingsData.success && settingsData.settings) {
         setPaymentSettings(settingsData.settings);
       }
+      if (solvencyData.success && solvencyData.solvency) {
+        setSolvency(solvencyData.solvency);
+        setBankCashInput(solvencyData.solvency.bankCashReserve || 1000000);
+      }
       setLoading(false);
     }).catch(() => setLoading(false));
+  };
+
+  const handleReconcileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingReconcile(true);
+    setActionMsg(null);
+
+    try {
+      const res = await fetch('/api/v1/admin/finance/reserves/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ bankCashReserve: bankCashInput, notes: reconcileNotes })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMsg({ type: 'success', text: data.message });
+        setShowReconcileModal(false);
+        fetchFundsData();
+      } else {
+        setActionMsg({ type: 'error', text: data.error?.message || 'Failed to reconcile reserves' });
+      }
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err.message });
+    } finally {
+      setSubmittingReconcile(false);
+    }
   };
 
   useEffect(() => {
@@ -169,6 +207,45 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       {actionMsg && (
         <div className={`p-3 rounded-lg text-xs font-semibold ${actionMsg.type === 'success' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'}`}>
           {actionMsg.text}
+        </div>
+      )}
+
+      {/* Platform Real-Money Solvency & Bank Reserves Monitor */}
+      {solvency && (
+        <div className="bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl border ${
+              solvency.status === 'HEALTHY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+              solvency.status === 'WARNING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+              'bg-rose-500/10 text-rose-400 border-rose-500/20'
+            }`}>
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-white">Platform Solvency & Real Bank Reserves</h4>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                  solvency.status === 'HEALTHY' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                  solvency.status === 'WARNING' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
+                  'bg-rose-950 text-rose-400 border border-rose-800'
+                }`}>
+                  {solvency.status} SOLVENCY ({(solvency.reserveRatio * 100).toFixed(0)}%)
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Total Real-Money Liabilities: <span className="text-amber-400 font-mono font-bold">₹{solvency.totalWithdrawableLiabilities.toLocaleString('en-IN')}</span> · 
+                Bank Cash Reserves: <span className="text-emerald-400 font-mono font-bold">₹{solvency.bankCashReserve.toLocaleString('en-IN')}</span>
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowReconcileModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 font-bold text-xs flex items-center gap-1.5 transition shadow cursor-pointer ml-auto"
+          >
+            <Building className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Reconcile Bank Reserve</span>
+          </button>
         </div>
       )}
 
@@ -515,6 +592,80 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* RECONCILE BANK RESERVES MODAL */}
+      {showReconcileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Reconcile Platform Bank Reserves</h3>
+                  <p className="text-[10px] text-slate-400">Audit actual bank balance against total real-money liabilities</p>
+                </div>
+              </div>
+              <button onClick={() => setShowReconcileModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><XCircle className="w-4 h-4" /></button>
+            </div>
+
+            <form onSubmit={handleReconcileSubmit} className="space-y-3 text-xs">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1 font-mono text-xs">
+                <div className="flex justify-between text-slate-400">
+                  <span>Current User Liabilities:</span>
+                  <span className="text-amber-400 font-bold">₹{solvency?.totalWithdrawableLiabilities.toLocaleString('en-IN') || '0'}</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Last Reconciled:</span>
+                  <span className="text-slate-300">{solvency?.lastReconciledAt ? new Date(solvency.lastReconciledAt).toLocaleString() : 'Never'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Actual Bank Account Balance (₹) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  required
+                  value={bankCashInput}
+                  onChange={e => setBankCashInput(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono font-bold text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Audit Notes / Bank Statement Reference</label>
+                <input
+                  type="text"
+                  value={reconcileNotes}
+                  onChange={e => setReconcileNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReconcileModal(false)}
+                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReconcile}
+                  className="w-1/2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-2 rounded-xl transition shadow cursor-pointer"
+                >
+                  {submittingReconcile ? 'Saving Audit...' : 'Confirm Solvency'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

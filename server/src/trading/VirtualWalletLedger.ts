@@ -9,11 +9,55 @@ export interface WalletState {
   realizedPnl: number;
   unrealizedPnl: number;
   buyingPower: number;
+  withdrawableBalance: number;
   totalPnl: number;
   accountEquity: number;
 }
 
 export class VirtualWalletLedger {
+
+  /**
+   * Calculate precise withdrawable balance for a user taking into account open positions & floating losses.
+   * Withdrawable = max(0, Cash Balance - Used Margin + min(0, Unrealized P&L))
+   */
+  public static async calculateWithdrawableBalance(userId: string): Promise<number> {
+    const row = await queryOne<any>(
+      'SELECT cash_balance, used_margin FROM virtual_wallets WHERE user_id = $1',
+      [userId]
+    );
+    if (!row) return 0;
+
+    const cash = parseFloat(row.cash_balance || '0');
+    const margin = parseFloat(row.used_margin || '0');
+
+    let unrealizedPnl = 0;
+    try {
+      const openPositions = await PortfolioService.getUserPositions(userId, false);
+      for (const pos of openPositions) {
+        if (pos.netQty !== 0) {
+          unrealizedPnl += pos.unrealizedPnl;
+        }
+      }
+    } catch (_) {}
+
+    // Floating losses reduce withdrawable balance immediately; floating profits cannot be withdrawn until realized
+    const floatingLossPenalty = Math.min(0, unrealizedPnl);
+    return Math.max(0, cash - margin + floatingLossPenalty);
+  }
+
+  /**
+   * Get total platform real-money withdrawable liabilities.
+   */
+  public static async getPlatformTotalLiability(): Promise<{ totalCash: number; totalLiability: number; totalUsedMargin: number }> {
+    const row = await queryOne<any>(
+      'SELECT COALESCE(SUM(cash_balance), 0) as cash, COALESCE(SUM(used_margin), 0) as margin FROM virtual_wallets'
+    );
+    const totalCash = parseFloat(row?.cash || '0');
+    const totalUsedMargin = parseFloat(row?.margin || '0');
+    const totalLiability = Math.max(0, totalCash - totalUsedMargin);
+
+    return { totalCash, totalLiability, totalUsedMargin };
+  }
 
   /**
    * Get current wallet state for a user with live Unrealized P&L, Total P&L & Account Equity.
@@ -41,6 +85,8 @@ export class VirtualWalletLedger {
     } catch (_) {}
 
     const buyingPower   = Math.max(0, cashBalance - usedMargin);
+    const floatingLoss  = Math.min(0, unrealizedPnl);
+    const withdrawableBalance = Math.max(0, cashBalance - usedMargin + floatingLoss);
     const totalPnl      = realizedPnl + unrealizedPnl;
     const accountEquity = cashBalance + unrealizedPnl;
 
@@ -51,6 +97,7 @@ export class VirtualWalletLedger {
       realizedPnl,
       unrealizedPnl,
       buyingPower,
+      withdrawableBalance,
       totalPnl,
       accountEquity
     };

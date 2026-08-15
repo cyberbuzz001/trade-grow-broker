@@ -502,56 +502,146 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
   try {
     const { id } = req.params;
     const reqId = id as string;
+    const actorId = req.user!.userId;
+    const actorRole = req.user!.role;
 
-    const request = await queryOne<any>('SELECT * FROM fund_requests WHERE id = $1 OR request_id = $1', [reqId]);
-    if (!request) {
-      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Fund request not found' } });
-      return;
-    }
-
-    if (request.status !== 'PENDING') {
-      res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Request is already ${request.status}` } });
-      return;
-    }
-
-    const amount = parseFloat(request.amount);
-    const userId = request.user_id;
-
-    if (request.request_type === 'DEPOSIT') {
-      await VirtualWalletLedger.adminAdjustBalance(
-        userId,
-        amount,
-        req.user!.userId,
-        `Approved Deposit Request ${request.request_id}`
+    const result = await withTransaction(async (client) => {
+      // 1. Lock fund request row FOR UPDATE
+      const reqRes = await client.query(
+        'SELECT * FROM fund_requests WHERE id = $1 OR request_id = $1 FOR UPDATE',
+        [reqId]
       );
-    } else if (request.request_type === 'WITHDRAWAL') {
-      const wallet = await VirtualWalletLedger.getWallet(userId);
-      if (!wallet || wallet.buyingPower < amount) {
-        res.status(400).json({
-          success: false,
-          error: {
-            code: 'INSUFFICIENT_FUNDS',
-            message: `User has insufficient buying power for withdrawal. Required: ₹${amount.toFixed(2)}, Available: ₹${wallet?.buyingPower.toFixed(2) || '0.00'}`
-          }
-        });
-        return;
+      if (reqRes.rows.length === 0) {
+        throw new Error('NOT_FOUND:Fund request not found');
       }
-      await VirtualWalletLedger.adminAdjustBalance(
-        userId,
-        -amount,
-        req.user!.userId,
-        `Approved Withdrawal Request ${request.request_id}`
-      );
-    }
 
-    await execute(
-      `UPDATE fund_requests SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), updated_at = NOW() WHERE id = $2`,
-      [req.user!.userId, request.id]
+      const request = reqRes.rows[0];
+      if (request.status !== 'PENDING') {
+        throw new Error(`INVALID_STATUS:Request is already ${request.status}`);
+      }
+
+      const amount = parseFloat(request.amount);
+      const userId = request.user_id;
+
+      if (request.request_type === 'DEPOSIT') {
+        // Enforce duplicate reference note prevention on deposits
+        if (request.reference_note && request.reference_note.trim().length > 0) {
+          const dupRes = await client.query(
+            `SELECT id, request_id FROM fund_requests 
+             WHERE payment_method = $1 AND reference_note = $2 AND status = 'APPROVED' AND id != $3 LIMIT 1`,
+            [request.payment_method || 'UPI', request.reference_note.trim(), request.id]
+          );
+          if (dupRes.rows.length > 0) {
+            throw new Error(`DUPLICATE_REFERENCE:Deposit reference '${request.reference_note}' was already approved under request ${dupRes.rows[0].request_id}`);
+          }
+        }
+
+        // Lock user's wallet
+        const wRes = await client.query(
+          'SELECT cash_balance FROM virtual_wallets WHERE user_id = $1 FOR UPDATE',
+          [userId]
+        );
+        if (wRes.rows.length === 0) throw new Error('NOT_FOUND:User wallet not found');
+        const currentCash = parseFloat(wRes.rows[0].cash_balance);
+        const newCash = currentCash + amount;
+
+        // Credit wallet
+        await client.query(
+          'UPDATE virtual_wallets SET cash_balance = $1, updated_at = NOW() WHERE user_id = $2',
+          [newCash, userId]
+        );
+
+        // Record immutable ledger entry
+        await client.query(
+          `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
+           VALUES ($1, $2, $3, 'DEPOSIT', $4, $5, $6, $7, $8, $9)`,
+          [
+            'led_' + generateUUID(), generateUUID(), userId,
+            amount, currentCash, newCash,
+            request.request_id, actorId,
+            JSON.stringify({ 
+              reason: `Approved Deposit ${request.request_id}`, 
+              paymentMethod: request.payment_method, 
+              referenceNote: request.reference_note,
+              approvedBy: actorId
+            })
+          ]
+        );
+      } else if (request.request_type === 'WITHDRAWAL') {
+        // Multi-level approval check: high-value withdrawals (> ₹50,000) require SUPER_ADMIN or ADMIN
+        if (amount > 50000 && !['SUPER_ADMIN', 'ADMIN'].includes(actorRole)) {
+          // Escalate to TIER_2_SENIOR
+          await client.query(
+            `UPDATE fund_requests 
+             SET review_tier = 'TIER_2_SENIOR', first_approved_by = $1, first_approved_at = NOW(), updated_at = NOW() 
+             WHERE id = $2`,
+            [actorId, request.id]
+          );
+          return { escalated: true, message: `Withdrawal request of ₹${amount.toLocaleString('en-IN')} escalated to Senior Admin for secondary approval.` };
+        }
+
+        // Check withdrawable balance (Cash - Used Margin + min(0, Unrealized P&L))
+        const wRes = await client.query(
+          'SELECT cash_balance, used_margin FROM virtual_wallets WHERE user_id = $1 FOR UPDATE',
+          [userId]
+        );
+        if (wRes.rows.length === 0) throw new Error('NOT_FOUND:User wallet not found');
+        const currentCash = parseFloat(wRes.rows[0].cash_balance);
+        const usedMargin = parseFloat(wRes.rows[0].used_margin);
+        const buyingPower = Math.max(0, currentCash - usedMargin);
+
+        if (buyingPower < amount) {
+          throw new Error(`INSUFFICIENT_FUNDS:Insufficient buying power. Required: ₹${amount.toFixed(2)}, Available: ₹${buyingPower.toFixed(2)}`);
+        }
+
+        const newCash = currentCash - amount;
+        if (newCash < 0) {
+          throw new Error('NEGATIVE_BALANCE:Withdrawal would produce negative balance');
+        }
+
+        // Debit wallet
+        await client.query(
+          'UPDATE virtual_wallets SET cash_balance = $1, updated_at = NOW() WHERE user_id = $2',
+          [newCash, userId]
+        );
+
+        // Record immutable ledger entry
+        await client.query(
+          `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
+           VALUES ($1, $2, $3, 'WITHDRAWAL', $4, $5, $6, $7, $8, $9)`,
+          [
+            'led_' + generateUUID(), generateUUID(), userId,
+            amount, currentCash, newCash,
+            request.request_id, actorId,
+            JSON.stringify({ 
+              reason: `Approved Withdrawal Payout ${request.request_id}`, 
+              paymentMethod: request.payment_method, 
+              referenceNote: request.reference_note,
+              approvedBy: actorId 
+            })
+          ]
+        );
+      }
+
+      // Update fund request status
+      await client.query(
+        `UPDATE fund_requests SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), updated_at = NOW() WHERE id = $2`,
+        [actorId, request.id]
+      );
+
+      return { escalated: false, message: `Fund request ${request.request_id} APPROVED and wallet updated.` };
+    });
+
+    await logAuditAction(
+      actorId, actorRole,
+      'APPROVE_FUND_REQUEST', 'FUND_REQUEST', reqId,
+      null, { reqId }, getClientIp(req)
     );
 
-    res.json({ success: true, message: `Fund request ${request.request_id} APPROVED and wallet updated.` });
+    res.json({ success: true, ...result });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+    const [code, msg] = err.message.includes(':') ? err.message.split(':', 2) : ['SERVER_ERROR', err.message];
+    res.status(code === 'NOT_FOUND' ? 404 : 400).json({ success: false, error: { code, message: msg } });
   }
 });
 
@@ -1343,6 +1433,187 @@ router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADM
         ? `⚠️ Token expires in ${minutesLeft} minutes. Please renew soon.`
         : `✅ Token is healthy. Expires in ~${(minutesLeft/60).toFixed(1)} hours.`
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 15. FILL PROVENANCE & DISPUTE AUDITOR
+// ============================================================
+router.get('/executions/provenance', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'COMPLIANCE_OFFICER', 'READ_ONLY_AUDITOR']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, symbol, freshness, limit = '50', offset = '0' } = req.query;
+    let where = 'WHERE 1=1';
+    const params: any[] = [];
+
+    if (userId) {
+      params.push(userId);
+      where += ` AND e.user_id = $${params.length}`;
+    }
+    if (symbol) {
+      params.push(`%${String(symbol).toUpperCase()}%`);
+      where += ` AND e.symbol ILIKE $${params.length}`;
+    }
+    if (freshness) {
+      params.push(freshness);
+      where += ` AND e.freshness_tag = $${params.length}`;
+    }
+
+    params.push(parseInt(String(limit), 10));
+    params.push(parseInt(String(offset), 10));
+
+    const rows = await query<any>(
+      `SELECT e.*, u.username, u.email, o.order_type, o.price as order_price, o.trigger_price
+       FROM executions e
+       JOIN users u ON e.user_id = u.id
+       LEFT JOIN orders o ON e.order_id = o.id
+       ${where}
+       ORDER BY e.executed_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    const countRow = await queryOne<any>(
+      `SELECT COUNT(*) as c FROM executions e ${where.replace(/LIMIT.*$/, '')}`,
+      params.slice(0, params.length - 2)
+    );
+
+    res.json({
+      success: true,
+      executions: rows,
+      total: parseInt(countRow?.c || '0')
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 16. PLATFORM SOLVENCY & CASH RESERVE RECONCILER
+// ============================================================
+router.get('/finance/reserves', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { totalCash, totalLiability, totalUsedMargin } = await VirtualWalletLedger.getPlatformTotalLiability();
+    
+    // Get latest recorded platform bank reserve snapshot
+    const latestSnapshot = await queryOne<any>(
+      'SELECT * FROM platform_reserves ORDER BY created_at DESC LIMIT 1'
+    );
+
+    const bankReserve = latestSnapshot ? parseFloat(latestSnapshot.bank_cash_reserve) : totalCash;
+    const reserveRatio = totalLiability > 0 ? (bankReserve / totalLiability) : 1.0;
+    const status = reserveRatio >= 1.0 ? 'HEALTHY' : (reserveRatio >= 0.8 ? 'WARNING' : 'DEFICIT');
+
+    res.json({
+      success: true,
+      solvency: {
+        totalUserCashBalance: totalCash,
+        totalUsedMargin,
+        totalWithdrawableLiabilities: totalLiability,
+        bankCashReserve: bankReserve,
+        reserveRatio: Number(reserveRatio.toFixed(4)),
+        status,
+        lastReconciledAt: latestSnapshot?.created_at || null,
+        reconciledBy: latestSnapshot?.reconciled_by || null,
+        notes: latestSnapshot?.notes || null
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/finance/reserves/reconcile', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { bankCashReserve, notes } = req.body;
+    const bankReserveNum = parseFloat(bankCashReserve);
+    if (isNaN(bankReserveNum) || bankReserveNum < 0) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Bank cash reserve must be a valid non-negative number' } });
+      return;
+    }
+
+    const { totalLiability, totalCash } = await VirtualWalletLedger.getPlatformTotalLiability();
+    const reserveRatio = totalLiability > 0 ? (bankReserveNum / totalLiability) : 1.0;
+    const status = reserveRatio >= 1.0 ? 'HEALTHY' : (reserveRatio >= 0.8 ? 'WARNING' : 'DEFICIT');
+
+    const id = 'res_' + generateUUID();
+    await execute(
+      `INSERT INTO platform_reserves (id, bank_cash_reserve, total_user_liabilities, reserve_ratio, status, reconciled_by, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [id, bankReserveNum, totalLiability, reserveRatio, status, req.user!.userId, notes || null]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'RECONCILE_RESERVES', 'FINANCE', id,
+      null, { bankReserveNum, totalLiability, reserveRatio, status }, getClientIp(req)
+    );
+
+    res.json({
+      success: true,
+      message: `Platform reserves reconciled successfully. Solvency status: ${status} (Reserve ratio: ${(reserveRatio * 100).toFixed(1)}%).`,
+      solvency: {
+        bankCashReserve: bankReserveNum,
+        totalWithdrawableLiabilities: totalLiability,
+        reserveRatio: Number(reserveRatio.toFixed(4)),
+        status
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 17. MANAGER HIERARCHY & CAPACITY CONTROLS
+// ============================================================
+router.get('/managers', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const managers = await query<any>(
+      `SELECT u.id, u.username, u.email, u.role, u.status, u.created_at,
+              COALESCE(ml.max_users, 100) as max_users,
+              COALESCE(ml.max_exposure_per_user, 1000000) as max_exposure_per_user,
+              COALESCE(ml.max_deposit_approval, 50000) as max_deposit_approval,
+              COALESCE(ml.max_withdrawal_approval, 25000) as max_withdrawal_approval,
+              COUNT(ma.user_id) as assigned_users_count
+       FROM users u
+       LEFT JOIN manager_limits ml ON u.id = ml.manager_id
+       LEFT JOIN manager_assignments ma ON u.id = ma.manager_id
+       WHERE u.role IN ('ADMIN', 'OPERATIONS_MANAGER', 'RISK_MANAGER', 'FINANCE_MANAGER', 'SUPPORT_AGENT')
+       GROUP BY u.id, ml.max_users, ml.max_exposure_per_user, ml.max_deposit_approval, ml.max_withdrawal_approval
+       ORDER BY u.created_at ASC`
+    );
+
+    res.json({ success: true, managers });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/managers/assign', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { managerId, userId } = req.body;
+    if (!managerId || !userId) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'managerId and userId are required' } });
+      return;
+    }
+
+    const id = 'asgn_' + generateUUID();
+    await execute(
+      `INSERT INTO manager_assignments (id, manager_id, user_id, assigned_by)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (manager_id, user_id) DO NOTHING`,
+      [id, managerId, userId, req.user!.userId]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ASSIGN_USER_TO_MANAGER', 'USER', userId,
+      null, { managerId, userId }, getClientIp(req)
+    );
+
+    res.json({ success: true, message: 'User assigned to manager successfully.' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
