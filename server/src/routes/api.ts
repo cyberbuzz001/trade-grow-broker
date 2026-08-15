@@ -1312,9 +1312,13 @@ router.post(
   authenticateToken,
   kycUpload.fields([
     { name: 'panDoc', maxCount: 1 },
+    { name: 'panDocument', maxCount: 1 },
     { name: 'aadhaarFrontDoc', maxCount: 1 },
+    { name: 'aadhaarFront', maxCount: 1 },
     { name: 'aadhaarBackDoc', maxCount: 1 },
-    { name: 'bankProofDoc', maxCount: 1 }
+    { name: 'aadhaarBack', maxCount: 1 },
+    { name: 'bankProofDoc', maxCount: 1 },
+    { name: 'bankProof', maxCount: 1 }
   ]),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -1355,21 +1359,33 @@ router.post(
 
       // Record uploaded document entries
       if (files) {
-        const docTypes = [
-          { field: 'panDoc', type: 'PAN_CARD' },
-          { field: 'aadhaarFrontDoc', type: 'AADHAAR_FRONT' },
-          { field: 'aadhaarBackDoc', type: 'AADHAAR_BACK' },
-          { field: 'bankProofDoc', type: 'BANK_PROOF' }
+        const docConfigs = [
+          { keys: ['panDoc', 'panDocument'], type: 'PAN_CARD' },
+          { keys: ['aadhaarFrontDoc', 'aadhaarFront'], type: 'AADHAAR_FRONT' },
+          { keys: ['aadhaarBackDoc', 'aadhaarBack'], type: 'AADHAAR_BACK' },
+          { keys: ['bankProofDoc', 'bankProof'], type: 'BANK_PROOF' }
         ];
 
-        for (const item of docTypes) {
-          const fileArr = files[item.field];
-          if (fileArr && fileArr.length > 0) {
-            const f = fileArr[0];
+        for (const item of docConfigs) {
+          let fileObj: Express.Multer.File | undefined;
+          for (const k of item.keys) {
+            if (files[k] && files[k].length > 0) {
+              fileObj = files[k][0];
+              break;
+            }
+          }
+
+          if (fileObj) {
+            // Remove previous document of this type for this application before inserting the updated one
+            await execute(
+              `DELETE FROM kyc_documents WHERE kyc_application_id = $1 AND document_type = $2`,
+              [appId, item.type]
+            );
+
             await execute(
               `INSERT INTO kyc_documents (id, kyc_application_id, document_type, file_path, original_filename, mime_type, file_size)
                VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-              ['doc_' + generateUUID(), appId, item.type, f.path, f.originalname, f.mimetype, f.size]
+              ['doc_' + generateUUID(), appId, item.type, fileObj.path, fileObj.originalname, fileObj.mimetype, fileObj.size]
             );
           }
         }
@@ -1379,7 +1395,8 @@ router.post(
 
       res.json({ success: true, message: 'KYC application and documents submitted successfully for review.' });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+      console.error('[KYC Submit Error]', err);
+      res.status(500).json({ success: false, error: { message: err.message || 'Internal server error while submitting KYC' } });
     }
   }
 );

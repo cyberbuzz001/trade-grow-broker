@@ -88,6 +88,25 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use('/api/v1', apiRouter);
 app.use('/api/v1/admin', adminApiRouter);
 
+// Global JSON error handler for all /api routes (Multer errors, parse errors, uncaught errors)
+app.use('/api', (err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err) {
+    console.error('[API Handler Error]', err.message || err);
+    if (res.headersSent) {
+      return next(err);
+    }
+    const statusCode = err.status || err.statusCode || (err.name === 'MulterError' ? 400 : 500);
+    return res.status(statusCode).json({
+      success: false,
+      error: {
+        code: err.code || (err.name === 'MulterError' ? 'UPLOAD_ERROR' : 'INTERNAL_ERROR'),
+        message: err.message || 'An unexpected error occurred during request processing'
+      }
+    });
+  }
+  next();
+});
+
 // ============================================================
 // Startup: DB Init, Market Data Engine, Execution Engine
 // ============================================================

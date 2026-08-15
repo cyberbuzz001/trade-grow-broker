@@ -149,26 +149,47 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
     formData.append('bankIfsc', bankIfsc);
     formData.append('bankName', bankName);
 
-    if (panFile) formData.append('panDocument', panFile);
-    if (aadhaarFrontFile) formData.append('aadhaarFront', aadhaarFrontFile);
-    if (aadhaarBackFile) formData.append('aadhaarBack', aadhaarBackFile);
-    if (bankProofFile) formData.append('bankProof', bankProofFile);
+    if (panFile) {
+      formData.append('panDoc', panFile);
+      formData.append('panDocument', panFile);
+    }
+    if (aadhaarFrontFile) {
+      formData.append('aadhaarFrontDoc', aadhaarFrontFile);
+      formData.append('aadhaarFront', aadhaarFrontFile);
+    }
+    if (aadhaarBackFile) {
+      formData.append('aadhaarBackDoc', aadhaarBackFile);
+      formData.append('aadhaarBack', aadhaarBackFile);
+    }
+    if (bankProofFile) {
+      formData.append('bankProofDoc', bankProofFile);
+      formData.append('bankProof', bankProofFile);
+    }
 
     try {
       const res = await fetchWithAuth('/api/v1/kyc/submit', {
         method: 'POST',
         body: formData,
       });
-      const data = await res.json();
+
+      let data: any = {};
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        data = { success: res.ok, error: { message: text || `Server responded with status ${res.status}` } };
+      }
+
       if (data.success) {
         setKycMessage({ type: 'success', text: data.message || 'KYC application submitted successfully!' });
         setKycStatus('SUBMITTED');
         fetchKycStatus();
       } else {
-        setKycMessage({ type: 'error', text: data.error?.message || 'Failed to submit KYC application' });
+        setKycMessage({ type: 'error', text: data.error?.message || data.message || 'Failed to submit KYC application' });
       }
     } catch (err: any) {
-      setKycMessage({ type: 'error', text: err.message });
+      setKycMessage({ type: 'error', text: err.message || 'Network error while submitting KYC' });
     } finally {
       setSubmittingKyc(false);
     }

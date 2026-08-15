@@ -157,7 +157,7 @@ export const KYCQueue: React.FC<KYCQueueProps> = ({ token }) => {
                       app.documents.map((doc: any) => (
                         <a
                           key={doc.id}
-                          href={`/api/v1/admin/kyc/documents/${doc.id}/download`}
+                          href={`/api/v1/admin/kyc/documents/${doc.id}/download?token=${encodeURIComponent(token)}`}
                           target="_blank"
                           rel="noreferrer"
                           className="px-2 py-1 rounded bg-slate-950 border border-slate-800 hover:border-teal-500 text-teal-400 text-[10px] font-bold inline-flex items-center gap-1 transition-colors"
