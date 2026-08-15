@@ -19,7 +19,9 @@ import {
   UploadCloud,
   Sparkles,
   KeyRound,
-  ShieldAlert
+  ShieldAlert,
+  ArrowUpRight,
+  ArrowDownLeft
 } from 'lucide-react';
 import { User, Wallet } from '../types';
 
@@ -231,6 +233,73 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
       setSecurityMsg({ type: 'error', text: err.message });
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  // ============================================================
+  // 4. WITHDRAWAL & PAYOUTS STATE
+  // ============================================================
+  const [withdrawAmount, setWithdrawAmount] = useState<number>(5000);
+  const [withdrawMethod, setWithdrawMethod] = useState<string>('BANK_TRANSFER');
+  const [withdrawNote, setWithdrawNote] = useState<string>('');
+  const [submittingWithdraw, setSubmittingWithdraw] = useState<boolean>(false);
+  const [withdrawMsg, setWithdrawMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [payoutHistory, setPayoutHistory] = useState<any[]>([]);
+
+  const availableBalance = wallet?.buyingPower ?? wallet?.cashBalance ?? 0;
+
+  const fetchPayoutHistory = async () => {
+    try {
+      const res = await fetchWithAuth('/api/v1/funds/my-requests');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.requests)) {
+        setPayoutHistory(data.requests);
+      }
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    if (activeTab === 'BANK') {
+      fetchPayoutHistory();
+    }
+  }, [activeTab]);
+
+  const handleWithdrawalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (withdrawAmount <= 0) {
+      setWithdrawMsg({ type: 'error', text: 'Withdrawal amount must be greater than ₹0' });
+      return;
+    }
+    if (withdrawAmount > availableBalance) {
+      setWithdrawMsg({ type: 'error', text: `Insufficient available funds. Maximum withdrawable: ₹${availableBalance.toLocaleString('en-IN')}` });
+      return;
+    }
+
+    setSubmittingWithdraw(true);
+    setWithdrawMsg(null);
+    try {
+      const res = await fetchWithAuth('/api/v1/funds/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestType: 'WITHDRAWAL',
+          amount: withdrawAmount,
+          paymentMethod: withdrawMethod,
+          referenceNote: withdrawNote.trim() || `Bank Payout to ${bankName || 'Linked Bank'}`
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWithdrawMsg({ type: 'success', text: data.message || 'Withdrawal request submitted successfully for Admin approval!' });
+        fetchPayoutHistory();
+        if (onRefreshWallet) onRefreshWallet();
+      } else {
+        setWithdrawMsg({ type: 'error', text: data.error?.message || data.message || 'Failed to submit withdrawal request' });
+      }
+    } catch (err: any) {
+      setWithdrawMsg({ type: 'error', text: err.message || 'Network error while submitting withdrawal' });
+    } finally {
+      setSubmittingWithdraw(false);
     }
   };
 
@@ -625,6 +694,166 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
               </div>
               <span className="text-xs font-bold text-white">Update Linked Bank via KYC</span>
               <span className="text-[10px] text-slate-400">Requires verified bank cheque/statement upload</span>
+            </div>
+          </div>
+
+          {/* WITHDRAWAL / PAYOUT REQUEST FORM */}
+          <div className="p-6 rounded-3xl bg-slate-950/70 border border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <ArrowUpRight className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Request Fund Withdrawal / Payout</h4>
+                  <p className="text-[11px] text-slate-400">Funds will be credited directly to your primary verified bank account.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Withdrawable:</span>
+                <span className="text-xs font-mono font-black text-emerald-400">₹{availableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleWithdrawalSubmit} className="space-y-4">
+              {/* Presets */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Select Withdrawal Amount (₹)</label>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {[500, 1000, 5000, 10000, 25000].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setWithdrawAmount(preset)}
+                      className={`py-2 rounded-xl text-xs font-mono font-bold transition border cursor-pointer ${
+                        withdrawAmount === preset
+                          ? 'bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-500/20'
+                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      ₹{preset >= 1000 ? `${preset / 1000}k` : preset}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawAmount(Math.floor(availableBalance))}
+                    disabled={availableBalance <= 0}
+                    className="py-2 rounded-xl text-xs font-mono font-bold bg-slate-900 border border-slate-800 text-emerald-400 hover:bg-slate-800 transition cursor-pointer disabled:opacity-40"
+                  >
+                    Max
+                  </button>
+                </div>
+
+                <div className="relative mt-2">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    min="100"
+                    step="100"
+                    value={withdrawAmount}
+                    onChange={e => setWithdrawAmount(Math.max(100, parseFloat(e.target.value) || 0))}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-white font-mono font-extrabold text-sm focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              {/* Payout Channel & Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Payout Channel</label>
+                  <select
+                    value={withdrawMethod}
+                    onChange={e => setWithdrawMethod(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-white text-xs font-bold focus:outline-none focus:border-rose-500"
+                  >
+                    <option value="BANK_TRANSFER">Bank IMPS / NEFT Transfer</option>
+                    <option value="UPI">UPI Instant Payout</option>
+                    <option value="WALLET">Digital Wallet Payout</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Payout Reference / Note (Optional)</label>
+                  <input
+                    type="text"
+                    value={withdrawNote}
+                    onChange={e => setWithdrawNote(e.target.value)}
+                    placeholder="e.g. Account Number / Specific remarks"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              {withdrawMsg && (
+                <div className={`p-3.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                  withdrawMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                }`}>
+                  {withdrawMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  {withdrawMsg.text}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submittingWithdraw || withdrawAmount <= 0 || withdrawAmount > availableBalance}
+                className="w-full py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-rose-500/20 cursor-pointer"
+              >
+                {submittingWithdraw ? (
+                  <span>Processing Withdrawal Request...</span>
+                ) : (
+                  <span>Submit ₹{withdrawAmount.toLocaleString('en-IN')} Withdrawal Request for Admin Approval</span>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* PAYOUT HISTORY TRACKER */}
+          <div className="p-6 rounded-3xl bg-slate-950/70 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-400" /> Withdrawal & Payout History
+              </h4>
+              <span className="text-[10px] font-mono text-slate-400">Total: {payoutHistory.filter(r => (r.request_type || '').toUpperCase() === 'WITHDRAWAL').length}</span>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-800">
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-bold">
+                  <tr>
+                    <th className="py-2 px-3">Req ID</th>
+                    <th className="py-2 px-3 text-right">Amount</th>
+                    <th className="py-2 px-3">Payout Method</th>
+                    <th className="py-2 px-3">Status</th>
+                    <th className="py-2 px-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800 bg-slate-950">
+                  {payoutHistory.filter(r => (r.request_type || '').toUpperCase() === 'WITHDRAWAL').map((r: any) => (
+                    <tr key={r.id} className="hover:bg-slate-900/60 transition">
+                      <td className="py-2 px-3 font-mono font-bold text-white">{r.request_id}</td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-rose-400">
+                        -₹{parseFloat(r.amount).toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-2 px-3 text-[11px] font-semibold text-slate-400">{r.payment_method}</td>
+                      <td className="py-2 px-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 w-fit ${
+                          r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                          r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
+                          'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
+                        }`}>
+                          {r.status === 'APPROVED' ? 'APPROVED' : r.status === 'REJECTED' ? 'REJECTED' : 'PENDING APPROVAL'}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-[10px] font-mono text-slate-500">{new Date(r.created_at).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                  {payoutHistory.filter(r => (r.request_type || '').toUpperCase() === 'WITHDRAWAL').length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-slate-500 text-xs">No withdrawal requests recorded yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

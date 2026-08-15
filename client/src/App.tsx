@@ -463,6 +463,7 @@ export function App() {
         {user && (
           <LinkPeAddFundsModal
             token={token}
+            wallet={wallet}
             isOpen={isLinkPeModalOpen}
             onClose={() => setIsLinkPeModalOpen(false)}
             onRefreshWallet={fetchWallet}
