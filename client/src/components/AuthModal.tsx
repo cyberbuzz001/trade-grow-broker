@@ -16,8 +16,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     e.preventDefault();
     setError(null);
 
+    const normEmail = email.trim().toLowerCase();
+    const normUsername = username.trim();
+
     const endpoint = isLogin ? '/api/v1/auth/login' : '/api/v1/auth/register';
-    const body = isLogin ? { email, password } : { username, email, password };
+    const body = isLogin ? { email: normEmail, password } : { username: normUsername, email: normEmail, password };
 
     fetch(endpoint, {
       method: 'POST',

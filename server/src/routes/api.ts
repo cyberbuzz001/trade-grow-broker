@@ -24,6 +24,7 @@ import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { checkDatabaseHealth } from '../db/pool';
 import { kycUpload } from '../middleware/upload';
+import { ClientCreationService } from '../services/ClientCreationService';
 
 /** Helper to safely extract client IP address from request */
 function getClientIp(req: Request): string {
@@ -67,16 +68,17 @@ const apiLimiter = rateLimit({
 router.use(apiLimiter);
 
 // ============================================================
-// 1. HEALTH & SYSTEM STATUS
+// 1. HEALTH & SYSTEM INFO
 // ============================================================
-router.get('/health', async (req, res) => {
+router.get('/health', async (req: Request, res: Response) => {
   const dbHealth = await checkDatabaseHealth();
   const mdProvider = MarketDataEngine.getInstance().getActiveProviderName();
-
-  res.status(dbHealth.healthy ? 200 : 503).json({
-    status: dbHealth.healthy ? 'UP' : 'DEGRADED',
+  res.json({
+    status: dbHealth.healthy ? 'HEALTHY' : 'DEGRADED',
     timestamp: new Date().toISOString(),
-    simulationOnly: true,
+    service: 'StockSharp Trading API',
+    version: '1.0.0',
+    uptimeSeconds: Math.floor(process.uptime()),
     realMoneyTradingAllowed: SafetyLock.REAL_MONEY_TRADING_ALLOWED,
     marketDataProvider: mdProvider,
     database: { healthy: dbHealth.healthy, latencyMs: dbHealth.latencyMs, error: dbHealth.error }
@@ -102,44 +104,31 @@ router.post('/auth/register', authLimiter, validateBody(RegisterSchema), async (
   try {
     const { username, email, password } = req.body;
 
-    // Check duplicates
-    const existing = await queryOne<any>(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
-      [email, username]
-    );
-    if (existing) {
-      res.status(400).json({ success: false, error: { code: 'USER_EXISTS', message: 'Username or email already registered' } });
+    const result = await ClientCreationService.createClient({
+      username,
+      email,
+      password,
+      role: 'USER',
+      creatorIp: getClientIp(req)
+    });
+
+    if (!result.success || !result.user) {
+      const statusCode = result.error?.code?.startsWith('DUPLICATE_') ? 409 : 400;
+      res.status(statusCode).json({
+        success: false,
+        error: result.error
+      });
       return;
     }
 
-    const userId       = 'usr_' + generateUUID();
-    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-    const defaultCapital = 0.0;
+    const newUser = {
+      id: result.user.id,
+      clientId: result.user.clientId,
+      username: result.user.username,
+      email: result.user.email,
+      role: result.user.role
+    };
 
-    // Create user + wallet + ledger + watchlist atomically
-    await execute(
-      'INSERT INTO users (id, username, email, password_hash, role) VALUES ($1, $2, $3, $4, $5)',
-      [userId, username, email, passwordHash, 'USER']
-    );
-    await execute(
-      'INSERT INTO virtual_wallets (id, user_id, cash_balance) VALUES ($1, $2, $3)',
-      ['wal_' + generateUUID(), userId, defaultCapital]
-    );
-    await execute(
-      `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, created_by, metadata)
-       VALUES ($1, $2, $3, 'CREDIT', $4, 0.0, $5, 'REGISTRATION', $6)`,
-      ['led_' + generateUUID(), generateUUID(), userId, defaultCapital, defaultCapital,
-       JSON.stringify({ reason: 'New Account Registration Zero Initial Balance' })]
-    );
-
-    const wlId = 'wl_' + generateUUID();
-    await execute('INSERT INTO watchlists (id, user_id, name, is_default) VALUES ($1, $2, $3, TRUE)', [wlId, userId, 'Default Watchlist']);
-    await execute(
-      'INSERT INTO watchlist_items (id, watchlist_id, instrument_token, symbol, exchange, sort_order) VALUES ($1, $2, $3, $4, $5, 0)',
-      ['wli_' + generateUUID(), wlId, 'NSE_NIFTY50', 'NIFTY 50', 'NSE']
-    );
-
-    const newUser = { id: userId, username, email, role: 'USER' };
     const token = jwt.sign(newUser, getJwtSecret(), { expiresIn: '24h' });
     const refreshToken = jwt.sign(newUser, getRefreshSecret(), { expiresIn: '30d' });
 
@@ -157,9 +146,16 @@ router.post('/auth/register', authLimiter, validateBody(RegisterSchema), async (
 router.post('/auth/login', authLimiter, validateBody(LoginSchema), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    const normIdentifier = (email || '').trim();
+
+    // Support login by normalized email, normalized username, or uppercase client_id
     const user = await queryOne<any>(
-      'SELECT * FROM users WHERE email = $1 OR username = $1',
-      [email]
+      `SELECT * FROM users 
+       WHERE LOWER(TRIM(email)) = LOWER($1) 
+          OR LOWER(TRIM(username)) = LOWER($1)
+          OR UPPER(TRIM(client_id)) = UPPER($1)
+       LIMIT 1`,
+      [normIdentifier]
     );
 
     if (!user) {

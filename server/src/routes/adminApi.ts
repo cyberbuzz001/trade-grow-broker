@@ -11,6 +11,7 @@ import { redis } from '../db/redis';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { updateDhanToken, getTokenExpiryMinutes, setDhanAdapterRef } from '../utils/dhanTokenRefresh';
+import { ClientCreationService } from '../services/ClientCreationService';
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
@@ -62,44 +63,43 @@ router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), as
 
     res.json({
       success: true,
-      kpis: {
+      data: {
+        timestamp: new Date().toISOString(),
         customers: {
           total: parseInt(totalUsersRow?.c || '0'),
           active: parseInt(activeUsersRow?.c || '0'),
-          new: parseInt(newUsersRow?.c || '0'),
+          newLast30Days: parseInt(newUsersRow?.c || '0'),
+          suspended: parseInt(suspendedRow?.c || '0'),
+          frozen: parseInt(frozenRow?.c || '0'),
           kycPending: parseInt(kycPendingRow?.c || '0'),
-          kycRejected: parseInt(kycRejectedRow?.c || '0'),
-          suspended: parseInt(suspendedRow?.c || '0')
+          kycRejected: parseInt(kycRejectedRow?.c || '0')
         },
         trading: {
           ordersToday: parseInt(ordersRow?.c || '0'),
           tradesToday: parseInt(tradesRow?.c || '0'),
-          turnover: parseFloat(turnoverRow?.s || '0'),
-          buyValue: parseFloat(buyValueRow?.s || '0'),
-          sellValue: parseFloat(sellValueRow?.s || '0'),
-          activeTraders: parseInt(activeTradersRow?.c || '0')
+          totalTrades: parseInt(turnoverRow?.c || '0'),
+          activeTradersToday: parseInt(activeTradersRow?.c || '0'),
+          totalTurnover: parseFloat(buyValueRow?.s || '0') + parseFloat(sellValueRow?.s || '0'),
+          buyTurnover: parseFloat(buyValueRow?.s || '0'),
+          sellTurnover: parseFloat(sellValueRow?.s || '0')
         },
-        financial: {
-          totalFunds: parseFloat(totalFundsRow?.s || '0'),
-          marginUtilized: parseFloat(marginRow?.s || '0'),
-          brokerage: parseFloat(brokerageRow?.s || '0'),
-          pendingWithdrawals: parseInt(pendingWithdrawalsRow?.c || '0')
+        financials: {
+          totalFundsUnderCustody: parseFloat(totalFundsRow?.s || '0'),
+          totalMarginUtilized: parseFloat(marginRow?.s || '0'),
+          totalBrokerageEarned: parseFloat(brokerageRow?.s || '0'),
+          pendingWithdrawalsCount: parseInt(pendingWithdrawalsRow?.c || '0')
         },
         risk: {
-          highRiskClients: parseInt(highRiskRow?.c || '0'),
+          highRiskEvents: parseInt(highRiskRow?.c || '0'),
           marginAlerts: parseInt(marginAlertsRow?.c || '0'),
-          rmsBlocks: parseInt(rmsBlocksRow?.c || '0'),
-          frozenAccounts: parseInt(frozenRow?.c || '0')
+          rmsBlocks: parseInt(rmsBlocksRow?.c || '0')
         },
-        technology: {
-          apiStatus: 'OPERATIONAL',
-          wsStatus: 'OPERATIONAL',
-          brokerStatus: mdProvider !== 'MOCK' ? 'CONNECTED' : 'DISCONNECTED',
-          marketDataStatus: mdProvider !== 'MOCK' ? 'LIVE' : 'MOCK',
-          omsStatus: 'OPERATIONAL',
-          rmsStatus: 'OPERATIONAL',
-          databaseHealth: dbHealth.healthy ? 'HEALTHY' : 'DEGRADED',
-          databaseLatencyMs: dbHealth.latencyMs
+        system: {
+          databaseHealthy: dbHealth.healthy,
+          databaseLatencyMs: dbHealth.latencyMs,
+          marketDataProvider: mdProvider,
+          activeFeeds: 13,
+          realMoneyAllowed: SafetyLock.REAL_MONEY_TRADING_ALLOWED
         }
       }
     });
@@ -123,7 +123,7 @@ router.get('/customers', authenticateToken, checkRole(ADMIN_ROLES), async (req: 
   let paramIdx = 1;
 
   if (search) {
-    where += ` AND (u.username ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR u.id ILIKE $${paramIdx})`;
+    where += ` AND (u.username ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR u.id ILIKE $${paramIdx} OR u.client_id ILIKE $${paramIdx})`;
     params.push(`%${search}%`);
     paramIdx++;
   }
@@ -140,7 +140,7 @@ router.get('/customers', authenticateToken, checkRole(ADMIN_ROLES), async (req: 
 
   const countRow = await queryOne<any>(`SELECT COUNT(*) as c FROM users u ${where}`, params);
   const users = await query(
-    `SELECT u.id, u.username, u.email, u.role, u.status, u.created_at, u.last_login_at, u.failed_login_attempts,
+    `SELECT u.id, u.client_id, u.username, u.email, u.full_name, u.phone_number, u.role, u.status, u.created_at, u.last_login_at, u.failed_login_attempts,
             w.cash_balance, w.used_margin,
             (SELECT kyc_status FROM kyc_records WHERE customer_id = u.id ORDER BY created_at DESC LIMIT 1) as kyc_status
      FROM users u
@@ -151,6 +151,101 @@ router.get('/customers', authenticateToken, checkRole(ADMIN_ROLES), async (req: 
   );
 
   res.json({ success: true, customers: users, total: parseInt(countRow?.c || '0'), pagination: { limit, offset } });
+});
+
+// Real-Time Duplicate Identity Checker API
+router.get('/customers/check-duplicate', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const email = req.query.email as string || '';
+    const username = req.query.username as string || '';
+    const clientId = req.query.clientId as string || '';
+    const excludeUserId = req.query.excludeUserId as string || '';
+
+    const result = await ClientCreationService.checkDuplicate({ email, username, clientId, excludeUserId });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// Admin Add Customer / Create Client API
+router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { username, email, password, role, clientId, fullName, phoneNumber, initialCapital, city, address } = req.body;
+
+    const result = await ClientCreationService.createClient({
+      username,
+      email,
+      password,
+      role: role || 'USER',
+      clientId,
+      fullName,
+      phoneNumber,
+      city,
+      address,
+      initialCapital: parseFloat(initialCapital) || 0.0,
+      creatorId: req.user!.userId,
+      creatorRole: req.user!.role,
+      creatorIp: getClientIp(req)
+    });
+
+    if (!result.success || !result.user) {
+      const statusCode = result.error?.code?.startsWith('DUPLICATE_') ? 409 : 400;
+      res.status(statusCode).json({ success: false, error: result.error });
+      return;
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Customer ${result.user.username} (Client ID: ${result.user.clientId}) created successfully.`,
+      user: result.user
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// Scan Database for Duplicate Identities (Email, Phone, PAN)
+router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // 1. Find users with identical normalized emails (if any)
+    const emailDups = await query<any>(
+      `SELECT LOWER(TRIM(email)) as norm_email, COUNT(*) as count, ARRAY_AGG(id) as user_ids, ARRAY_AGG(username) as usernames, ARRAY_AGG(client_id) as client_ids
+       FROM users
+       GROUP BY LOWER(TRIM(email))
+       HAVING COUNT(*) > 1`
+    );
+
+    // 2. Find users with identical phone numbers (if populated)
+    const phoneDups = await query<any>(
+      `SELECT phone_number, COUNT(*) as count, ARRAY_AGG(id) as user_ids, ARRAY_AGG(username) as usernames, ARRAY_AGG(client_id) as client_ids
+       FROM users
+       WHERE phone_number IS NOT NULL AND phone_number != ''
+       GROUP BY phone_number
+       HAVING COUNT(*) > 1`
+    );
+
+    // 3. Find users with identical PAN in KYC records
+    const panDups = await query<any>(
+      `SELECT pan_number, COUNT(*) as count, ARRAY_AGG(customer_id) as user_ids
+       FROM kyc_records
+       WHERE pan_number IS NOT NULL AND pan_number != ''
+       GROUP BY pan_number
+       HAVING COUNT(*) > 1`
+    );
+
+    res.json({
+      success: true,
+      duplicates: {
+        byEmail: emailDups,
+        byPhone: phoneDups,
+        byPan: panDups,
+        totalFlaggedGroups: emailDups.length + phoneDups.length + panDups.length
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
 });
 
 router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
