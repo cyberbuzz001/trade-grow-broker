@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import argon2 from 'argon2';
 import { authenticateToken, checkRole, AuthenticatedRequest } from '../middleware/auth';
 import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { logAuditAction } from '../middleware/audit';
@@ -188,6 +189,53 @@ router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMI
   await execute("UPDATE users SET status = 'ACTIVE', updated_at = NOW() WHERE id = $1", [targetId]);
   await logAuditAction(req.user!.userId, req.user!.role, 'UNFREEZE_ACCOUNT', 'USER', targetId, null, { reason }, getClientIp(req));
   res.json({ success: true, message: 'Account unfrozen' });
+});
+
+router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const targetUserId = req.params.id as string;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_PASSWORD', message: 'New password must be at least 6 characters long' } });
+      return;
+    }
+
+    const targetUser = await queryOne<any>('SELECT id, username, email, role FROM users WHERE id = $1', [targetUserId]);
+    if (!targetUser) {
+      res.status(404).json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'Target user not found' } });
+      return;
+    }
+
+    // Hash password with Argon2
+    const passwordHash = await argon2.hash(newPassword);
+
+    await execute(
+      `UPDATE users 
+       SET password_hash = $1, failed_login_attempts = 0, updated_at = NOW() 
+       WHERE id = $2`,
+      [passwordHash, targetUserId]
+    );
+
+    await logAuditAction(
+      req.user!.userId,
+      req.user!.role,
+      'ADMIN_RESET_PASSWORD',
+      'USER',
+      targetUserId,
+      null,
+      { targetUsername: targetUser.username, targetEmail: targetUser.email },
+      getClientIp(req)
+    );
+
+    res.json({
+      success: true,
+      message: `Password successfully reset for user ${targetUser.username} (${targetUser.email}).`
+    });
+  } catch (err: any) {
+    console.error('[Admin Reset Password Error]', err);
+    res.status(500).json({ success: false, error: { message: err.message || 'Failed to reset user password' } });
+  }
 });
 
 // ============================================================

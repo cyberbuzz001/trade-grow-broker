@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, Shield, Briefcase, FileText, DollarSign, Activity, Clock, PlusCircle, Edit2, XCircle, Play, CheckCircle } from 'lucide-react';
+import { ArrowLeft, User, Shield, Briefcase, FileText, DollarSign, Activity, Clock, PlusCircle, Edit2, XCircle, Play, CheckCircle, KeyRound, Copy, Check, RefreshCw, X, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface Customer360Props {
   token: string;
@@ -18,6 +18,55 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
   const [fundAction, setFundAction] = useState<'ADD' | 'DEDUCT'>('ADD');
   const [fundReason, setFundReason] = useState<string>('Admin Manual Capital Adjustment');
   const [submittingFunds, setSubmittingFunds] = useState(false);
+
+  // Reset Password State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [submittingPassword, setSubmittingPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+    let pwd = 'TG@';
+    for (let i = 0; i < 8; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(pwd);
+    setCopied(false);
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters long' });
+      return;
+    }
+
+    setSubmittingPassword(true);
+    setPasswordMsg(null);
+
+    try {
+      const res = await fetch(`/api/v1/admin/customers/${customerId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setPasswordMsg({ type: 'success', text: d.message || 'Password successfully reset!' });
+      } else {
+        setPasswordMsg({ type: 'error', text: d.error?.message || d.message || 'Failed to reset password' });
+      }
+    } catch (err: any) {
+      setPasswordMsg({ type: 'error', text: err.message || 'Network error while resetting password' });
+    } finally {
+      setSubmittingPassword(false);
+    }
+  };
 
   const fetchCustomerData = () => {
     fetch(`/api/v1/admin/customers/${customerId}`, {
@@ -211,10 +260,18 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
           <span className="text-[10px] text-slate-500 font-mono">User ID: {data.profile.id}</span>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2.5">
+          <button
+            onClick={() => { setShowPasswordModal(true); setNewPassword(''); setPasswordMsg(null); setCopied(false); }}
+            className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Reset Password</span>
+          </button>
+
           <button
             onClick={() => setShowFundsModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow transition"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow transition cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>+ Add / Deduct Funds</span>
@@ -710,6 +767,115 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN RESET PASSWORD MODAL */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Reset Client Password</h3>
+                  <p className="text-[10px] text-slate-400">Set a new password for {data.profile.username}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Target User Info Card */}
+            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1 font-mono text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Client ID:</span>
+                <span className="text-emerald-400 font-bold">TG-{data.profile.id.slice(0, 8).toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Username:</span>
+                <span className="text-white font-bold">{data.profile.username}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Email:</span>
+                <span className="text-slate-300">{data.profile.email}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">New Password *</label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Auto-Generate Strong
+                  </button>
+                </div>
+                
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter new password (min 6 chars)"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500 pr-10"
+                  />
+                  {newPassword && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newPassword);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+                      title="Copy Password"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {passwordMsg && (
+                <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                  passwordMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                }`}>
+                  {passwordMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  {passwordMsg.text}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPassword || !newPassword || newPassword.length < 6}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs transition shadow-md shadow-amber-500/20 cursor-pointer"
+                >
+                  {submittingPassword ? 'Updating Password...' : 'Confirm Reset Password'}
+                </button>
+              </div>
+            </form>
+
           </div>
         </div>
       )}
