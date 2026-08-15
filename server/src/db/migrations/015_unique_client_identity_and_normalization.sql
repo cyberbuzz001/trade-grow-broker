@@ -48,6 +48,28 @@ END $$;
 UPDATE users SET email = LOWER(TRIM(email));
 UPDATE users SET username = TRIM(username);
 
+-- Disambiguate any existing duplicate usernames (case-insensitive) by appending unique suffix
+DO $$
+DECLARE
+    r RECORD;
+    i INTEGER := 1;
+BEGIN
+    FOR r IN (
+        SELECT LOWER(TRIM(username)) as norm_user, COUNT(*) 
+        FROM users 
+        GROUP BY LOWER(TRIM(username)) 
+        HAVING COUNT(*) > 1
+    ) LOOP
+        i := 1;
+        FOR r IN (SELECT id, username, client_id FROM users WHERE LOWER(TRIM(username)) = r.norm_user ORDER BY created_at ASC) LOOP
+            IF i > 1 THEN
+                UPDATE users SET username = username || '_' || SUBSTRING(client_id FROM 8) WHERE id = r.id;
+            END IF;
+            i := i + 1;
+        END LOOP;
+    END LOOP;
+END $$;
+
 -- 4. Create Unique Case-Insensitive & Trimmed Indexes on email and username
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_normalized_email ON users (LOWER(TRIM(email)));
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_normalized_username ON users (LOWER(TRIM(username)));
