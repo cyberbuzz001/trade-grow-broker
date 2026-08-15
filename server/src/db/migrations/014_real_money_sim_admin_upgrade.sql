@@ -87,9 +87,11 @@ BEGIN
     END IF;
 END $$;
 
--- Enforce unique reference note for completed deposits to prevent duplicate credits
+-- Enforce unique reference note for completed external deposits to prevent duplicate credits
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_deposit_ref ON fund_requests(payment_method, reference_note)
-WHERE request_type = 'DEPOSIT' AND status = 'APPROVED' AND reference_note IS NOT NULL AND reference_note != '';
+WHERE request_type = 'DEPOSIT' AND status = 'APPROVED' 
+  AND payment_method IN ('UPI', 'BANK_TRANSFER', 'LINKPE')
+  AND reference_note IS NOT NULL AND reference_note NOT IN ('', 'Admin Balance Adjustment', 'Admin Manual Capital Adjustment');
 
 -- 4. PLATFORM LIABILITY & CASH RESERVE MONITORING
 CREATE TABLE IF NOT EXISTS platform_reserves (
