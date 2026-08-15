@@ -518,7 +518,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-semibold"
                   >
                     <option value="USER">USER (Standard Client)</option>
-                    <option value="OPERATIONS_MANAGER">OPERATIONS_MANAGER</option>
+                    <option value="MANAGER">MANAGER</option>
                     <option value="RISK_MANAGER">RISK_MANAGER</option>
                     <option value="FINANCE_MANAGER">FINANCE_MANAGER</option>
                     <option value="ADMIN">ADMIN</option>

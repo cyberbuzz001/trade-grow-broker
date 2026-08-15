@@ -48,7 +48,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
   const username = user?.username || 'Trader';
   const email = user?.email || 'trader@tradegrow.sim';
   const role = user?.role || 'USER';
-  const isAdminStaff = ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT'].includes(role);
+  const isAdminStaff = ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(role);
 
   const availableBalance = wallet?.buyingPower ?? wallet?.cashBalance ?? 50000;
   const netWorth = (wallet?.cashBalance ?? 50000) + (wallet?.unrealizedPnl ?? 0);

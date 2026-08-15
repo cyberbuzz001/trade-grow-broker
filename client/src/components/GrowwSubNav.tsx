@@ -56,7 +56,7 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   const bankNiftyChg = formatChange(bankNiftyTick, -78.40, -0.15);
   const finNiftyChg = formatChange(finNiftyTick, 52.10, 0.22);
 
-  const isStaff = user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user.role);
+  const isStaff = user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user.role);
 
   const navItems: { id: SubView; label: string; icon: React.ReactNode; shortcut?: string }[] = [
     { id: 'EXPLORE', label: 'Explore', icon: <Compass className="w-3.5 h-3.5" />, shortcut: '1' },

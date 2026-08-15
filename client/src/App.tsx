@@ -178,7 +178,7 @@ export function App() {
 
             {activeMobileTab === 'ADMIN' && (
               <div className="p-2 pb-24">
-                {user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user.role) ? (
+                {user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user.role) ? (
                   <AdminPanel token={token} />
                 ) : (
                   <div className="p-4 text-center text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl border border-rose-500/20 my-8">
@@ -212,7 +212,7 @@ export function App() {
           <MobileBottomNav
             activeTab={activeMobileTab}
             onSelectTab={(tab) => setActiveMobileTab(tab)}
-            isAdmin={Boolean(user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER'].includes(user.role))}
+            isAdmin={Boolean(user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(user.role))}
           />
 
           {/* Mobile Order Confirmation Modal */}
@@ -399,7 +399,7 @@ export function App() {
                   )}
 
                   {activeSubView === 'ADMIN' && (
-                    user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST'].includes(user.role) ? (
+                    user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user.role) ? (
                       <AdminPanel token={token} />
                     ) : (
                       <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto my-12 space-y-4 shadow-xl">

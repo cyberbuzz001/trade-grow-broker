@@ -20,7 +20,7 @@ function getClientIp(req: Request): string {
 }
 
 const router = Router();
-const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'RISK_MANAGER', 'COMPLIANCE_OFFICER', 'FINANCE_MANAGER', 'KYC_OFFICER', 'SUPPORT_AGENT', 'READ_ONLY_AUDITOR'];
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RISK_MANAGER', 'FINANCE_MANAGER', 'KYC_OFFICER', 'READ_ONLY_AUDITOR'];
 
 // ============================================================
 // 1. EXECUTIVE DASHBOARD
@@ -169,7 +169,7 @@ router.get('/customers/check-duplicate', authenticateToken, checkRole(ADMIN_ROLE
 });
 
 // Admin Add Customer / Create Client API
-router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { username, email, password, role, clientId, fullName, phoneNumber, initialCapital, city, address } = req.body;
 
@@ -206,7 +206,7 @@ router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'A
 });
 
 // Scan Database for Duplicate Identities (Email, Phone, PAN)
-router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     // 1. Find users with identical normalized emails (if any)
     const emailDups = await query<any>(
@@ -286,7 +286,7 @@ router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMI
   res.json({ success: true, message: 'Account unfrozen' });
 });
 
-router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const targetUserId = req.params.id as string;
     const { newPassword } = req.body;
@@ -336,7 +336,7 @@ router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPE
 // ============================================================
 // 3. KYC MANAGEMENT
 // ============================================================
-router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'KYC_OFFICER', 'COMPLIANCE_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
   const status = req.query.status as string || '';
   let where = '';
   const params: any[] = [];
@@ -417,7 +417,7 @@ router.get('/orders/:id/events', authenticateToken, checkRole(ADMIN_ROLES), asyn
   res.json({ success: true, events });
 });
 
-router.post('/orders/:id/cancel', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/:id/cancel', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const orderId = req.params.id as string;
   await execute("UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE order_id = $1 AND status IN ('ACCEPTED','PENDING')", [orderId]);
@@ -543,7 +543,7 @@ router.get('/market/status', authenticateToken, checkRole(ADMIN_ROLES), async (r
 // ============================================================
 // 9. FUNDS OVERVIEW
 // ============================================================
-router.get('/funds/overview', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/funds/overview', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const [totalFunds, usedMargin, pendingRequests, recentTransactions] = await Promise.all([
     queryOne<any>('SELECT COALESCE(SUM(cash_balance), 0) as total, COALESCE(SUM(used_margin), 0) as margin FROM virtual_wallets'),
     queryOne<any>('SELECT COALESCE(SUM(used_margin), 0) as s FROM virtual_wallets WHERE used_margin > 0'),
@@ -567,7 +567,7 @@ router.get('/funds/overview', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
 // ============================================================
 // 9B. ADMIN FUND REQUEST APPROVAL / REJECTION API
 // ============================================================
-router.get('/funds/requests', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/funds/requests', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const statusFilter = req.query.status as string || '';
     let whereClause = '';
@@ -593,7 +593,7 @@ router.get('/funds/requests', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
   }
 });
 
-router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const reqId = id as string;
@@ -663,16 +663,24 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
           ]
         );
       } else if (request.request_type === 'WITHDRAWAL') {
-        // Multi-level approval check: high-value withdrawals (> ₹50,000) require SUPER_ADMIN or ADMIN
-        if (amount > 50000 && !['SUPER_ADMIN', 'ADMIN'].includes(actorRole)) {
-          // Escalate to TIER_2_SENIOR
+        // RBAC Multi-level approval check based on matrix limits
+        let canApprove = false;
+        
+        if (actorRole === 'SUPER_ADMIN') {
+          canApprove = true; // Unlimited
+        } else if (actorRole === 'ADMIN' || actorRole === 'FINANCE_MANAGER') {
+          if (amount <= 100000) canApprove = true;
+        }
+
+        if (!canApprove) {
+          // Escalate to TIER_2_SENIOR if they cannot approve it directly (e.g., MANAGER always escalates, ADMIN/FINANCE_MANAGER escalates > 100k)
           await client.query(
             `UPDATE fund_requests 
              SET review_tier = 'TIER_2_SENIOR', first_approved_by = $1, first_approved_at = NOW(), updated_at = NOW() 
              WHERE id = $2`,
             [actorId, request.id]
           );
-          return { escalated: true, message: `Withdrawal request of ₹${amount.toLocaleString('en-IN')} escalated to Senior Admin for secondary approval.` };
+          return { escalated: true, message: `Withdrawal request of ₹${amount.toLocaleString('en-IN')} escalated for Senior approval due to limits.` };
         }
 
         // Check withdrawable balance (Cash - Used Margin + min(0, Unrealized P&L))
@@ -740,7 +748,7 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
   }
 });
 
-router.post('/funds/requests/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/funds/requests/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const reqId = id as string;
@@ -1508,7 +1516,7 @@ router.post('/broker/update-dhan-token', authenticateToken, checkRole(['SUPER_AD
 
 // GET /api/v1/admin/broker/dhan-token-status
 // Returns current Dhan token expiry information
-router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const dhanToken = process.env.DHAN_ACCESS_TOKEN || '';
     const minutesLeft = getTokenExpiryMinutes(dhanToken);
@@ -1536,7 +1544,7 @@ router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADM
 // ============================================================
 // 15. FILL PROVENANCE & DISPUTE AUDITOR
 // ============================================================
-router.get('/executions/provenance', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'COMPLIANCE_OFFICER', 'READ_ONLY_AUDITOR']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/executions/provenance', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER', 'READ_ONLY_AUDITOR']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, symbol, freshness, limit = '50', offset = '0' } = req.query;
     let where = 'WHERE 1=1';
@@ -1675,7 +1683,7 @@ router.get('/managers', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), 
        FROM users u
        LEFT JOIN manager_limits ml ON u.id = ml.manager_id
        LEFT JOIN manager_assignments ma ON u.id = ma.manager_id
-       WHERE u.role IN ('ADMIN', 'OPERATIONS_MANAGER', 'RISK_MANAGER', 'FINANCE_MANAGER', 'SUPPORT_AGENT')
+       WHERE u.role IN ('ADMIN', 'MANAGER', 'RISK_MANAGER', 'FINANCE_MANAGER', 'MANAGER')
        GROUP BY u.id, ml.max_users, ml.max_exposure_per_user, ml.max_deposit_approval, ml.max_withdrawal_approval
        ORDER BY u.created_at ASC`
     );

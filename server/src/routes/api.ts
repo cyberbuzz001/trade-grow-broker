@@ -1160,7 +1160,7 @@ router.delete('/watchlists/items/:id', authenticateToken, async (req: Authentica
 // ============================================================
 // 7. ADMIN API
 // ============================================================
-router.get('/admin/dashboard', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res) => {
+router.get('/admin/dashboard', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res) => {
   const [totalUsersRow, activeOrdersRow, totalExecRow, capitalRow] = await Promise.all([
     queryOne<any>('SELECT COUNT(*) as c FROM users'),
     queryOne<any>(`SELECT COUNT(*) as c FROM orders WHERE status IN ('ACCEPTED','PENDING')`),
@@ -1182,7 +1182,7 @@ router.get('/admin/dashboard', authenticateToken, checkRole(['SUPER_ADMIN', 'ADM
   });
 });
 
-router.get('/admin/users', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATIONS_MANAGER', 'SUPPORT_AGENT']), async (req: AuthenticatedRequest, res) => {
+router.get('/admin/users', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res) => {
   const limit  = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
   const offset = parseInt(req.query.offset as string || '0', 10);
 
