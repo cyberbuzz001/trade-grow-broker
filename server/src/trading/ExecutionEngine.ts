@@ -27,13 +27,6 @@ export class ExecutionEngine {
       // Self-healing: repair positions with missing/zero entry prices across all accounts automatically
       await PortfolioService.auditAndRepairAllPositions().catch(() => {});
 
-      // Pre-warm option chain ticks for NIFTY & SENSEX to ensure 100% tick accuracy across all strike tokens
-      try {
-        const { OptionChainEngine } = await import('../marketData/OptionChainEngine');
-        await OptionChainEngine.generateOptionChain({ symbol: 'NIFTY', strikeRange: '20' }).catch(() => {});
-        await OptionChainEngine.generateOptionChain({ symbol: 'SENSEX', strikeRange: '20' }).catch(() => {});
-      } catch (_) {}
-
       const pendingOrders = await query<any>(
         `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') ORDER BY created_at ASC LIMIT 50`
       );

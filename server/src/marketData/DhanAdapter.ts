@@ -608,19 +608,60 @@ export class DhanAdapter implements IMarketDataProvider {
     return candles;
   }
 
+  private static expiryListCache: Map<string, { timestamp: number; expiries: string[] }> = new Map();
+
+  public async getExpiryList(symbol: string): Promise<string[]> {
+    const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
+    const cached = DhanAdapter.expiryListCache.get(cleanSym);
+    if (cached && Date.now() - cached.timestamp < 60000) {
+      return cached.expiries;
+    }
+
+    const underlyingSeg = 'IDX_I';
+    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : cleanSym === 'BANKNIFTY' ? 25 : cleanSym === 'FINNIFTY' ? 27 : cleanSym === 'MIDCPNIFTY' ? 33 : 13;
+
+    try {
+      const res = await fetch(`${this.baseUrl}/v2/optionchain/expirylist`, {
+        method: 'POST',
+        headers: {
+          'access-token': this.accessToken,
+          'client-id': this.clientId,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ UnderlyingScrip: underlyingScrip, UnderlyingSeg: underlyingSeg })
+      });
+
+      if (res.ok) {
+        const json: any = await res.json();
+        const expiries: string[] = json.data && Array.isArray(json.data) ? json.data : [];
+        if (expiries.length > 0) {
+          DhanAdapter.expiryListCache.set(cleanSym, { timestamp: Date.now(), expiries });
+          return expiries;
+        }
+      }
+    } catch (_) {}
+
+    return [];
+  }
+
   private static optionChainCache: Map<string, { timestamp: number; rows: OptionChainItem[] }> = new Map();
 
-  public async getOptionChain(symbol: string, expiry: string): Promise<OptionChainItem[]> {
+  public async getOptionChain(symbol: string, expiry?: string): Promise<OptionChainItem[]> {
     SafetyLock.assertSimulationOnly('DhanAdapter.getOptionChain');
 
     const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
-    const underlyingSeg = cleanSym === 'SENSEX' ? 'IDX_I' : 'IDX_I';
-    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : cleanSym === 'BANKNIFTY' ? 25 : cleanSym === 'FINNIFTY' ? 27 : 13;
+    const underlyingSeg = 'IDX_I';
+    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : cleanSym === 'BANKNIFTY' ? 25 : cleanSym === 'FINNIFTY' ? 27 : cleanSym === 'MIDCPNIFTY' ? 33 : 13;
     let targetExpiry = expiry ? expiry.trim() : '';
     if (!targetExpiry) {
-      const { ExpiryCalendarService } = require('../services/ExpiryCalendarService');
-      const cat = await ExpiryCalendarService.getInstance().getValidExpiries(cleanSym);
-      targetExpiry = cat.nearestExpiry || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      const liveExpiries = await this.getExpiryList(cleanSym);
+      if (liveExpiries.length > 0) {
+        targetExpiry = liveExpiries[0];
+      } else {
+        const { ExpiryCalendarService } = require('../services/ExpiryCalendarService');
+        const cat = await ExpiryCalendarService.getInstance().getValidExpiries(cleanSym);
+        targetExpiry = cat.nearestExpiry || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      }
     }
     const cacheKey = `${cleanSym}_${targetExpiry}`;
 
@@ -649,7 +690,7 @@ export class DhanAdapter implements IMarketDataProvider {
 
       if (res.ok) {
         const json: any = await res.json();
-        if (json.status === 'success' && json.data) {
+        if (json.data && json.data.oc && Object.keys(json.data.oc).length > 0) {
           const spot = Number(json.data.last_price || json.data.spot_price || 0);
           const oc = json.data.oc || {};
 
@@ -702,8 +743,8 @@ export class DhanAdapter implements IMarketDataProvider {
               DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${peSecurityId}`] = { segment: optSeg, securityId: peSecurityId };
             }
 
-            const ceLtp = Number(ceData.last_price || ceData.ltp || 0);
-            const peLtp = Number(peData.last_price || peData.ltp || 0);
+            const ceLtp = Number(ceData.last_price ?? ceData.ltp ?? 0);
+            const peLtp = Number(peData.last_price ?? peData.ltp ?? 0);
 
             const ceGreeks = ceData.greeks || {};
             const peGreeks = peData.greeks || {};
@@ -723,6 +764,8 @@ export class DhanAdapter implements IMarketDataProvider {
                 changePercent: 0,
                 bid: Number(ceData.top_bid_price || ceData.bid || ceLtp * 0.995),
                 ask: Number(ceData.top_ask_price || ceData.ask || ceLtp * 1.005),
+                source: 'dhan_feed',
+                isSynthetic: false,
                 timestamp: Date.now()
               });
             }
@@ -742,6 +785,8 @@ export class DhanAdapter implements IMarketDataProvider {
                 changePercent: 0,
                 bid: Number(peData.top_bid_price || peData.bid || peLtp * 0.995),
                 ask: Number(peData.top_ask_price || peData.ask || peLtp * 1.005),
+                source: 'dhan_feed',
+                isSynthetic: false,
                 timestamp: Date.now()
               });
             }
@@ -780,11 +825,22 @@ export class DhanAdapter implements IMarketDataProvider {
             });
           }
 
-          if (rows.length > 0) return rows.sort((a, b) => a.strikePrice - b.strikePrice);
+          if (rows.length > 0) {
+            const sorted = rows.sort((a, b) => a.strikePrice - b.strikePrice);
+            DhanAdapter.optionChainCache.set(cacheKey, { timestamp: Date.now(), rows: sorted });
+            return sorted;
+          }
         }
+      } else {
+        const errorText = await res.text();
+        console.warn(`[DhanAdapter] Live Option Chain HTTP ${res.status}:`, errorText.substring(0, 200));
       }
     } catch (err: any) {
       console.warn(`[DhanAdapter] Live Option Chain API error for ${cleanSym}:`, err.message);
+    }
+
+    if (cached && cached.rows && cached.rows.length > 0) {
+      return cached.rows;
     }
 
     return [];
