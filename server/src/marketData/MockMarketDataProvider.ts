@@ -59,9 +59,9 @@ export class MockMarketDataProvider implements IMarketDataProvider {
   }
 
   public async initialize(): Promise<void> {
-    console.log('[MockMarketDataProvider] Starting simulated real-time market data stream (1 sec interval)...');
+    console.log('[MockMarketDataProvider] Starting simulated real-time market data stream (350ms interval / ~3x per sec)...');
     if (this.timer) clearInterval(this.timer);
-    this.timer = setInterval(() => this.generateTicks(), 1000);
+    this.timer = setInterval(() => this.generateTicks(), 350);
   }
 
   public stop(): void {
@@ -73,34 +73,39 @@ export class MockMarketDataProvider implements IMarketDataProvider {
   }
 
   private createDynamicState(token: string): void {
-    const parts = token.split('_');
-    if (parts.length >= 4) {
-      const exchange = parts[0];
-      const underlying = parts[1];
-      const strike = parseFloat(parts[2]);
-      const optionType = parts[3];
+    const optMatch = token.match(/^(?:(NFO|BFO|NSE|BSE|MCX)_)?([A-Z0-9]+?)(?:_)?(\d+(?:\.\d+)?)(?:_)?(CE|PE)$/i);
+    if (optMatch) {
+      const prefix = optMatch[1] || (optMatch[2].includes('SENSEX') ? 'BFO' : 'NFO');
+      const underlying = optMatch[2].toUpperCase().replace(/^(NFO|BFO|NSE|BSE)_/, '');
+      const strike = parseFloat(optMatch[3]);
+      const optionType = optMatch[4].toUpperCase();
 
-      let spot = underlying === 'SENSEX' ? 80599.78 : underlying === 'BANKNIFTY' ? 57500 : 24563.0;
-      let dist = Math.abs(spot - strike);
-      let isITM = (optionType === 'CE' && strike < spot) || (optionType === 'PE' && strike > spot);
-      let ltp = isITM ? dist + (Math.random() * 50 + 20) : Math.max(5, 200 - (dist * 0.15) + (Math.random() * 10));
-      ltp = Number(ltp.toFixed(2));
+      const spotToken = underlying === 'SENSEX' ? 'BSE_SENSEX' : underlying === 'BANKNIFTY' ? 'NSE_BANKNIFTY' : underlying === 'FINNIFTY' ? 'NSE_FINNIFTY' : underlying === 'MIDCPNIFTY' ? 'NSE_MIDCPNIFTY' : 'NSE_NIFTY50';
+      const spot = this.stockStates.get(spotToken)?.ltp || (underlying === 'SENSEX' ? 80599.78 : underlying === 'BANKNIFTY' ? 57500 : 24563.0);
+
+      const isCE = optionType === 'CE';
+      const intrinsic = isCE ? Math.max(0, spot - strike) : Math.max(0, strike - spot);
+      const distance = Math.abs(spot - strike);
+      const timeValue = Math.max(2, (underlying === 'SENSEX' ? 280 : underlying === 'BANKNIFTY' ? 200 : 110) * Math.exp(-distance / (underlying === 'SENSEX' ? 600 : underlying === 'BANKNIFTY' ? 450 : 220)));
+      let ltp = Math.max(0.05, intrinsic + timeValue);
+      // Round to NSE tick size of 0.05 paise
+      ltp = Number((Math.round(ltp * 20) / 20).toFixed(2));
 
       this.stockStates.set(token, {
         token,
-        exchange,
+        exchange: prefix.startsWith('B') ? 'BFO' : 'NFO',
         symbol: `${underlying}${strike}${optionType}`,
         ltp,
-        open: ltp * 0.98,
-        high: ltp * 1.05,
-        low: ltp * 0.95,
+        open: Number((Math.round(ltp * 0.98 * 20) / 20).toFixed(2)),
+        high: Number((Math.round(ltp * 1.05 * 20) / 20).toFixed(2)),
+        low: Number((Math.round(ltp * 0.95 * 20) / 20).toFixed(2)),
         close: ltp,
         volume: Math.floor(Math.random() * 100000) + 10000,
       });
     } else {
       this.stockStates.set(token, {
         token,
-        exchange: 'NSE',
+        exchange: token.startsWith('BSE_') ? 'BSE' : 'NSE',
         symbol: token,
         ltp: 500.0,
         open: 495.0,
@@ -223,12 +228,55 @@ export class MockMarketDataProvider implements IMarketDataProvider {
   }
 
   private generateTicks(): void {
+    // 1. Update spot indices first
+    const spotMap = new Map<string, number>();
+    const indices = ['NSE_NIFTY50', 'NSE_BANKNIFTY', 'BSE_SENSEX', 'NSE_FINNIFTY', 'NSE_MIDCPNIFTY'];
+    for (const idxToken of indices) {
+      const state = this.stockStates.get(idxToken);
+      if (state) {
+        // Micro-step in multiples of 0.05
+        const stepTicks = Math.floor(Math.random() * 9) - 4; // -4 to +4 steps
+        const delta = stepTicks * 0.05;
+        state.ltp = Number((Math.round((state.ltp + delta) * 20) / 20).toFixed(2));
+        state.high = Math.max(state.high, state.ltp);
+        state.low = Math.min(state.low, state.ltp);
+        state.volume += Math.floor(Math.random() * 100) + 10;
+        spotMap.set(idxToken, state.ltp);
+      }
+    }
+
+    // 2. Update all active assets and option strikes
     for (const [token, state] of this.stockStates.entries()) {
-      const fluctuation = (Math.random() - 0.495) * (state.ltp * 0.002);
-      state.ltp = Number(Math.max(1, state.ltp + fluctuation).toFixed(2));
-      state.high = Math.max(state.high, state.ltp);
-      state.low = Math.min(state.low, state.ltp);
-      state.volume += Math.floor(Math.random() * 50) + 1;
+      if (indices.includes(token)) {
+        // Already updated
+      } else {
+        const optMatch = token.match(/^(?:(NFO|BFO|NSE|BSE|MCX)_)?([A-Z0-9]+?)(?:_)?(\d+(?:\.\d+)?)(?:_)?(CE|PE)$/i);
+        if (optMatch) {
+          const underlying = optMatch[2].toUpperCase().replace(/^(NFO|BFO|NSE|BSE)_/, '');
+          const strike = parseFloat(optMatch[3]);
+          const isCE = optMatch[4].toUpperCase() === 'CE';
+
+          const spotToken = underlying === 'SENSEX' ? 'BSE_SENSEX' : underlying === 'BANKNIFTY' ? 'NSE_BANKNIFTY' : underlying === 'FINNIFTY' ? 'NSE_FINNIFTY' : underlying === 'MIDCPNIFTY' ? 'NSE_MIDCPNIFTY' : 'NSE_NIFTY50';
+          const spot = spotMap.get(spotToken) || (underlying === 'SENSEX' ? 80599.78 : underlying === 'BANKNIFTY' ? 57500 : 24563.0);
+
+          // Broker-grade option tick fluctuation
+          const stepMultiplier = Math.floor(Math.random() * 5) - 2; // -2 to +2 steps of 0.05
+          const priceChange = stepMultiplier * 0.05;
+
+          const newLtp = state.ltp + priceChange;
+          state.ltp = Number(Math.max(0.05, Math.round(newLtp * 20) / 20).toFixed(2));
+          state.high = Math.max(state.high, state.ltp);
+          state.low = Math.min(state.low, state.ltp);
+          state.volume += Math.floor(Math.random() * 25) + 5;
+        } else {
+          const stepTicks = Math.floor(Math.random() * 5) - 2;
+          const delta = stepTicks * 0.05;
+          state.ltp = Number(Math.max(0.05, Math.round((state.ltp + delta) * 20) / 20).toFixed(2));
+          state.high = Math.max(state.high, state.ltp);
+          state.low = Math.min(state.low, state.ltp);
+          state.volume += Math.floor(Math.random() * 50) + 1;
+        }
+      }
 
       const tick = this.buildTick(state);
       const cbs = this.callbacks.get(token);
@@ -240,8 +288,9 @@ export class MockMarketDataProvider implements IMarketDataProvider {
 
   private buildTick(state: InternalStockState): MarketTick {
     const change = Number((state.ltp - state.close).toFixed(2));
-    const changePercent = Number(((change / state.close) * 100).toFixed(2));
-    const spread = Number((state.ltp * 0.0005).toFixed(2));
+    const changePercent = state.close > 0 ? Number(((change / state.close) * 100).toFixed(2)) : 0;
+    const bid = Number(Math.max(0.05, state.ltp - 0.05).toFixed(2));
+    const ask = Number((state.ltp + 0.05).toFixed(2));
 
     return {
       instrumentToken: state.token,
@@ -255,8 +304,8 @@ export class MockMarketDataProvider implements IMarketDataProvider {
       volume: state.volume,
       change,
       changePercent,
-      bid: Number((state.ltp - spread).toFixed(2)),
-      ask: Number((state.ltp + spread).toFixed(2)),
+      bid,
+      ask,
       bidQty: Math.floor(Math.random() * 500) + 50,
       askQty: Math.floor(Math.random() * 500) + 50,
       timestamp: Date.now()

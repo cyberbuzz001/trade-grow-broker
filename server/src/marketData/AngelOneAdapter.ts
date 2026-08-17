@@ -87,7 +87,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
         this.healthy = true;
       }
 
-      // Poll angel_ticks.json for real-time Angel One quotes (non-blocking)
+      // Poll angel_ticks.json for real-time Angel One quotes (500ms for 2 updates/sec)
       this.timer = setInterval(async () => {
         try {
           if (fs.existsSync(ticksFilePath)) {
@@ -106,7 +106,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
             }
           }
         } catch (_) {}
-      }, 2000);
+      }, 500);
 
       // ── Spawn option chain WebSocket fetcher (angel_option_ws.py) ─────────
       const wsChainScript = fs.existsSync(path.resolve(__dirname, 'angel_option_ws.py'))
@@ -132,7 +132,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
       // Delay 15s so ticker auth completes first (Angel One rate-limits concurrent logins)
       setTimeout(spawnChainScript, 15000);
 
-      // Poll angel_option_chain.json every 2s (written by angel_option_ws.py)
+      // Poll angel_option_chain.json every 500ms (2x per second)
       this.chainTimer = setInterval(async () => {
         if (fs.existsSync(this.chainFilePath)) {
           try {
@@ -144,7 +144,7 @@ export class AngelOneAdapter implements IMarketDataProvider {
             }
           } catch (_) {}
         }
-      }, 2000);
+      }, 500);
 
       // ── Start NSE OI fetcher (OI, PCR, Max Pain every 60s) ─────────────
       nseOptionChainService.start();

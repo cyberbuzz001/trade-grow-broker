@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, Shield, Briefcase, FileText, DollarSign, Activity, Clock, PlusCircle, Edit2, XCircle, Play, CheckCircle, KeyRound, Copy, Check, RefreshCw, X, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, PlusCircle, Edit2, XCircle, Play, KeyRound, Copy, Check, RefreshCw, X, CheckCircle2, AlertTriangle, Wifi, WifiOff, Shield, CheckCircle, User, Phone, Mail, MapPin, Activity, Clock, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
+import { useAdminUserSocket } from '../../hooks/useAdminUserSocket';
 
 interface Customer360Props {
   token: string;
@@ -68,7 +69,97 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
     }
   };
 
-  const fetchCustomerData = () => {
+  // KYC Action State
+  const [kycActionLoading, setKycActionLoading] = useState<string | null>(null);
+  const [kycActionMsg, setKycActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Login Activity State
+  const [loginActivity, setLoginActivity] = useState<any>(null);
+
+  // Profile Edit State
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editFullName, setEditFullName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Real-time WebSocket connection status
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // Real-time market tick cache (symbol -> lastPrice)
+  const [liveTicks, setLiveTicks] = useState<Record<string, number>>({});
+
+  const adminApi = useCallback(async (endpoint: string, method: string, body?: object) => {
+    const res = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return res.json();
+  }, [token]);
+
+  // ── Real-time WebSocket Subscription ───────────────────────────────
+  // Replaces the old setInterval(fetchCustomerData, 5000) polling
+  const adminSocket = useAdminUserSocket(customerId, token, {
+    onConnected: () => setWsConnected(true),
+    onDisconnected: () => setWsConnected(false),
+    onTickSnapshot: (ticks) => {
+      if (Array.isArray(ticks)) {
+        setLiveTicks(prev => {
+          const next = { ...prev };
+          for (const t of ticks) {
+            const price = t.ltp ?? t.lastPrice ?? t.price;
+            if (t.symbol && price) next[t.symbol] = price;
+            if (t.instrumentToken && price) next[t.instrumentToken] = price;
+          }
+          return next;
+        });
+      }
+    },
+    onMarketTick: (tick) => {
+      const price = tick?.ltp ?? tick?.lastPrice ?? tick?.price;
+      if (tick && price) {
+        setLiveTicks(prev => {
+          const next = { ...prev };
+          if (tick.symbol) next[tick.symbol] = price;
+          if (tick.instrumentToken) next[tick.instrumentToken] = price;
+          return next;
+        });
+      }
+    },
+    onPositionUpdate: (positions) => {
+      setData((prev: any) => prev ? { ...prev, positions } : prev);
+    },
+    onTradeExecuted: (trade) => {
+      if (!trade) return;
+      setData((prev: any) => {
+        if (!prev) return prev;
+        return { ...prev, trades: [trade, ...(prev.trades || [])] };
+      });
+    },
+    onFundsUpdate: (wallet) => {
+      if (!wallet) return;
+      setData((prev: any) => prev ? { ...prev, wallet } : prev);
+    },
+    onStatusChange: (status) => {
+      setData((prev: any) => prev ? { ...prev, profile: { ...prev.profile, status } } : prev);
+    },
+    onKycUpdate: (kycStatus) => {
+      setData((prev: any) => {
+        if (!prev) return prev;
+        const kycRecords = prev.kycRecords?.map((k: any) => ({ ...k, kyc_status: kycStatus })) || [];
+        return { ...prev, kycRecords, profile: { ...prev.profile, kyc_status: kycStatus } };
+      });
+    },
+    onProfileUpdate: () => {
+      // Re-fetch on profile update
+      fetchCustomerData();
+    }
+  });
+
+  const fetchCustomerData = useCallback(() => {
     fetch(`/api/v1/admin/customers/${customerId}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -77,17 +168,46 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
         if (d.success) setData(d.customer);
       })
       .catch(() => {});
-  };
+  }, [token, customerId]);
+
+  // Subscribe to market ticks for all symbols in customer's open positions & holdings
+  useEffect(() => {
+    if (!data) return;
+    const tokens = new Set<string>();
+    (data.positions || []).forEach((p: any) => {
+      if (p.symbol) tokens.add(p.symbol);
+      if (p.instrument_token) tokens.add(p.instrument_token);
+    });
+    (data.holdings || []).forEach((h: any) => {
+      if (h.symbol) tokens.add(h.symbol);
+      if (h.instrument_token) tokens.add(h.instrument_token);
+    });
+    if (tokens.size > 0 && adminSocket.isConnected) {
+      adminSocket.subscribeTokens(Array.from(tokens));
+    }
+  }, [data, adminSocket]);
+
+  const fetchLoginActivity = useCallback(() => {
+    fetch(`/api/v1/admin/customers/${customerId}/login-activity`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { if (d.success) setLoginActivity(d); })
+      .catch(() => {});
+  }, [token, customerId]);
 
   useEffect(() => {
     fetchCustomerData();
-    const interval = setInterval(fetchCustomerData, 5000);
-    return () => clearInterval(interval);
-  }, [token, customerId]);
+    // No more polling interval — replaced by WebSocket above
+  }, [fetchCustomerData]);
 
-  if (!data) return <div className="text-slate-400 text-sm p-8">Loading customer profile...</div>;
+  useEffect(() => {
+    if (activeTab === 'SECURITY') fetchLoginActivity();
+  }, [activeTab, fetchLoginActivity]);
 
-  const tabs = ['POSITIONS', 'ORDERS', 'TRADES', 'HOLDINGS', 'FUNDS', 'OVERVIEW', 'KYC', 'LEDGER', 'AUDIT'];
+  if (!data) return <div className="text-slate-400 text-sm p-8 flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" />Loading customer profile...</div>;
+
+  const tabs = ['OVERVIEW', 'POSITIONS', 'ORDERS', 'TRADES', 'HOLDINGS', 'FUNDS', 'KYC', 'LEDGER', 'AUDIT', 'PROFILE', 'SECURITY'];
 
   // Admin Position Actions
   const handleSquareOffPosition = async (pos: any) => {
@@ -277,9 +397,18 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
             <span>+ Add / Deduct Funds</span>
           </button>
 
+          {/* WS connection indicator */}
+          <span title={wsConnected ? 'Real-time connected' : 'Polling mode'} className="flex items-center gap-1">
+            {wsConnected
+              ? <><Wifi className="w-3.5 h-3.5 text-emerald-400" /><span className="text-[10px] text-emerald-400 font-bold">LIVE</span></>
+              : <><WifiOff className="w-3.5 h-3.5 text-slate-500" /><span className="text-[10px] text-slate-500">offline</span></>}
+          </span>
+
           <span className={`px-3 py-1 rounded text-xs font-bold ${
             data.profile.status === 'ACTIVE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
             data.profile.status === 'FROZEN' ? 'bg-blue-950 text-blue-400 border border-blue-800' :
+            data.profile.status === 'LOCKED' ? 'bg-violet-950 text-violet-400 border border-violet-800' :
+            data.profile.status === 'CLOSED' ? 'bg-slate-800 text-slate-500 border border-slate-700' :
             'bg-rose-950 text-rose-400 border border-rose-800'
           }`}>{data.profile.status}</span>
         </div>
@@ -333,15 +462,20 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   (data.positions || []).map((p: any) => {
                     const netQty = parseInt(p.net_qty || '0', 10);
                     const avgPx = parseFloat(p.average_price || '0');
-                    const ltp = parseFloat(p.ltp || '0') || avgPx;
-                    const unrealized = parseFloat(p.unrealized_pnl || '0');
+                    const hasLiveTick = liveTicks[p.symbol] !== undefined || (p.instrument_token && liveTicks[p.instrument_token] !== undefined);
+                    const fallbackLtp = parseFloat(p.ltp || '0') || avgPx;
+                    const ltp = liveTicks[p.symbol] ?? (p.instrument_token ? liveTicks[p.instrument_token] : undefined) ?? fallbackLtp;
+                    const unrealized = netQty !== 0 ? (ltp - avgPx) * netQty : parseFloat(p.unrealized_pnl || '0');
                     const realized = parseFloat(p.realized_pnl || '0');
                     const isOpen = netQty !== 0;
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-800/40">
                         <td className="py-2.5 px-3">
-                          <div className="font-bold text-white">{p.symbol}</div>
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            <span>{p.symbol}</span>
+                            {hasLiveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Live stream tick" />}
+                          </div>
                           <div className="text-[10px] text-slate-500 font-mono">{p.exchange || 'NSE'}</div>
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-slate-400">{p.product_type || 'MIS'}</td>
@@ -349,7 +483,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                           {netQty > 0 ? `+${netQty}` : netQty}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-semibold">₹{avgPx.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-white">₹{ltp.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-white">₹{ltp.toFixed(2)}</td>
                         <td className={`py-2.5 px-3 text-right font-mono font-bold ${unrealized > 0 ? 'text-emerald-400' : unrealized < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                           {unrealized >= 0 ? `+₹${unrealized.toFixed(2)}` : `-₹${Math.abs(unrealized).toFixed(2)}`}
                         </td>
@@ -514,16 +648,21 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   (data.holdings || []).map((h: any) => {
                     const qty = parseInt(h.quantity || '0', 10);
                     const avg = parseFloat(h.average_price || '0');
-                    const ltp = parseFloat(h.ltp || '0') || avg;
+                    const hasLiveTick = liveTicks[h.symbol] !== undefined || (h.instrument_token && liveTicks[h.instrument_token] !== undefined);
+                    const fallbackLtp = parseFloat(h.ltp || '0') || avg;
+                    const ltp = liveTicks[h.symbol] ?? (h.instrument_token ? liveTicks[h.instrument_token] : undefined) ?? fallbackLtp;
                     const val = qty * ltp;
                     const pnl = qty * (ltp - avg);
 
                     return (
                       <tr key={h.id} className="hover:bg-slate-800/40">
-                        <td className="py-2.5 px-3 font-bold text-white">{h.symbol}</td>
+                        <td className="py-2.5 px-3 font-bold text-white flex items-center gap-1.5">
+                          <span>{h.symbol}</span>
+                          {hasLiveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Live stream tick" />}
+                        </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold">{qty}</td>
                         <td className="py-2.5 px-3 text-right font-mono">₹{avg.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-white">₹{ltp.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-white">₹{ltp.toFixed(2)}</td>
                         <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-bold">₹{val.toLocaleString('en-IN')}</td>
                         <td className={`py-2.5 px-3 text-right font-mono font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {pnl >= 0 ? `+₹${pnl.toFixed(2)}` : `-₹${Math.abs(pnl).toFixed(2)}`}
@@ -674,25 +813,267 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
           </div>
         )}
 
-        {/* ── 9. KYC TAB ────────────────────────────────────────────────── */}
+        {/* ── 9. KYC TAB ─────────────────────────────────────────────────── */}
         {activeTab === 'KYC' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-            <h4 className="text-xs font-bold text-white uppercase mb-3">KYC Verification Record</h4>
-            {(data.kycRecords || []).length === 0 ? (
-              <div className="text-slate-500 text-xs py-4 text-center">No KYC document records found for this client.</div>
-            ) : (
-              (data.kycRecords || []).map((k: any) => (
-                <div key={k.id} className="border border-slate-800 rounded-lg p-3 space-y-2 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-white">Verification Status</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${k.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400'}`}>{k.kyc_status}</span>
-                  </div>
-                  <div className="flex justify-between"><span className="text-slate-400">PAN</span><span className="font-mono text-white">{k.pan_number || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Aadhaar</span><span className="font-mono text-white">{k.aadhaar_number || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Bank Account</span><span className="font-mono text-white">{k.bank_account_no || 'N/A'} ({k.ifsc_code || 'N/A'})</span></div>
-                </div>
-              ))
+          <div className="space-y-4">
+            {/* KYC Action Buttons */}
+            <div className="flex items-center gap-3 p-4 bg-slate-900/60 border border-slate-800 rounded-xl">
+              <span className="text-xs font-bold text-slate-300 flex-1">KYC Admin Actions</span>
+
+              <button
+                onClick={async () => {
+                  setKycActionLoading('approve');
+                  setKycActionMsg(null);
+                  const d = await adminApi(`/api/v1/admin/customers/${customerId}/kyc/approve`, 'POST', { notes: 'Approved by admin' });
+                  setKycActionLoading(null);
+                  setKycActionMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.error?.message || 'Failed' });
+                }}
+                disabled={kycActionLoading !== null}
+                className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+                {kycActionLoading === 'approve' ? 'Approving...' : 'Approve KYC'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  const reason = window.prompt('Enter rejection reason:');
+                  if (!reason) return;
+                  setKycActionLoading('reject');
+                  setKycActionMsg(null);
+                  const d = await adminApi(`/api/v1/admin/customers/${customerId}/kyc/reject`, 'POST', { reason });
+                  setKycActionLoading(null);
+                  setKycActionMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.error?.message || 'Failed' });
+                }}
+                disabled={kycActionLoading !== null}
+                className="bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white border border-rose-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
+              >
+                <ThumbsDown className="w-3.5 h-3.5" />
+                {kycActionLoading === 'reject' ? 'Rejecting...' : 'Reject KYC'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  setKycActionLoading('reupload');
+                  setKycActionMsg(null);
+                  const d = await adminApi(`/api/v1/admin/customers/${customerId}/kyc/request-reupload`, 'POST', { reason: 'Documents unclear or incomplete' });
+                  setKycActionLoading(null);
+                  setKycActionMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.error?.message || 'Failed' });
+                }}
+                disabled={kycActionLoading !== null}
+                className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white border border-amber-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                {kycActionLoading === 'reupload' ? 'Requesting...' : 'Request Re-upload'}
+              </button>
+            </div>
+
+            {kycActionMsg && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                kycActionMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+              }`}>
+                {kycActionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                {kycActionMsg.text}
+              </div>
             )}
+
+            {/* KYC Records */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+              <h4 className="text-xs font-bold text-white uppercase mb-3">KYC Verification Record</h4>
+              {(data.kycRecords || []).length === 0 ? (
+                <div className="text-slate-500 text-xs py-4 text-center">No KYC document records found for this client.</div>
+              ) : (
+                (data.kycRecords || []).map((k: any) => (
+                  <div key={k.id} className="border border-slate-800 rounded-lg p-3 space-y-2 text-xs mb-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-white">Verification Status</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        k.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                        k.kyc_status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
+                        'bg-amber-950 text-amber-400 border border-amber-800'
+                      }`}>{k.kyc_status || 'PENDING'}</span>
+                    </div>
+                    <div className="flex justify-between"><span className="text-slate-400">PAN</span><span className="font-mono text-white">{k.pan_number || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Aadhaar</span><span className="font-mono text-white">{k.aadhaar_number || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Bank Account</span><span className="font-mono text-white">{k.bank_account_no || 'N/A'} ({k.ifsc_code || 'N/A'})</span></div>
+                    {k.notes && <div className="flex justify-between"><span className="text-slate-400">Notes</span><span className="text-slate-300">{k.notes}</span></div>}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── 10. PROFILE TAB (Editable) ───────────────────────────────────── */}
+        {activeTab === 'PROFILE' && (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-white uppercase">Customer Profile Details</h4>
+              {!editingProfile && (
+                <button
+                  onClick={() => {
+                    setEditFullName(data.profile.full_name || '');
+                    setEditPhone(data.profile.phone_number || '');
+                    setEditAddress(data.profile.address || '');
+                    setEditCity(data.profile.city || '');
+                    setProfileMsg(null);
+                    setEditingProfile(true);
+                  }}
+                  className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Edit2 className="w-3 h-3" /> Edit Profile
+                </button>
+              )}
+            </div>
+
+            {!editingProfile ? (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {[
+                  { icon: <User className="w-3.5 h-3.5" />, label: 'Full Name', value: data.profile.full_name || '—' },
+                  { icon: <Mail className="w-3.5 h-3.5" />, label: 'Email', value: data.profile.email },
+                  { icon: <Phone className="w-3.5 h-3.5" />, label: 'Phone', value: data.profile.phone_number || '—' },
+                  { icon: <MapPin className="w-3.5 h-3.5" />, label: 'City', value: data.profile.city || '—' },
+                ].map(({ icon, label, value }) => (
+                  <div key={label} className="bg-slate-950 rounded-xl p-3 border border-slate-800">
+                    <div className="flex items-center gap-1.5 text-slate-500 mb-1">{icon}<span className="text-[10px] uppercase font-bold">{label}</span></div>
+                    <div className="text-white font-semibold">{value}</div>
+                  </div>
+                ))}
+                <div className="col-span-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
+                  <div className="flex items-center gap-1.5 text-slate-500 mb-1"><MapPin className="w-3.5 h-3.5" /><span className="text-[10px] uppercase font-bold">Address</span></div>
+                  <div className="text-white font-semibold">{data.profile.address || '—'}</div>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setSavingProfile(true);
+                setProfileMsg(null);
+                const d = await adminApi(`/api/v1/admin/customers/${customerId}`, 'PATCH', {
+                  fullName: editFullName, phoneNumber: editPhone, address: editAddress, city: editCity
+                });
+                setSavingProfile(false);
+                if (d.success) {
+                  setProfileMsg({ type: 'success', text: 'Profile updated successfully.' });
+                  fetchCustomerData();
+                  setTimeout(() => setEditingProfile(false), 1500);
+                } else {
+                  setProfileMsg({ type: 'error', text: d.error?.message || 'Update failed' });
+                }
+              }} className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                    <input value={editFullName} onChange={e => setEditFullName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone</label>
+                    <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">City</label>
+                    <input value={editCity} onChange={e => setEditCity(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Address</label>
+                    <input value={editAddress} onChange={e => setEditAddress(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                  </div>
+                </div>
+                {profileMsg && (
+                  <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                    profileMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                  }`}>
+                    {profileMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                    {profileMsg.text}
+                  </div>
+                )}
+                <div className="flex gap-2 justify-end">
+                  <button type="button" onClick={() => setEditingProfile(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg cursor-pointer">Cancel</button>
+                  <button type="submit" disabled={savingProfile} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-black text-xs rounded-lg transition cursor-pointer">
+                    {savingProfile ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* ── 11. SECURITY TAB ─────────────────────────────────────────────── */}
+        {activeTab === 'SECURITY' && (
+          <div className="space-y-4">
+            {/* Security Overview */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs">
+                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Failed Login Attempts</div>
+                <div className={`text-xl font-bold font-mono ${(loginActivity?.security?.failedLoginAttempts || 0) > 3 ? 'text-rose-400' : 'text-white'}`}>
+                  {loginActivity?.security?.failedLoginAttempts || 0}
+                </div>
+              </div>
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs">
+                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Last Login</div>
+                <div className="text-white font-semibold">
+                  {loginActivity?.security?.lastLoginAt ? new Date(loginActivity.security.lastLoginAt).toLocaleString() : 'Never'}
+                </div>
+              </div>
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs">
+                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Account Lock Status</div>
+                <div className={`font-bold ${loginActivity?.security?.lockedUntil ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {loginActivity?.security?.lockedUntil
+                    ? `Locked until ${new Date(loginActivity.security.lockedUntil).toLocaleString()}`
+                    : 'Not Locked'}
+                </div>
+              </div>
+            </div>
+
+            {/* Login Sessions */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+                <h4 className="text-xs font-bold text-white uppercase flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-blue-400" />Login History</h4>
+                <button onClick={fetchLoginActivity} className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer">
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
+              <table className="w-full text-xs text-left text-slate-300">
+                <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
+                  <tr>
+                    <th className="py-2 px-3">Login Time</th>
+                    <th className="py-2 px-3">IP Address</th>
+                    <th className="py-2 px-3">Result</th>
+                    <th className="py-2 px-3">Device</th>
+                    <th className="py-2 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {(loginActivity?.sessions || []).length === 0 ? (
+                    <tr><td colSpan={5} className="py-8 text-center text-slate-500">No login activity recorded yet.</td></tr>
+                  ) : (
+                    (loginActivity?.sessions || []).map((s: any) => (
+                      <tr key={s.id} className="hover:bg-slate-800/40">
+                        <td className="py-2 px-3 text-[10px] font-mono text-slate-400">{new Date(s.login_at).toLocaleString()}</td>
+                        <td className="py-2 px-3 font-mono text-[10px] text-amber-400">{s.ip_address || '—'}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            s.login_result === 'SUCCESS' ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'
+                          }`}>{s.login_result}</span>
+                        </td>
+                        <td className="py-2 px-3 text-[10px] text-slate-500">{s.device_type || '—'}</td>
+                        <td className="py-2 px-3">
+                          {s.is_active
+                            ? <span className="text-emerald-400 text-[10px] font-bold flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full inline-block animate-pulse" />Active</span>
+                            : <span className="text-slate-500 text-[10px]">Ended</span>}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

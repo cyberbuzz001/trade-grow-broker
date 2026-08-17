@@ -201,6 +201,7 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
             pendingTicksRef.current.set(t.instrumentToken, t);
 
             const symsToProcess: string[] = [];
+            if (t.instrumentToken) symsToProcess.push(t.instrumentToken.trim());
             if (t.symbol) symsToProcess.push(t.symbol.trim());
             if ((t as any).tradingSymbol) symsToProcess.push((t as any).tradingSymbol.trim());
 

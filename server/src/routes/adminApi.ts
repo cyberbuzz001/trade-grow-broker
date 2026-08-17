@@ -12,6 +12,8 @@ import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { updateDhanToken, getTokenExpiryMinutes, setDhanAdapterRef } from '../utils/dhanTokenRefresh';
 import { ClientCreationService } from '../services/ClientCreationService';
+import { adminEventBus } from '../utils/adminEventBus';
+
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
@@ -267,7 +269,49 @@ router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (r
     return;
   }
 
-  res.json({ success: true, customer: { profile: user, wallet, kycRecords, orders, trades, positions, holdings, ledger, auditLogs } });
+  const marketEngine = MarketDataEngine.getInstance();
+  const enrichedPositions = (positions || []).map((p: any) => {
+    const netQty = parseInt(p.net_qty || '0', 10);
+    const avgPx = parseFloat(p.average_price || '0');
+    const cachedTick = marketEngine.getCachedTick(p.symbol) || 
+                       (p.instrument_token ? marketEngine.getCachedTick(p.instrument_token) : undefined);
+    const liveLtp = cachedTick?.ltp ?? parseFloat(p.ltp || p.average_price || '0');
+    const unrealized = netQty !== 0 ? (liveLtp - avgPx) * netQty : parseFloat(p.unrealized_pnl || '0');
+    return {
+      ...p,
+      ltp: liveLtp,
+      unrealized_pnl: unrealized
+    };
+  });
+
+  const enrichedHoldings = (holdings || []).map((h: any) => {
+    const qty = parseInt(h.quantity || '0', 10);
+    const avgPx = parseFloat(h.average_price || '0');
+    const cachedTick = marketEngine.getCachedTick(h.symbol) || 
+                       (h.instrument_token ? marketEngine.getCachedTick(h.instrument_token) : undefined);
+    const liveLtp = cachedTick?.ltp ?? parseFloat(h.ltp || h.average_price || '0');
+    const pnl = qty > 0 ? (liveLtp - avgPx) * qty : 0;
+    return {
+      ...h,
+      ltp: liveLtp,
+      pnl
+    };
+  });
+
+  res.json({
+    success: true,
+    customer: {
+      profile: user,
+      wallet,
+      kycRecords,
+      orders,
+      trades,
+      positions: enrichedPositions,
+      holdings: enrichedHoldings,
+      ledger,
+      auditLogs
+    }
+  });
 });
 
 router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
@@ -1721,5 +1765,610 @@ router.post('/managers/assign', authenticateToken, checkRole(['SUPER_ADMIN', 'AD
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
 });
+
+
+// ============================================================
+// 18. CUSTOMER PROFILE MODIFICATION (PATCH)
+// ============================================================
+router.patch('/customers/:id', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { fullName, phoneNumber, email, address, city, role, status } = req.body;
+
+    const current = await queryOne<any>(
+      'SELECT id, username, email, full_name, phone_number, address, city, role, status FROM users WHERE id = $1',
+      [customerId]
+    );
+    if (!current) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+      return;
+    }
+
+    // Protect sensitive fields from unauthorized roles
+    if (role && role !== current.role && req.user!.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ success: false, error: { code: 'PERMISSION_DENIED', message: 'Only SUPER_ADMIN can change user role' } });
+      return;
+    }
+
+    // Validate email uniqueness if changing
+    if (email && email.toLowerCase().trim() !== current.email) {
+      const normalizedEmail = email.toLowerCase().trim();
+      const existing = await queryOne<any>(
+        'SELECT id FROM users WHERE LOWER(TRIM(email)) = $1 AND id != $2',
+        [normalizedEmail, customerId]
+      );
+      if (existing) {
+        res.status(409).json({ success: false, error: { code: 'DUPLICATE_EMAIL', message: `Email '${normalizedEmail}' is already in use by another account.` } });
+        return;
+      }
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [];
+    let pIdx = 1;
+    const changes: Record<string, { from: any; to: any }> = {};
+
+    if (fullName !== undefined && fullName !== current.full_name) {
+      updates.push(`full_name = $${pIdx}`); params.push(fullName.trim()); pIdx++;
+      changes.fullName = { from: current.full_name, to: fullName.trim() };
+    }
+    if (phoneNumber !== undefined && phoneNumber !== current.phone_number) {
+      updates.push(`phone_number = $${pIdx}`); params.push(phoneNumber.trim()); pIdx++;
+      changes.phoneNumber = { from: current.phone_number, to: phoneNumber.trim() };
+    }
+    if (email !== undefined && email.toLowerCase().trim() !== current.email) {
+      updates.push(`email = $${pIdx}`); params.push(email.toLowerCase().trim()); pIdx++;
+      changes.email = { from: current.email, to: email.toLowerCase().trim() };
+    }
+    if (address !== undefined && address !== current.address) {
+      updates.push(`address = $${pIdx}`); params.push(address.trim()); pIdx++;
+      changes.address = { from: current.address, to: address.trim() };
+    }
+    if (city !== undefined && city !== current.city) {
+      updates.push(`city = $${pIdx}`); params.push(city.trim()); pIdx++;
+      changes.city = { from: current.city, to: city.trim() };
+    }
+    if (role !== undefined && role !== current.role) {
+      updates.push(`role = $${pIdx}`); params.push(role); pIdx++;
+      changes.role = { from: current.role, to: role };
+    }
+
+    if (updates.length === 0) {
+      res.json({ success: true, message: 'No changes detected.' });
+      return;
+    }
+
+    updates.push(`updated_at = NOW()`);
+    params.push(customerId);
+    await execute(`UPDATE users SET ${updates.join(', ')} WHERE id = $${pIdx}`, params);
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_UPDATED_CUSTOMER', 'USER', customerId,
+      current, changes, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_PROFILE_UPDATED', customerId, { changes });
+
+    res.json({ success: true, message: 'Customer profile updated successfully.', changes });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 19. SUSPEND CUSTOMER
+// ============================================================
+router.post('/customers/:id/suspend', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason, notes, suspendUntil } = req.body;
+
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Reason is required to suspend an account' } });
+      return;
+    }
+
+    const user = await queryOne<any>('SELECT id, username, status FROM users WHERE id = $1', [customerId]);
+    if (!user) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+      return;
+    }
+
+    if (user.status === 'SUSPENDED') {
+      res.status(400).json({ success: false, error: { code: 'ALREADY_SUSPENDED', message: 'Account is already suspended' } });
+      return;
+    }
+
+    await execute(
+      `UPDATE users SET status = 'SUSPENDED', suspended_reason = $1, suspended_by = $2, suspended_at = NOW(), suspended_until = $3, updated_at = NOW() WHERE id = $4`,
+      [reason.trim(), req.user!.userId, suspendUntil || null, customerId]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_SUSPENDED_CUSTOMER', 'USER', customerId,
+      { status: user.status }, { status: 'SUSPENDED', reason, notes }, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_STATUS_UPDATED', customerId, {
+      status: 'SUSPENDED', reason, suspendedBy: req.user!.userId
+    });
+
+    res.json({ success: true, message: `Account for ${user.username} has been suspended.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 20. ACTIVATE CUSTOMER
+// ============================================================
+router.post('/customers/:id/activate', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason } = req.body;
+
+    const user = await queryOne<any>('SELECT id, username, status FROM users WHERE id = $1', [customerId]);
+    if (!user) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+      return;
+    }
+
+    if (user.status === 'ACTIVE') {
+      res.status(400).json({ success: false, error: { code: 'ALREADY_ACTIVE', message: 'Account is already active' } });
+      return;
+    }
+
+    if (user.status === 'CLOSED') {
+      res.status(400).json({ success: false, error: { code: 'ACCOUNT_CLOSED', message: 'Closed accounts cannot be reactivated directly. Please create a new account.' } });
+      return;
+    }
+
+    await execute(
+      `UPDATE users SET status = 'ACTIVE', suspended_reason = NULL, suspended_by = NULL, suspended_at = NULL,
+       suspended_until = NULL, locked_reason = NULL, locked_by = NULL, locked_at = NULL, updated_at = NOW() WHERE id = $1`,
+      [customerId]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_ACTIVATED_CUSTOMER', 'USER', customerId,
+      { status: user.status }, { status: 'ACTIVE', reason }, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_STATUS_UPDATED', customerId, {
+      status: 'ACTIVE', activatedBy: req.user!.userId
+    });
+
+    res.json({ success: true, message: `Account for ${user.username} has been activated.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 21. LOCK CUSTOMER (Security Hold)
+// ============================================================
+router.post('/customers/:id/lock', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Reason is required to lock an account' } });
+      return;
+    }
+
+    const user = await queryOne<any>('SELECT id, username, status FROM users WHERE id = $1', [customerId]);
+    if (!user) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+      return;
+    }
+
+    await execute(
+      `UPDATE users SET status = 'LOCKED', locked_reason = $1, locked_by = $2, locked_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [reason.trim(), req.user!.userId, customerId]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_LOCKED_CUSTOMER', 'USER', customerId,
+      { status: user.status }, { status: 'LOCKED', reason }, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_STATUS_UPDATED', customerId, {
+      status: 'LOCKED', reason, lockedBy: req.user!.userId
+    });
+
+    res.json({ success: true, message: `Account for ${user.username} has been locked.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 22. UNLOCK CUSTOMER
+// ============================================================
+router.post('/customers/:id/unlock', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason } = req.body;
+
+    const user = await queryOne<any>('SELECT id, username, status FROM users WHERE id = $1', [customerId]);
+    if (!user) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+      return;
+    }
+
+    if (user.status !== 'LOCKED') {
+      res.status(400).json({ success: false, error: { code: 'NOT_LOCKED', message: 'Account is not currently locked' } });
+      return;
+    }
+
+    await execute(
+      `UPDATE users SET status = 'ACTIVE', locked_reason = NULL, locked_by = NULL, locked_at = NULL,
+       unlocked_by = $1, unlocked_at = NOW(), updated_at = NOW() WHERE id = $2`,
+      [req.user!.userId, customerId]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_UNLOCKED_CUSTOMER', 'USER', customerId,
+      { status: 'LOCKED' }, { status: 'ACTIVE', reason }, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_STATUS_UPDATED', customerId, {
+      status: 'ACTIVE', unlockedBy: req.user!.userId
+    });
+
+    res.json({ success: true, message: `Account for ${user.username} has been unlocked and reactivated.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 23. CLOSE CUSTOMER ACCOUNT (Soft Close — with dependency check)
+// ============================================================
+router.post('/customers/:id/close', authenticateToken, checkRole(['SUPER_ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason, confirmClose } = req.body;
+
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Reason is required to close an account' } });
+      return;
+    }
+
+    if (!confirmClose) {
+      res.status(400).json({ success: false, error: { code: 'CONFIRMATION_REQUIRED', message: 'confirmClose: true is required to proceed with account closure' } });
+      return;
+    }
+
+    const user = await queryOne<any>('SELECT id, username, status FROM users WHERE id = $1', [customerId]);
+    if (!user) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Customer not found' } });
+      return;
+    }
+
+    if (user.status === 'CLOSED') {
+      res.status(400).json({ success: false, error: { code: 'ALREADY_CLOSED', message: 'Account is already closed' } });
+      return;
+    }
+
+    // Dependency check — cannot close with open positions or non-zero balance
+    const [openPositions, wallet] = await Promise.all([
+      queryOne<any>('SELECT COUNT(*) as c FROM positions WHERE user_id = $1 AND net_qty != 0', [customerId]),
+      queryOne<any>('SELECT cash_balance, used_margin FROM virtual_wallets WHERE user_id = $1', [customerId])
+    ]);
+
+    const openPosCount = parseInt(openPositions?.c || '0');
+    const cashBalance = parseFloat(wallet?.cash_balance || '0');
+    const usedMargin = parseFloat(wallet?.used_margin || '0');
+
+    if (openPosCount > 0) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'OPEN_POSITIONS_EXIST',
+          message: `This account has ${openPosCount} open position(s). Please square off all positions before closing the account.`
+        }
+      });
+      return;
+    }
+
+    if (usedMargin > 0) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'MARGIN_BLOCKED',
+          message: `This account has ₹${usedMargin.toLocaleString('en-IN')} margin blocked. Release all margin before closing.`
+        }
+      });
+      return;
+    }
+
+    // Soft close — preserve all historical data, just change status
+    await execute(
+      `UPDATE users SET status = 'CLOSED', closed_reason = $1, closed_by = $2, closed_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [reason.trim(), req.user!.userId, customerId]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_CLOSED_CUSTOMER', 'USER', customerId,
+      { status: user.status, cashBalance }, { status: 'CLOSED', reason }, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_STATUS_UPDATED', customerId, {
+      status: 'CLOSED', reason, closedBy: req.user!.userId
+    });
+
+    res.json({
+      success: true,
+      message: `Account for ${user.username} has been closed. All trading history and records are preserved.`
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 24. CUSTOMER AUDIT TRAIL (paginated)
+// ============================================================
+router.get('/customers/:id/audit', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const limit = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
+    const offset = parseInt(req.query.offset as string || '0', 10);
+
+    const [logs, countRow] = await Promise.all([
+      query<any>(
+        `SELECT al.*, u.username as actor_username 
+         FROM audit_logs al
+         LEFT JOIN users u ON al.actor_id = u.id
+         WHERE al.actor_id = $1 OR al.resource_id = $1
+         ORDER BY al.timestamp DESC
+         LIMIT $2 OFFSET $3`,
+        [customerId, limit, offset]
+      ),
+      queryOne<any>(
+        `SELECT COUNT(*) as c FROM audit_logs WHERE actor_id = $1 OR resource_id = $1`,
+        [customerId]
+      )
+    ]);
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_VIEWED_AUDIT', 'USER', customerId, null, null, getClientIp(req));
+
+    res.json({ success: true, logs, total: parseInt(countRow?.c || '0'), pagination: { limit, offset } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 25. CUSTOMER LOGIN ACTIVITY
+// ============================================================
+router.get('/customers/:id/login-activity', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const limit = Math.min(parseInt(req.query.limit as string || '30', 10), 100);
+
+    const sessions = await query<any>(
+      `SELECT id, ip_address, user_agent, device_type, login_at, logout_at, is_active, login_result, failure_reason
+       FROM login_sessions
+       WHERE user_id = $1
+       ORDER BY login_at DESC
+       LIMIT $2`,
+      [customerId, limit]
+    );
+
+    // Also get basic user security info
+    const user = await queryOne<any>(
+      `SELECT failed_login_attempts, locked_until, last_login_at FROM users WHERE id = $1`,
+      [customerId]
+    );
+
+    res.json({
+      success: true,
+      sessions,
+      security: {
+        failedLoginAttempts: user?.failed_login_attempts || 0,
+        lockedUntil: user?.locked_until || null,
+        lastLoginAt: user?.last_login_at || null
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 26. CUSTOMER KYC DETAIL (full — for Customer360 KYC tab)
+// ============================================================
+router.get('/customers/:id/kyc', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+
+    const [kycRecords, kycApplications] = await Promise.all([
+      query<any>('SELECT * FROM kyc_records WHERE customer_id = $1 ORDER BY created_at DESC', [customerId]),
+      query<any>(
+        `SELECT ka.*, 
+                (SELECT json_agg(json_build_object(
+                  'id', kd.id, 'document_type', kd.document_type, 
+                  'original_filename', kd.original_filename, 'mime_type', kd.mime_type,
+                  'file_size', kd.file_size, 'uploaded_at', kd.uploaded_at
+                )) FROM kyc_documents kd WHERE kd.kyc_application_id = ka.id) as documents
+         FROM kyc_applications ka WHERE ka.user_id = $1 ORDER BY ka.submitted_at DESC`,
+        [customerId]
+      )
+    ]);
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_VIEWED_KYC', 'USER', customerId, null, null, getClientIp(req));
+
+    res.json({ success: true, kycRecords, kycApplications });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 27. KYC APPROVE FOR CUSTOMER (by customer ID, not KYC record ID)
+// ============================================================
+router.post('/customers/:id/kyc/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { notes, applicationId } = req.body;
+
+    let targetId = applicationId;
+
+    if (!targetId) {
+      // Get the most recent pending application
+      const app = await queryOne<any>(
+        `SELECT id FROM kyc_applications WHERE user_id = $1 AND status IN ('PENDING','UNDER_REVIEW','SUBMITTED') ORDER BY submitted_at DESC LIMIT 1`,
+        [customerId]
+      );
+      if (app) {
+        targetId = app.id;
+      } else {
+        // Fall back to kyc_records
+        const rec = await queryOne<any>(
+          `SELECT id FROM kyc_records WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 1`,
+          [customerId]
+        );
+        if (rec) {
+          await execute(
+            `UPDATE kyc_records SET kyc_status = 'APPROVED', verification_status = 'VERIFIED', verified_by = $1, verified_at = NOW(), notes = $2, updated_at = NOW() WHERE id = $3`,
+            [req.user!.userId, notes || '', rec.id]
+          );
+          await execute(`UPDATE users SET is_kyc_completed = TRUE, updated_at = NOW() WHERE id = $1`, [customerId]);
+          await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_APPROVED_KYC', 'USER', customerId, null, { notes }, getClientIp(req));
+          adminEventBus.emitUserEvent('KYC_UPDATED', customerId, { kycStatus: 'APPROVED' });
+          res.json({ success: true, message: 'KYC approved successfully.' });
+          return;
+        }
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'No KYC record or application found for this customer' } });
+        return;
+      }
+    }
+
+    await execute(
+      `UPDATE kyc_applications SET status = 'APPROVED', reviewed_at = NOW(), reviewed_by = $1, rejection_reason = NULL, updated_at = NOW() WHERE id = $2`,
+      [req.user!.userId, targetId]
+    );
+    await execute(`UPDATE users SET is_kyc_completed = TRUE, updated_at = NOW() WHERE id = $1`, [customerId]);
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_APPROVED_KYC', 'USER', customerId, null, { applicationId: targetId, notes }, getClientIp(req));
+    adminEventBus.emitUserEvent('KYC_UPDATED', customerId, { kycStatus: 'APPROVED' });
+
+    res.json({ success: true, message: 'KYC approved successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 28. KYC REJECT FOR CUSTOMER (by customer ID)
+// ============================================================
+router.post('/customers/:id/kyc/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason, rejectionCategory, applicationId } = req.body;
+
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Rejection reason is required' } });
+      return;
+    }
+
+    let targetId = applicationId;
+    if (!targetId) {
+      const app = await queryOne<any>(
+        `SELECT id FROM kyc_applications WHERE user_id = $1 AND status NOT IN ('REJECTED') ORDER BY submitted_at DESC LIMIT 1`,
+        [customerId]
+      );
+      if (app) {
+        targetId = app.id;
+      } else {
+        const rec = await queryOne<any>(`SELECT id FROM kyc_records WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 1`, [customerId]);
+        if (rec) {
+          await execute(
+            `UPDATE kyc_records SET kyc_status = 'REJECTED', verification_status = 'FAILED', verified_by = $1, verified_at = NOW(), notes = $2, updated_at = NOW() WHERE id = $3`,
+            [req.user!.userId, reason, rec.id]
+          );
+          await execute(`UPDATE users SET is_kyc_completed = FALSE, updated_at = NOW() WHERE id = $1`, [customerId]);
+          await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_REJECTED_KYC', 'USER', customerId, null, { reason }, getClientIp(req));
+          adminEventBus.emitUserEvent('KYC_UPDATED', customerId, { kycStatus: 'REJECTED', reason });
+          res.json({ success: true, message: 'KYC rejected.' });
+          return;
+        }
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'No KYC record found for this customer' } });
+        return;
+      }
+    }
+
+    await execute(
+      `UPDATE kyc_applications SET status = 'REJECTED', rejection_reason = $1, rejection_category = $2, reviewed_at = NOW(), reviewed_by = $3, updated_at = NOW() WHERE id = $4`,
+      [reason.trim(), rejectionCategory || null, req.user!.userId, targetId]
+    );
+    await execute(`UPDATE users SET is_kyc_completed = FALSE, updated_at = NOW() WHERE id = $1`, [customerId]);
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_REJECTED_KYC', 'USER', customerId, null, { reason, rejectionCategory }, getClientIp(req));
+    adminEventBus.emitUserEvent('KYC_UPDATED', customerId, { kycStatus: 'REJECTED', reason });
+
+    res.json({ success: true, message: 'KYC rejected.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 29. KYC REQUEST RE-UPLOAD
+// ============================================================
+router.post('/customers/:id/kyc/request-reupload', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const customerId = req.params.id as string;
+    const { reason, applicationId } = req.body;
+
+    let targetId = applicationId;
+    if (!targetId) {
+      const app = await queryOne<any>(
+        `SELECT id FROM kyc_applications WHERE user_id = $1 ORDER BY submitted_at DESC LIMIT 1`,
+        [customerId]
+      );
+      targetId = app?.id;
+    }
+
+    if (targetId) {
+      await execute(
+        `UPDATE kyc_applications SET status = 'RESUBMISSION_REQUIRED', rejection_reason = $1, reviewed_at = NOW(), reviewed_by = $2, updated_at = NOW() WHERE id = $3`,
+        [reason || 'Additional documents required', req.user!.userId, targetId]
+      );
+    }
+
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_KYC_REUPLOAD_REQUESTED', 'USER', customerId, null, { reason }, getClientIp(req));
+    adminEventBus.emitUserEvent('KYC_UPDATED', customerId, { kycStatus: 'RESUBMISSION_REQUIRED', reason });
+
+    res.json({ success: true, message: 'Re-upload request sent to customer.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 30. EMIT POSITION/TRADE EVENTS FROM EXECUTION ENGINE
+// Helper: called from ExecutionEngine after trade execution
+// ============================================================
+export function emitAdminTradeEvent(userId: string, trade: any): void {
+  adminEventBus.emitUserEvent('TRADE_EXECUTED', userId, { trade });
+}
+
+export function emitAdminPositionUpdate(userId: string, positions: any[]): void {
+  adminEventBus.emitUserEvent('POSITION_UPDATED', userId, { positions });
+}
+
+export function emitAdminFundsUpdate(userId: string, wallet: any): void {
+  adminEventBus.emitUserEvent('FUNDS_UPDATED', userId, { wallet });
+}
 
 export default router;

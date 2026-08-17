@@ -133,10 +133,14 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
       .catch(() => setLoading(false));
   }, [symbol, expiry, strikeRange]);
 
-  // Load option chain once on symbol/expiry/strikeRange change.
-  // Live LTP updates arrive via WebSocket ticks through useSubscribeTokens() above.
+  // Load option chain on symbol/expiry/strikeRange change and refresh every 3 seconds
+  // Live LTP updates arrive instantly via WebSocket ticks through useSubscribeTokens() above.
   useEffect(() => {
     fetchOptionChain();
+    const interval = setInterval(() => {
+      fetchOptionChain();
+    }, 3000);
+    return () => clearInterval(interval);
   }, [fetchOptionChain]);
 
   // Handle Order Placement Trigger

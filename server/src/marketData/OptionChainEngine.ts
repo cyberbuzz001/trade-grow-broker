@@ -42,10 +42,10 @@ export class OptionChainEngine {
   }> {
     const rawSym = (params.symbol || 'NIFTY').toUpperCase().trim();
 
-    // Return cached result if available and fresh (2s TTL)
+    // Return cached result if available and fresh (500ms TTL / 2x per sec)
     const cacheKey = `${rawSym}_${params.expiry || ''}_${params.strikeRange || '10'}`;
     const cached = OptionChainEngine.chainCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < 2000) {
+    if (cached && Date.now() - cached.ts < 500) {
       return cached.result;
     }
     const isSensex = rawSym === 'SENSEX' || rawSym === 'BSE SENSEX';
