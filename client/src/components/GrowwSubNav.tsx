@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SlidersHorizontal, Compass, Briefcase, TrendingUp, Receipt, Bookmark, Layers, ShieldCheck, Activity, User as UserIcon } from 'lucide-react';
 import { MarketTick } from '../types';
 import { useMarketSocket } from '../hooks/useMarketSocket';
+import { IndexActionModal } from './IndexActionModal';
 
 export type SubView = 'EXPLORE' | 'HOLDINGS' | 'POSITIONS' | 'ORDERS' | 'WATCHLIST' | 'OPTION_CHAIN' | 'ADMIN' | 'ANALYTICS' | 'PROFILE';
 
@@ -10,6 +11,8 @@ interface GrowwSubNavProps {
   onSelectView: (view: SubView) => void;
   isTerminalMode: boolean;
   onToggleTerminal: () => void;
+  onSelectIndexChart?: (symbol: string, token: string, exchange: string) => void;
+  onSelectIndexOptionChain?: (cleanIndex: string) => void;
   ticks?: Map<string, MarketTick>;
   user?: any;
 }
@@ -19,9 +22,13 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   onSelectView,
   isTerminalMode,
   onToggleTerminal,
+  onSelectIndexChart,
+  onSelectIndexOptionChain,
   ticks: ticksProp,
   user,
 }) => {
+  const [selectedIndexModal, setSelectedIndexModal] = useState<{ symbol: string; token: string; exchange: string } | null>(null);
+
   // Primary: get ticks from MarketSocketProvider context
   // Fallback: use prop if provided (for compatibility)
   const { ticks: contextTicks } = useMarketSocket();
@@ -77,8 +84,12 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
         <div className="flex items-center gap-6 overflow-x-auto scrollbar-none py-1.5 w-full">
           
           {/* NIFTY 50 */}
-          <div className="flex items-center gap-2 flex-shrink-0 group cursor-pointer">
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-white transition-colors">NIFTY 50</span>
+          <div
+            onClick={() => setSelectedIndexModal({ symbol: 'NIFTY 50', token: 'NSE_NIFTY50', exchange: 'NSE' })}
+            className="flex items-center gap-2 flex-shrink-0 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            title="Click to view NIFTY 50 Chart / Option Chain"
+          >
+            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">NIFTY 50</span>
             <span className="font-bold text-white num-font">{formatLtp(niftyTick, 24856.15)}</span>
             <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${niftyChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
               {niftyChg.text}
@@ -86,8 +97,12 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           </div>
 
           {/* SENSEX */}
-          <div className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer">
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-white transition-colors">SENSEX</span>
+          <div
+            onClick={() => setSelectedIndexModal({ symbol: 'SENSEX', token: 'BSE_SENSEX', exchange: 'BSE' })}
+            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            title="Click to view SENSEX Chart / Option Chain"
+          >
+            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">SENSEX</span>
             <span className="font-bold text-white num-font">{formatLtp(sensexTick, 81254.30)}</span>
             <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${sensexChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
               {sensexChg.text}
@@ -95,8 +110,12 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           </div>
 
           {/* BANK NIFTY */}
-          <div className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer">
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-white transition-colors">BANK NIFTY</span>
+          <div
+            onClick={() => setSelectedIndexModal({ symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', exchange: 'NSE' })}
+            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            title="Click to view BANK NIFTY Chart / Option Chain"
+          >
+            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">BANK NIFTY</span>
             <span className="font-bold text-white num-font">{formatLtp(bankNiftyTick, 52150.75)}</span>
             <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${bankNiftyChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
               {bankNiftyChg.text}
@@ -104,8 +123,12 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           </div>
 
           {/* FIN NIFTY */}
-          <div className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer">
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-white transition-colors">FIN NIFTY</span>
+          <div
+            onClick={() => setSelectedIndexModal({ symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', exchange: 'NSE' })}
+            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            title="Click to view FIN NIFTY Chart / Option Chain"
+          >
+            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">FIN NIFTY</span>
             <span className="font-bold text-white num-font">{formatLtp(finNiftyTick, 23890.40)}</span>
             <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${finNiftyChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
               {finNiftyChg.text}
@@ -120,6 +143,25 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Index Action Selection Modal */}
+      {selectedIndexModal && (
+        <IndexActionModal
+          isOpen={Boolean(selectedIndexModal)}
+          onClose={() => setSelectedIndexModal(null)}
+          indexSymbol={selectedIndexModal.symbol}
+          token={selectedIndexModal.token}
+          exchange={selectedIndexModal.exchange}
+          latestTick={ticks.get(selectedIndexModal.token)}
+          onOpenChart={(sym, tok) => {
+            onSelectIndexChart?.(sym, tok, selectedIndexModal.exchange);
+          }}
+          onOpenOptionChain={(cleanIndex) => {
+            onSelectIndexOptionChain?.(cleanIndex);
+          }}
+        />
+      )}
+
 
       {/* 2. SUB-NAV TABS & TERMINAL WORKSPACE TOGGLE */}
       <div className="px-4 lg:px-6 py-2 flex items-center justify-between overflow-x-auto scrollbar-none bg-slate-900/60">

@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Search, ArrowUpRight, ArrowDownRight, Zap, Sun, Moon, Sparkles, TrendingUp, Layers, Award, Shield, FileText, SlidersHorizontal } from 'lucide-react';
 import { MarketTick, User, Wallet } from '../../types';
 import { useMarketSocket, useSubscribeTokens } from '../../hooks/useMarketSocket';
+import { IndexActionModal } from '../IndexActionModal';
+import { MobileChartModal } from './MobileChartModal';
 
 interface MobileHomeViewProps {
   user: User;
@@ -10,6 +12,7 @@ interface MobileHomeViewProps {
   onSelectStock: (symbol: string, name: string, price: number) => void;
   onOpenSearch: () => void;
   onOpenQuickOrder?: (stock: { name: string; symbol: string; price: number; side?: 'BUY' | 'SELL' }) => void;
+  onOpenOptionChain?: (symbol: string) => void;
   theme?: 'light' | 'dark';
   onToggleTheme?: () => void;
 }
@@ -21,9 +24,13 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
   onSelectStock,
   onOpenSearch,
   onOpenQuickOrder,
+  onOpenOptionChain,
   theme = 'dark',
   onToggleTheme,
 }) => {
+  const [selectedIndexModal, setSelectedIndexModal] = useState<{ symbol: string; token: string; exchange: string } | null>(null);
+  const [mobileChartState, setMobileChartState] = useState<{ symbol: string; token: string; exchange: string } | null>(null);
+
   // Subscribe to key index tokens and read from context
   const INDEX_TOKENS = ['NSE_NIFTY50', 'BSE_SENSEX', 'NSE_BANKNIFTY', 'NSE_FINNIFTY'];
   useSubscribeTokens(INDEX_TOKENS);
@@ -38,6 +45,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
     const val = tick ? tick.ltp : fallback;
     return val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+
 
   const totalValue = wallet ? wallet.cashBalance : 0;
 
@@ -150,13 +158,19 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
       {/* 3. LIVE MARKET INDEX CHIPS (Kite / Groww Mobile Ticker Bar) */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Market Indices</span>
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Market Indices (Tap for Chart/Option Chain)</span>
           <span className="text-[10px] font-mono text-emerald-400">REAL-TIME TIX</span>
         </div>
 
         <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
           {/* NIFTY 50 CHIP */}
-          <div className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 backdrop-blur-xl">
+          <div
+            onClick={() => {
+              navigator.vibrate?.(20);
+              setSelectedIndexModal({ symbol: 'NIFTY 50', token: 'NSE_NIFTY50', exchange: 'NSE' });
+            }}
+            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+          >
             <div className="flex justify-between items-center mb-1">
               <span className="text-[11px] font-bold text-white">NIFTY 50</span>
               <span className="text-emerald-400 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.42%</span>
@@ -164,14 +178,19 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
             <div className="font-mono text-sm font-black tabular-nums text-white">
               {formatLtp(getNifty(), 24856.15)}
             </div>
-            {/* Range bar */}
             <div className="w-full bg-slate-950 rounded-full h-1 mt-2 overflow-hidden">
               <div className="bg-emerald-400 h-full w-[65%]"></div>
             </div>
           </div>
 
           {/* SENSEX CHIP */}
-          <div className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 backdrop-blur-xl">
+          <div
+            onClick={() => {
+              navigator.vibrate?.(20);
+              setSelectedIndexModal({ symbol: 'SENSEX', token: 'BSE_SENSEX', exchange: 'BSE' });
+            }}
+            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+          >
             <div className="flex justify-between items-center mb-1">
               <span className="text-[11px] font-bold text-white">SENSEX</span>
               <span className="text-emerald-400 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.38%</span>
@@ -185,7 +204,13 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
           </div>
 
           {/* BANK NIFTY CHIP */}
-          <div className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 backdrop-blur-xl">
+          <div
+            onClick={() => {
+              navigator.vibrate?.(20);
+              setSelectedIndexModal({ symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', exchange: 'NSE' });
+            }}
+            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-rose-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+          >
             <div className="flex justify-between items-center mb-1">
               <span className="text-[11px] font-bold text-white">BANK NIFTY</span>
               <span className="text-rose-400 font-mono text-[10px] font-bold bg-rose-500/10 px-1.5 py-0.2 rounded">-0.15%</span>
@@ -199,7 +224,13 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
           </div>
 
           {/* FIN NIFTY CHIP */}
-          <div className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 backdrop-blur-xl">
+          <div
+            onClick={() => {
+              navigator.vibrate?.(20);
+              setSelectedIndexModal({ symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', exchange: 'NSE' });
+            }}
+            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+          >
             <div className="flex justify-between items-center mb-1">
               <span className="text-[11px] font-bold text-white">FIN NIFTY</span>
               <span className="text-emerald-400 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.22%</span>
@@ -345,6 +376,44 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
         </div>
       </div>
 
+      {/* Index Action Selection Modal */}
+      {selectedIndexModal && (
+        <IndexActionModal
+          isOpen={Boolean(selectedIndexModal)}
+          onClose={() => setSelectedIndexModal(null)}
+          indexSymbol={selectedIndexModal.symbol}
+          token={selectedIndexModal.token}
+          exchange={selectedIndexModal.exchange}
+          latestTick={ticks.get(selectedIndexModal.token)}
+          onOpenChart={(sym, tok, ex) => {
+            setMobileChartState({ symbol: sym, token: tok, exchange: ex });
+          }}
+          onOpenOptionChain={(sym) => {
+            onOpenOptionChain?.(sym);
+          }}
+        />
+      )}
+
+      {/* Mobile Live Candlestick Chart Modal */}
+      {mobileChartState && (
+        <MobileChartModal
+          isOpen={Boolean(mobileChartState)}
+          onClose={() => setMobileChartState(null)}
+          symbol={mobileChartState.symbol}
+          token={mobileChartState.token}
+          exchange={mobileChartState.exchange}
+          latestTick={ticks.get(mobileChartState.token)}
+          theme={theme}
+          onOpenOptionChain={(sym) => {
+            onOpenOptionChain?.(sym);
+          }}
+          onOpenOrderModal={(side, price) => {
+            onOpenQuickOrder?.({ name: mobileChartState.symbol, symbol: mobileChartState.symbol, price, side });
+          }}
+        />
+      )}
+
     </div>
   );
 };
+

@@ -220,6 +220,7 @@ export function App() {
                   setSelectedMobileStock({ symbol: stock.symbol, name: stock.name, price: stock.price });
                   setIsMobileOrderModalOpen(true);
                 }}
+                onOpenOptionChain={() => setActiveMobileTab('OPTION_CHAIN')}
               />
             )}
 
@@ -378,6 +379,15 @@ export function App() {
           }}
           isTerminalMode={isTerminalMode}
           onToggleTerminal={() => setIsTerminalMode(!isTerminalMode)}
+          onSelectIndexChart={(symbol, token) => {
+            setTerminalSymbol(symbol);
+            setTerminalToken(token);
+            setIsTerminalMode(true);
+          }}
+          onSelectIndexOptionChain={() => {
+            setIsTerminalMode(false);
+            setActiveSubView('OPTION_CHAIN');
+          }}
           ticks={ticks}
           user={user}
         />

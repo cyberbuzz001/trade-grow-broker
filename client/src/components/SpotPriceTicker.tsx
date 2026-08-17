@@ -8,6 +8,7 @@ export interface SpotPriceTickerProps {
   symbol?: string;
   fallbackPrice?: number;
   className?: string;
+  onClick?: () => void;
 }
 
 export function getSpotToken(symbol: string): string {
@@ -36,6 +37,7 @@ export const SpotPriceTicker: React.FC<SpotPriceTickerProps> = ({
   symbol = 'NIFTY',
   fallbackPrice = 24500,
   className = '',
+  onClick,
 }) => {
   const spotToken = getSpotToken(symbol);
   
@@ -72,7 +74,10 @@ export const SpotPriceTicker: React.FC<SpotPriceTickerProps> = ({
 
   return (
     <div
+      onClick={onClick}
       className={`bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-3 rounded-2xl shadow-sm flex items-center gap-3 transition-all duration-300 ${
+        onClick ? 'cursor-pointer hover:border-emerald-500/50 active:scale-98' : ''
+      } ${
         flashClass === 'flash-up'
           ? 'bg-emerald-500/10 border-emerald-500/50 shadow-emerald-500/10'
           : flashClass === 'flash-down'
