@@ -5,6 +5,9 @@ import { normalizeAndSortCandles, aggregateTickToCandle } from './TradingChart.u
 import { IndicatorEngine } from './IndicatorEngine';
 import { IndicatorToolbar } from './IndicatorToolbar';
 import { MarketTick } from '../../../types';
+import { useSubscribeTokens, useMarketSocket } from '../../../hooks/useMarketSocket';
+import { useTickFreshness } from '../../../hooks/useTickFreshness';
+import { PriceBadge } from '../../PriceBadge';
 import { Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 
 interface TradingChartProps {
@@ -44,18 +47,27 @@ export const TradingChart: React.FC<TradingChartProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
 
   const [rawCandles, setRawCandles] = useState<CandleData[]>([]);
-  const [currentCandle, setCurrentCandle] = useState<CandleData | null>(null);
+  const currentCandleRef = useRef<CandleData | null>(null);
+
   const [indicators, setIndicators] = useState<IndicatorConfig[]>([
     { id: 'ind_ema9', name: 'EMA 9', type: 'EMA', period: 9, color: '#10b981', enabled: true },
     { id: 'ind_sma20', name: 'SMA 20', type: 'SMA', period: 20, color: '#3b82f6', enabled: true },
   ]);
+
+  // 1. Reference-counted WebSocket token subscription via shared socket manager
+  useSubscribeTokens([token]);
+
+  // 2. Data freshness and price source evaluation hook
+  const freshness = useTickFreshness(token);
+  const socketTick = useMarketSocket().ticks.get(token);
+  const activeTick = latestTick || socketTick || freshness.tick;
 
   const timeframeSecondsMap: Record<Timeframe, number> = {
     '1m': 60, '3m': 180, '5m': 300, '10m': 600, '15m': 900, '30m': 1800,
     '1h': 3600, '4h': 14400, '1D': 86400, '1W': 604800, '1M': 2592000
   };
 
-  // 1. Initialize Lightweight Charts Canvas
+  // Initialize Lightweight Charts Canvas
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -158,10 +170,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
     }
   }, [chartType]);
 
-  // 2. Fetch Historical Candles from Backend API
-  //    The server now returns `currentLtp` — the live price snapshotted
-  //    at the exact moment the candles were generated. We use this to
-  //    anchor the last candle so it matches the first WebSocket tick exactly.
+  // Fetch Historical Candles from Backend API
   const fetchHistoricalData = () => {
     setLoading(true);
     firstTickApplied.current = false;
@@ -172,8 +181,6 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           let sorted = normalizeAndSortCandles(data.candles);
 
           // Use the server-snapshotted LTP to anchor the last candle.
-          // This is the price the server had at generation time — much more
-          // accurate than any client-side tick which may not have arrived yet.
           const anchorLtp: number | null = data.currentLtp ?? null;
           if (anchorLtp && anchorLtp > 0 && sorted.length > 0) {
             const last = sorted[sorted.length - 1];
@@ -187,7 +194,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
 
           setRawCandles(sorted);
           if (sorted.length > 0) {
-            setCurrentCandle(sorted[sorted.length - 1]);
+            currentCandleRef.current = sorted[sorted.length - 1];
           }
           updateChartData(sorted);
         }
@@ -196,12 +203,11 @@ export const TradingChart: React.FC<TradingChartProps> = ({
       .catch(() => setLoading(false));
   };
 
-  const firstTickApplied = React.useRef(false);
+  const firstTickApplied = useRef(false);
 
   useEffect(() => {
     fetchHistoricalData();
   }, [token, timeframe]);
-
 
   // Update chart data & indicators
   const updateChartData = (candles: CandleData[]) => {
@@ -228,7 +234,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
     renderMarkers();
   };
 
-  // 3. Render Technical Indicators Overlay & Sub-Panes
+  // Render Technical Indicators Overlay & Sub-Panes
   const renderIndicators = (candles: CandleData[]) => {
     if (!chartRef.current) return;
 
@@ -282,7 +288,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
 
   const [showTradeMarkers, setShowTradeMarkers] = useState<boolean>(false);
 
-  // 4. Render Executed Order Markers & Open Position Lines
+  // Render Executed Order Markers & Open Position Lines
   const renderMarkers = () => {
     if (!mainSeriesRef.current) return;
 
@@ -317,41 +323,35 @@ export const TradingChart: React.FC<TradingChartProps> = ({
     renderMarkers();
   }, [showTradeMarkers, orderMarkers, positionMarkers]);
 
-  // 5. Incremental Real-Time Tick Update via WebSocket
-  //    Uses the last historical candle as the base open so the very first
-  //    live tick merges smoothly instead of appearing as a price spike.
+  // Imperative Real-Time Tick Update via WebSocket (Bypasses React Re-renders per Tick)
   useEffect(() => {
-    if (!latestTick || !mainSeriesRef.current) return;
+    if (!activeTick || !mainSeriesRef.current) return;
 
     const intervalSec = timeframeSecondsMap[timeframe] || 300;
-    const tickTimeSec = Math.floor(latestTick.timestamp / 1000);
+    const tickTimeSec = Math.floor((activeTick.timestamp || Date.now()) / 1000);
 
-    // If no currentCandle yet, seed it from the last historical candle so
-    // the open price matches the previous close rather than the tick itself.
-    let baseCandle = currentCandle ?? (rawCandles.length > 0 ? rawCandles[rawCandles.length - 1] : null);
+    let baseCandle = currentCandleRef.current ?? (rawCandles.length > 0 ? rawCandles[rawCandles.length - 1] : null);
 
-    // On the FIRST tick after historical load, if the historical last candle
-    // wasn't already anchored to this price, silently fix it without creating a spike.
+    // On FIRST tick after historical load, anchor the current candle without price jumps
     if (!firstTickApplied.current && baseCandle && rawCandles.length > 0) {
       firstTickApplied.current = true;
-      // Patch last candle to match live price before the first real update
-      const patchedLast: typeof baseCandle = {
+      const patchedLast: CandleData = {
         ...baseCandle,
-        close: latestTick.ltp,
-        high: Math.max(baseCandle.high, latestTick.ltp),
-        low: Math.min(baseCandle.low, latestTick.ltp),
+        close: activeTick.ltp,
+        high: Math.max(baseCandle.high, activeTick.ltp),
+        low: Math.min(baseCandle.low, activeTick.ltp),
       };
       if (chartType === 'Candlestick' || chartType === 'Bar') {
         mainSeriesRef.current.update(patchedLast as any);
       } else {
         mainSeriesRef.current.update({ time: patchedLast.time, value: patchedLast.close } as any);
       }
-      setCurrentCandle(patchedLast);
-      return; // Return early — next tick will flow normally
+      currentCandleRef.current = patchedLast;
+      return;
     }
 
-    const { candle } = aggregateTickToCandle(baseCandle, latestTick.ltp, tickTimeSec, intervalSec);
-    setCurrentCandle(candle);
+    const { candle } = aggregateTickToCandle(baseCandle, activeTick.ltp, tickTimeSec, intervalSec);
+    currentCandleRef.current = candle;
 
     if (chartType === 'Candlestick' || chartType === 'Bar') {
       mainSeriesRef.current.update(candle as any);
@@ -366,24 +366,31 @@ export const TradingChart: React.FC<TradingChartProps> = ({
         color: candle.close >= candle.open ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
       } as any);
     }
-  }, [latestTick]);
+  }, [activeTick]);
 
   return (
     <div className={`flex flex-col bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 h-full shadow-sm ${isFullScreen ? 'fixed inset-0 z-50 rounded-none p-6' : ''}`}>
       {/* 1. CHART HEADER CONTROL TOOLBAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-2 border-b border-[var(--border-light)]">
-        {/* Symbol & Price Summary */}
+        {/* Symbol, Source Badge & Price Summary */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="font-extrabold text-lg text-[var(--text-main)]">{symbol}</span>
             <span className="text-xs bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border border-[var(--border-color)] px-2 py-0.5 rounded font-mono font-bold">{exchange}</span>
+            {/* Price Freshness / Source Tag Badge */}
+            <PriceBadge
+              state={freshness.state}
+              source={freshness.source}
+              timeSinceLastTick={freshness.timeSinceLastTick}
+              size="sm"
+            />
           </div>
 
-          {latestTick && (
+          {activeTick && (
             <div className="flex items-center gap-2 num-font">
-              <span className="text-xl font-extrabold text-[var(--text-main)]">₹{latestTick.ltp.toFixed(2)}</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded ${latestTick.change >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
-                {latestTick.change >= 0 ? '+' : ''}{latestTick.change.toFixed(2)} ({latestTick.changePercent.toFixed(2)}%)
+              <span className="text-xl font-extrabold text-[var(--text-main)]">₹{activeTick.ltp.toFixed(2)}</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded ${activeTick.change >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
+                {activeTick.change >= 0 ? '+' : ''}{activeTick.change.toFixed(2)} ({activeTick.changePercent.toFixed(2)}%)
               </span>
             </div>
           )}
@@ -441,7 +448,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           {/* Quick Buy/Sell Triggers */}
           {onBuyClick && (
             <button
-              onClick={() => onBuyClick(symbol, latestTick?.ltp || 100)}
+              onClick={() => onBuyClick(symbol, activeTick?.ltp || 100)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-sm transition-all"
             >
               BUY
@@ -449,7 +456,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           )}
           {onSellClick && (
             <button
-              onClick={() => onSellClick(symbol, latestTick?.ltp || 100)}
+              onClick={() => onSellClick(symbol, activeTick?.ltp || 100)}
               className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-sm transition-all"
             >
               SELL
@@ -475,7 +482,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
         )}
       </div>
 
-      {/* 3. MANDATORY TRADINGVIEW ATTRIBUTION NOTICE (SECTION 36) */}
+      {/* 3. TRADINGVIEW ATTRIBUTION NOTICE */}
       <div className="flex items-center justify-between text-[10px] text-[var(--text-tertiary)] pt-2 border-t border-[var(--border-light)] font-semibold">
         <span>Powered by <a href="https://www.tradingview.com/lightweight-charts/" target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">TradingView Lightweight Charts™</a></span>
         <span className="num-font">TIMEZONE: Asia/Kolkata (IST)</span>
@@ -483,3 +490,4 @@ export const TradingChart: React.FC<TradingChartProps> = ({
     </div>
   );
 };
+

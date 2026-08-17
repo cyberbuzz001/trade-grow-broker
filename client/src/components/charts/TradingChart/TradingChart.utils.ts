@@ -4,33 +4,34 @@ export function normalizeAndSortCandles(rawCandles: any[]): CandleData[] {
   if (!Array.isArray(rawCandles) || rawCandles.length === 0) return [];
 
   const validCandles: CandleData[] = [];
+  const maxAllowedFutureTime = Math.floor(Date.now() / 1000) + 300; // allow 5 mins max clock skew
 
   for (const c of rawCandles) {
     if (!c) continue;
     let timeNum = typeof c.time === 'number' ? c.time : Math.floor(new Date(c.time).getTime() / 1000);
-    if (isNaN(timeNum) || timeNum <= 0) continue;
+    if (isNaN(timeNum) || timeNum <= 0 || timeNum > maxAllowedFutureTime) continue;
 
     const open = Number(c.open || 0);
-    const high = Number(c.high || open);
-    const low = Number(c.low || open);
+    const rawHigh = Number(c.high || open);
+    const rawLow = Number(c.low || open);
     const close = Number(c.close || open);
-    const volume = Number(c.volume || 0);
+    const volume = Math.max(0, Number(c.volume || 0));
 
-    // Sanity validation: High must be >= max(open, close), Low <= min(open, close)
-    const validHigh = Math.max(high, open, close);
-    const validLow = Math.min(low, open, close);
+    // Enforce strict OHLC invariants: High >= max(Open, Close, Low), Low <= min(Open, Close, High)
+    const high = Math.max(rawHigh, open, close, rawLow);
+    const low = Math.min(rawLow, open, close, rawHigh);
 
     validCandles.push({
       time: timeNum,
       open,
-      high: validHigh,
-      low: validLow,
+      high,
+      low,
       close,
       volume
     });
   }
 
-  // Deduplicate by timestamp and sort ascending
+  // Deduplicate by timestamp (last one wins) and sort ascending
   const map = new Map<number, CandleData>();
   for (const candle of validCandles) {
     map.set(candle.time, candle);
@@ -61,15 +62,19 @@ export function aggregateTickToCandle(
     };
   }
 
+  const high = Math.max(existingCandle.high, tickPrice);
+  const low = Math.min(existingCandle.low, tickPrice);
+
   return {
     candle: {
       time: existingCandle.time,
       open: existingCandle.open,
-      high: Math.max(existingCandle.high, tickPrice),
-      low: Math.min(existingCandle.low, tickPrice),
+      high,
+      low,
       close: tickPrice,
       volume: (existingCandle.volume || 0) + 1
     },
     isNewCandle: false
   };
 }
+

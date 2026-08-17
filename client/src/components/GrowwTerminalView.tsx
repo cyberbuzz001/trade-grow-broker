@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { MarketTick, Wallet } from '../types';
 import { useSubscribeTokens, useMarketSocket } from '../hooks/useMarketSocket';
+import { TradingChart } from './charts/TradingChart/TradingChart';
 
 interface GrowwTerminalViewProps {
   token: string | null;
@@ -29,10 +30,12 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
   const { ticks: socketTicks } = useMarketSocket();
   const ticks = socketTicks.size > 0 ? socketTicks : (propsTicks ?? new Map<string, MarketTick>());
   const [selectedSymbol, setSelectedSymbol] = useState<string>(initialSymbol);
+  const [selectedToken, setSelectedToken] = useState<string>(
+    initialSymbol === 'NIFTY 50' ? 'NSE_NIFTY50' : (initialSymbol === 'SENSEX' ? 'BSE_SENSEX' : `NSE_${initialSymbol}`)
+  );
   const [exchange, setExchange] = useState<'NSE' | 'BSE'>('NSE');
   const [activeWatchlistTab, setActiveWatchlistTab] = useState<'DEFAULT' | 'FO' | 'CUSTOM'>('DEFAULT');
-  const [timeframe, setTimeframe] = useState<string>('1D');
-  const [chartType, setChartType] = useState<'CANDLE' | 'LINE' | 'AREA'>('CANDLE');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Order Entry State
   const [orderSide, setOrderSide] = useState<'BUY' | 'SELL'>('BUY');
@@ -43,16 +46,50 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
   const [orderSubmitting, setOrderSubmitting] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Watchlist Items
-  const watchlistTokens = ['NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK', 'NSE_TATAMOTORS'];
-  useSubscribeTokens(watchlistTokens);
+  // Default Stocks Watchlist
+  const stocksWatchlist = [
+    { symbol: 'RELIANCE', token: 'NSE_RELIANCE', name: 'Reliance Industries', exchange: 'NSE' as const, fallbackPrice: 2456.30, fallbackPct: 1.9 },
+    { symbol: 'TCS', token: 'NSE_TCS', name: 'Tata Consultancy', exchange: 'NSE' as const, fallbackPrice: 4125.80, fallbackPct: 1.2 },
+    { symbol: 'INFY', token: 'NSE_INFY', name: 'Infosys Limited', exchange: 'NSE' as const, fallbackPrice: 1845.60, fallbackPct: 2.8 },
+    { symbol: 'HDFCBANK', token: 'NSE_HDFCBANK', name: 'HDFC Bank', exchange: 'NSE' as const, fallbackPrice: 1670.25, fallbackPct: -0.5 },
+    { symbol: 'TATAMOTORS', token: 'NSE_TATAMOTORS', name: 'Tata Motors', exchange: 'NSE' as const, fallbackPrice: 985.40, fallbackPct: 3.2 },
+    { symbol: 'ICICIBANK', token: 'NSE_ICICIBANK', name: 'ICICI Bank', exchange: 'NSE' as const, fallbackPrice: 1210.50, fallbackPct: 0.8 },
+    { symbol: 'SBIN', token: 'NSE_SBIN', name: 'State Bank of India', exchange: 'NSE' as const, fallbackPrice: 840.15, fallbackPct: 1.4 },
+    { symbol: 'BHARTIARTL', token: 'NSE_BHARTIARTL', name: 'Bharti Airtel', exchange: 'NSE' as const, fallbackPrice: 1480.90, fallbackPct: -0.3 },
+  ];
 
-  const getTick = (sym: string) => {
-    return ticks?.get(`NSE_${sym}`) || ticks?.get(sym) || ticks?.get(`BSE_${sym}`);
+  // F&O Indices & Option Contracts Watchlist
+  const foWatchlist = [
+    { symbol: 'NIFTY 50', token: 'NSE_NIFTY50', name: 'NIFTY 50 Index', exchange: 'NSE' as const, fallbackPrice: 24328.50, fallbackPct: -0.15 },
+    { symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', name: 'NIFTY Bank Index', exchange: 'NSE' as const, fallbackPrice: 51840.20, fallbackPct: 0.42 },
+    { symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', name: 'FINNIFTY Index', exchange: 'NSE' as const, fallbackPrice: 23890.40, fallbackPct: 0.22 },
+    { symbol: 'SENSEX', token: 'BSE_SENSEX', name: 'BSE SENSEX Index', exchange: 'BSE' as const, fallbackPrice: 77882.88, fallbackPct: 0.01 },
+    { symbol: 'NIFTY 24500 CE', token: 'NFO_NIFTY_24500_CE', name: 'Nifty 24500 Call Option', exchange: 'NSE' as const, fallbackPrice: 142.50, fallbackPct: 8.5 },
+    { symbol: 'NIFTY 24500 PE', token: 'NFO_NIFTY_24500_PE', name: 'Nifty 24500 Put Option', exchange: 'NSE' as const, fallbackPrice: 88.20, fallbackPct: -6.4 },
+    { symbol: 'BANKNIFTY 52000 CE', token: 'NFO_BANKNIFTY_52000_CE', name: 'BankNifty 52000 Call', exchange: 'NSE' as const, fallbackPrice: 320.10, fallbackPct: 12.1 },
+    { symbol: 'SENSEX 80000 CE', token: 'BFO_SENSEX_80000_CE', name: 'Sensex 80000 Call Option', exchange: 'BSE' as const, fallbackPrice: 215.40, fallbackPct: 4.8 },
+  ];
+
+  const currentWatchlist = activeWatchlistTab === 'FO'
+    ? foWatchlist
+    : (activeWatchlistTab === 'CUSTOM' ? [...stocksWatchlist.slice(0, 3), ...foWatchlist.slice(0, 3)] : stocksWatchlist);
+
+  const filteredWatchlist = searchQuery.trim() === ''
+    ? currentWatchlist
+    : currentWatchlist.filter(item =>
+        item.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+  const allTokens = [...stocksWatchlist.map(s => s.token), ...foWatchlist.map(f => f.token)];
+  useSubscribeTokens(allTokens);
+
+  const getTick = (tokenKey: string, sym: string) => {
+    return ticks?.get(tokenKey) || ticks?.get(`NSE_${sym}`) || ticks?.get(sym) || ticks?.get(`BSE_${sym}`);
   };
 
-  const currentTick = getTick(selectedSymbol);
-  const currentLtp = currentTick ? currentTick.ltp : (selectedSymbol === 'RELIANCE' ? 2456.30 : 1845.60);
+  const currentTick = getTick(selectedToken, selectedSymbol);
+  const currentLtp = currentTick ? currentTick.ltp : 2456.30;
   const currentChange = currentTick ? currentTick.change : 45.60;
   const currentChangePct = currentTick ? currentTick.changePercent : 1.89;
 
@@ -105,14 +142,6 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
     }
   };
 
-  const watchlistData = [
-    { symbol: 'RELIANCE', name: 'Reliance Industries', exchange: 'NSE', fallbackPrice: 2456.30, fallbackPct: 1.9 },
-    { symbol: 'TCS', name: 'Tata Consultancy', exchange: 'NSE', fallbackPrice: 4125.80, fallbackPct: 1.2 },
-    { symbol: 'INFY', name: 'Infosys Limited', exchange: 'NSE', fallbackPrice: 1845.60, fallbackPct: 2.8 },
-    { symbol: 'HDFC BANK', name: 'HDFC Bank', exchange: 'NSE', fallbackPrice: 1670.25, fallbackPct: -0.5 },
-    { symbol: 'TATAMOTORS', name: 'Tata Motors', exchange: 'NSE', fallbackPrice: 985.40, fallbackPct: 3.2 },
-  ];
-
   return (
     <div className="h-[calc(100vh-64px)] w-full overflow-hidden flex flex-col bg-[var(--bg-body)] text-[var(--text-main)] font-body select-none">
       
@@ -124,7 +153,6 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
         {/* Left: Brand & Main Navigation Links */}
         <div className="flex items-center gap-6">
           <div className="text-xl font-headline font-black text-[#00E676] tracking-tight flex items-center gap-2">
-            {/* Trade Grow Logo */}
             <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-sm shadow-emerald-500/30">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <path d="M4 18 L10 10 L14 14 L20 6" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -136,67 +164,66 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
           </div>
 
           <div className="hidden md:flex items-center gap-6 font-headline">
-            <button className="font-bold text-sm tracking-tight text-[#00E676] border-b-2 border-[#00E676] pb-1 pt-1">
+            <button
+              onClick={() => setActiveWatchlistTab('DEFAULT')}
+              className={`font-bold text-sm tracking-tight transition-colors pb-1 pt-1 ${
+                activeWatchlistTab === 'DEFAULT' ? 'text-[#00E676] border-b-2 border-[#00E676]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+              }`}
+            >
               Stocks
             </button>
-            <button className="font-bold text-sm tracking-tight text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors pb-1 pt-1">
+            <button
+              onClick={() => setActiveWatchlistTab('FO')}
+              className={`font-bold text-sm tracking-tight transition-colors pb-1 pt-1 ${
+                activeWatchlistTab === 'FO' ? 'text-[#00E676] border-b-2 border-[#00E676]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+              }`}
+            >
               F&O
             </button>
-            <button className="font-bold text-sm tracking-tight text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors pb-1 pt-1">
+            <button
+              onClick={() => setActiveWatchlistTab('CUSTOM')}
+              className={`font-bold text-sm tracking-tight transition-colors pb-1 pt-1 ${
+                activeWatchlistTab === 'CUSTOM' ? 'text-[#00E676] border-b-2 border-[#00E676]' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
+              }`}
+            >
               Commodities
             </button>
           </div>
         </div>
 
-        {/* Center/Right: Search, Margin & Profile */}
+        {/* Right: Search, Wallet & Theme */}
         <div className="flex items-center gap-4">
-          
-          {/* Search Bar */}
-          <div className="relative hidden lg:block">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-[var(--text-muted)]" />
+          <div className="relative hidden lg:block w-72">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[var(--text-muted)]" />
             <input
               type="text"
-              placeholder="Search (Ctrl+K)"
-              className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-xs rounded-md pl-8 pr-3 py-1.5 w-48 text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[#00E676] transition-all font-body"
+              placeholder="Search Nifty, Stocks, F&O contracts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] text-xs rounded-lg pl-9 pr-8 py-2 text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[#00E676]"
             />
+            <span className="absolute right-2.5 top-2 text-[10px] text-[var(--text-muted)] border border-[var(--border-color)] px-1 rounded font-mono">Ctrl+K</span>
           </div>
 
-          {/* Theme Toggle Button */}
+          <div className="flex items-center gap-2 bg-[var(--bg-body)] border border-[var(--border-color)] px-3 py-1.5 rounded-lg text-xs font-semibold">
+            <span className="text-[var(--text-muted)]">Margin:</span>
+            <span className="font-bold text-[#00E676]">₹{wallet ? wallet.cashBalance.toLocaleString('en-IN') : '26,908.75'}</span>
+          </div>
+
           {onToggleTheme && (
             <button
               onClick={onToggleTheme}
-              className="p-1.5 rounded-lg bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[#00E676] transition-colors flex items-center gap-1.5 text-xs font-bold"
-              title="Toggle Light / Dark Theme"
+              className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg transition-colors"
+              title="Toggle Theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
-              <span className="hidden xl:inline">{theme === 'dark' ? 'Light' : 'Dark'}</span>
             </button>
           )}
-
-          {/* Wallet Margin Chip */}
-          <div className="text-xs font-label font-medium flex items-center gap-1.5 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] px-3 py-1.5 rounded-lg tabular-nums">
-            <span className="text-[var(--text-muted)]">Margin:</span>
-            <span className="text-[var(--text-main)] font-bold">₹{(wallet?.cashBalance || 124500.00).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-
-          {/* Header Action Icons */}
-          <div className="flex items-center gap-2">
-            <button className="text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] p-1.5 rounded-lg transition-colors">
-              <Bell className="w-4 h-4" />
-            </button>
-            <button className="text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] p-1.5 rounded-lg transition-colors">
-              <Settings className="w-4 h-4" />
-            </button>
-            <div className="w-7 h-7 rounded-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-xs font-bold text-[#00E676]">
-              <UserIcon className="w-4 h-4" />
-            </div>
-          </div>
-
         </div>
       </nav>
 
       {/* ============================================================ */}
-      {/* 2. THREE-COLUMN TERMINAL WORKSPACE */}
+      {/* 2. MAIN THREE-COLUMN TERMINAL LAYOUT */}
       {/* ============================================================ */}
       <div className="flex-1 flex overflow-hidden">
         
@@ -207,22 +234,18 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
               <Activity className="w-4 h-4 mb-1" />
               <span className="text-[10px] font-bold">Explore</span>
             </button>
-
             <button className="flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] w-full py-3.5 transition-all">
               <Briefcase className="w-4 h-4 mb-1" />
               <span className="text-[10px] font-bold">Holdings</span>
             </button>
-
             <button className="flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] w-full py-3.5 transition-all">
               <TrendingUp className="w-4 h-4 mb-1" />
               <span className="text-[10px] font-bold">Positions</span>
             </button>
-
             <button className="flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] w-full py-3.5 transition-all">
               <List className="w-4 h-4 mb-1" />
               <span className="text-[10px] font-bold">Orders</span>
             </button>
-
             <button className="flex flex-col items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] w-full py-3.5 transition-all">
               <Grid className="w-4 h-4 mb-1" />
               <span className="text-[10px] font-bold">Options</span>
@@ -245,7 +268,9 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-2 text-[var(--text-muted)]" />
               <input
                 type="text"
-                placeholder="Search eg: INFY BSE, NIFTY FUT"
+                placeholder="Search eg: INFY, NIFTY 24500 CE"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-xs rounded pl-8 pr-6 py-1.5 text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[#00E676] font-body"
               />
               <span className="absolute right-2 top-1.5 text-[var(--text-muted)] text-[10px] border border-[var(--border-color)] px-1 rounded font-mono">/</span>
@@ -258,7 +283,7 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
                   activeWatchlistTab === 'DEFAULT' ? 'border-[#00E676] text-[#00E676]' : 'border-transparent hover:text-[var(--text-main)]'
                 }`}
               >
-                DEFAULT <span className="text-[9px] bg-[var(--bg-surface-elevated)] px-1 py-0.5 rounded ml-1 text-[var(--text-main)]">50</span>
+                STOCKS <span className="text-[9px] bg-[var(--bg-surface-elevated)] px-1 py-0.5 rounded ml-1 text-[var(--text-main)]">{stocksWatchlist.length}</span>
               </button>
               <button
                 onClick={() => setActiveWatchlistTab('FO')}
@@ -266,7 +291,7 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
                   activeWatchlistTab === 'FO' ? 'border-[#00E676] text-[#00E676]' : 'border-transparent hover:text-[var(--text-main)]'
                 }`}
               >
-                F&O <span className="text-[9px] bg-[var(--bg-surface-elevated)] px-1 py-0.5 rounded ml-1">0</span>
+                F&O <span className="text-[9px] bg-[var(--bg-surface-elevated)] px-1 py-0.5 rounded ml-1 text-[var(--text-main)]">{foWatchlist.length}</span>
               </button>
               <button
                 onClick={() => setActiveWatchlistTab('CUSTOM')}
@@ -274,25 +299,27 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
                   activeWatchlistTab === 'CUSTOM' ? 'border-[#00E676] text-[#00E676]' : 'border-transparent hover:text-[var(--text-main)]'
                 }`}
               >
-                CUSTOM <span className="text-[9px] bg-[var(--bg-surface-elevated)] px-1 py-0.5 rounded ml-1">0</span>
+                CUSTOM
               </button>
             </div>
           </div>
 
-          {/* Watchlist Stock Items */}
+          {/* Watchlist Items */}
           <div className="flex-1 overflow-y-auto divide-y divide-[var(--border-color)]">
-            {watchlistData.map((stock) => {
-              const tick = getTick(stock.symbol);
+            {filteredWatchlist.map((stock) => {
+              const tick = getTick(stock.token, stock.symbol);
               const price = tick ? tick.ltp : stock.fallbackPrice;
               const changePct = tick ? tick.changePercent : stock.fallbackPct;
               const isGain = changePct >= 0;
-              const isSelected = selectedSymbol === stock.symbol;
+              const isSelected = selectedToken === stock.token;
 
               return (
                 <div
-                  key={stock.symbol}
+                  key={stock.token}
                   onClick={() => {
                     setSelectedSymbol(stock.symbol);
+                    setSelectedToken(stock.token);
+                    setExchange(stock.exchange);
                     setPriceInput(price.toFixed(2));
                   }}
                   className={`flex justify-between items-center p-3 border-l-2 cursor-pointer group transition-colors relative ${
@@ -302,12 +329,12 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
                   }`}
                 >
                   <div className="flex flex-col">
-                    <span className="font-headline font-bold text-sm tracking-wide text-[var(--text-main)]">{stock.symbol}</span>
-                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5">{stock.exchange}</span>
+                    <span className="font-headline font-bold text-xs tracking-wide text-[var(--text-main)]">{stock.symbol}</span>
+                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5">{stock.name} ({stock.exchange})</span>
                   </div>
 
                   <div className="flex flex-col items-end font-label tabular-nums">
-                    <span className={`text-sm font-bold ${isGain ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
+                    <span className={`text-xs font-bold ${isGain ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
                       {price.toFixed(2)}
                     </span>
                     <span className={`text-[10px] font-semibold flex items-center mt-0.5 ${isGain ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
@@ -322,6 +349,8 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedSymbol(stock.symbol);
+                        setSelectedToken(stock.token);
+                        setExchange(stock.exchange);
                         setOrderSide('BUY');
                       }}
                       className="bg-[#00E676]/20 text-[#00E676] hover:bg-[#00E676] hover:text-[#0D1117] text-xs font-extrabold px-2 py-1 rounded transition-colors"
@@ -332,6 +361,8 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedSymbol(stock.symbol);
+                        setSelectedToken(stock.token);
+                        setExchange(stock.exchange);
                         setOrderSide('SELL');
                       }}
                       className="bg-[#FF5252]/20 text-[#FF5252] hover:bg-[#FF5252] hover:text-white text-xs font-extrabold px-2 py-1 rounded transition-colors"
@@ -345,141 +376,27 @@ export const GrowwTerminalView: React.FC<GrowwTerminalViewProps> = ({
           </div>
 
           <div className="p-3 text-[10px] text-[var(--text-muted)] text-center border-t border-[var(--border-color)] bg-[var(--bg-body)]">
-            Data is real-time. Settings ⚙️
+            Live Stream Connected • TradingView Engine
           </div>
         </div>
 
-        {/* COLUMN 2: CENTER CHART WORKSPACE */}
-        <div className="flex-1 flex flex-col min-w-[450px] bg-[var(--bg-surface)] relative z-10">
-          
-          {/* Chart Header Bar */}
-          <div className="h-12 border-b border-[var(--border-color)] flex items-center justify-between px-4 bg-[var(--bg-surface)] shrink-0 font-headline">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-base tracking-wide text-[var(--text-main)]">{selectedSymbol}</span>
-                <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-body)] px-1.5 py-0.5 rounded border border-[var(--border-color)]">
-                  {exchange}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 font-label tabular-nums">
-                <span className="text-base font-bold text-[var(--text-main)]">₹{currentLtp.toFixed(2)}</span>
-                <span className={`text-xs font-bold ${currentChange >= 0 ? 'text-[#00E676]' : 'text-[#FF5252]'}`}>
-                  {currentChange >= 0 ? '+' : ''}{currentChange.toFixed(2)} ({currentChangePct >= 0 ? '+' : ''}{currentChangePct.toFixed(2)}%)
-                </span>
-              </div>
-            </div>
-
-            {/* Timeframe & Chart Style Toolbar */}
-            <div className="flex items-center gap-2">
-              <div className="flex bg-[var(--bg-body)] border border-[var(--border-color)] rounded p-0.5 text-xs font-semibold">
-                {['1m', '5m', '15m', '1H', '4H', '1D', '1W', '1M'].map(tf => (
-                  <button
-                    key={tf}
-                    onClick={() => setTimeframe(tf)}
-                    className={`px-2 py-0.5 rounded transition-colors ${
-                      timeframe === tf ? 'bg-[var(--bg-surface-elevated)] text-[var(--text-main)] shadow-xs' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    {tf}
-                  </button>
-                ))}
-              </div>
-
-              <div className="h-4 w-px bg-[var(--border-color)] mx-1" />
-
-              <button className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-main)] font-semibold px-2.5 py-1 border border-[var(--border-color)] rounded bg-[var(--bg-body)]">
-                <span>+ Indicators</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Indicator Badges Overlay */}
-          <div className="absolute top-14 left-14 z-20 flex flex-col gap-1.5 pointer-events-none">
-            <div className="bg-[var(--bg-body)]/90 backdrop-blur-sm border border-[var(--border-color)] rounded px-2.5 py-1 text-[10px] flex items-center gap-2 pointer-events-auto shadow-md">
-              <div className="w-2 h-2 rounded-full bg-[#448AFF]"></div>
-              <span className="font-medium text-[var(--text-muted)]">SMA 20</span>
-              <span className="font-label tabular-nums text-[var(--text-main)]">2385.40</span>
-            </div>
-            <div className="bg-[var(--bg-body)]/90 backdrop-blur-sm border border-[var(--border-color)] rounded px-2.5 py-1 text-[10px] flex items-center gap-2 pointer-events-auto shadow-md">
-              <div className="w-2 h-2 rounded-full bg-[#FF6D00]"></div>
-              <span className="font-medium text-[var(--text-muted)]">SMA 50</span>
-              <span className="font-label tabular-nums text-[var(--text-main)]">2310.20</span>
-            </div>
-          </div>
-
-          {/* Main Chart Area */}
-          <div className="flex-1 flex relative">
-            
-            {/* Drawing Tools Sidebar */}
-            <div className="w-10 border-r border-[var(--border-color)] bg-[var(--bg-surface)] flex flex-col items-center py-3 gap-3 z-20 shrink-0 text-[var(--text-muted)]">
-              <button className="hover:text-[var(--text-main)] p-1" title="Cursor">⊹</button>
-              <button className="text-[#00E676] bg-[#00E676]/10 p-1.5 rounded" title="Trend Line">⎯</button>
-              <button className="hover:text-[var(--text-main)] p-1" title="Fibonacci">≡</button>
-              <button className="hover:text-[var(--text-main)] p-1" title="Brush">🖌️</button>
-              <button className="hover:text-[var(--text-main)] p-1" title="Text">T</button>
-            </div>
-
-            {/* Simulated Candlestick Chart Area (SVG) */}
-            <div className="flex-1 bg-[var(--bg-surface-elevated)] relative overflow-hidden">
-              <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <pattern id="chartGridPattern" width="80" height="40" patternUnits="userSpaceOnUse">
-                    <path d="M 80 0 L 0 0 0 40" fill="none" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="2,2" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#chartGridPattern)" />
-
-                {/* Dashed Price Level Marker */}
-                <line x1="0" y1="42%" x2="100%" y2="42%" stroke="var(--text-muted)" strokeWidth="1" strokeDasharray="4,4" />
-
-                {/* SMA Curves */}
-                <path d="M 0,220 Q 150,240 300,190 T 600,160 T 900,130" fill="none" stroke="#448AFF" strokeWidth="1.5" />
-                <path d="M 0,270 Q 200,280 400,230 T 800,210" fill="none" stroke="#FF6D00" strokeWidth="1.5" />
-
-                {/* Candlestick Graphics */}
-                <g transform="translate(60, 0)">
-                  <line x1="40" y1="260" x2="40" y2="160" stroke="#00E676" strokeWidth="1.5" />
-                  <rect x="34" y="180" width="12" height="60" fill="#00E676" rx="1" />
-
-                  <line x1="90" y1="170" x2="90" y2="230" stroke="#FF5252" strokeWidth="1.5" />
-                  <rect x="84" y="190" width="12" height="30" fill="#FF5252" rx="1" />
-
-                  <line x1="140" y1="210" x2="140" y2="110" stroke="#00E676" strokeWidth="1.5" />
-                  <rect x="134" y="130" width="12" height="60" fill="#00E676" rx="1" />
-                </g>
-
-                {/* Live Price Tag */}
-                <g transform="translate(0, 0)">
-                  <rect x="calc(100% - 75px)" y="calc(42% - 12px)" width="65" height="24" fill="var(--bg-surface)" stroke="#00E676" strokeWidth="1" rx="4" />
-                  <text x="calc(100% - 68px)" y="calc(42% + 4px)" fill="#00E676" fontFamily="Space Grotesk" fontSize="11" fontWeight="bold">
-                    {currentLtp.toFixed(2)}
-                  </text>
-                </g>
-              </svg>
-
-              {/* Y-Axis Price Scale */}
-              <div className="absolute top-0 bottom-6 right-0 w-[60px] bg-[var(--bg-surface)] border-l border-[var(--border-color)] flex flex-col justify-between py-4 text-[10px] text-[var(--text-muted)] font-label items-end pr-2 font-semibold">
-                <span>2500.00</span>
-                <span>2480.00</span>
-                <span>2460.00</span>
-                <span className="text-[#00E676] bg-[#00E676]/10 px-1 rounded font-bold">2456.30</span>
-                <span>2440.00</span>
-                <span>2420.00</span>
-                <span>2400.00</span>
-              </div>
-
-              {/* X-Axis Time Scale */}
-              <div className="absolute bottom-0 left-0 right-[60px] h-6 bg-[var(--bg-surface)] border-t border-[var(--border-color)] flex justify-between px-8 text-[10px] text-[var(--text-muted)] font-label items-center font-semibold">
-                <span>09:15</span>
-                <span>10:30</span>
-                <span>11:45</span>
-                <span>13:00</span>
-                <span>14:15</span>
-                <span>15:30</span>
-              </div>
-            </div>
-          </div>
+        {/* COLUMN 2: CENTER REAL INTERACTIVE TRADINGVIEW CHART WORKSPACE */}
+        <div className="flex-1 flex flex-col min-w-[450px] bg-[var(--bg-surface)] relative z-10 overflow-hidden">
+          <TradingChart
+            exchange={exchange}
+            symbol={selectedSymbol}
+            token={selectedToken}
+            latestTick={currentTick}
+            theme={theme}
+            onBuyClick={(sym, p) => {
+              setOrderSide('BUY');
+              setPriceInput(p.toFixed(2));
+            }}
+            onSellClick={(sym, p) => {
+              setOrderSide('SELL');
+              setPriceInput(p.toFixed(2));
+            }}
+          />
         </div>
 
         {/* COLUMN 3: RIGHT ORDER ENTRY & MARKET DEPTH PANEL */}
