@@ -1233,8 +1233,8 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
             </div>
 
             {/* Interactive Pro Trading Chart (Lightweight Charts) */}
-            <div className="p-3 bg-slate-900 border-b border-slate-800">
-              <div className="h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
+            <div className="p-2 sm:p-3 bg-slate-900 border-b border-slate-800">
+              <div className="h-[380px] sm:h-[450px] w-full rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
                 <TradingChart
                   exchange={selectedStock.exchange || 'NSE'}
                   symbol={selectedStock.symbol}

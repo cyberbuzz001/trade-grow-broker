@@ -72,9 +72,14 @@ export const TradingChart: React.FC<TradingChartProps> = ({
     if (!containerRef.current) return;
 
     const isDark = theme === 'dark';
+    const initialWidth = containerRef.current.clientWidth || 300;
+    const initialHeight = containerRef.current.clientHeight > 100 
+      ? containerRef.current.clientHeight 
+      : (isFullScreen ? window.innerHeight - 100 : 400);
+
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: isDark ? '#111827' : '#ffffff' },
+        background: { type: ColorType.Solid, color: isDark ? '#0f172a' : '#ffffff' },
         textColor: isDark ? '#94a3b8' : '#475569',
       },
       grid: {
@@ -82,14 +87,27 @@ export const TradingChart: React.FC<TradingChartProps> = ({
         horzLines: { color: isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.7)' },
       },
       crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: isDark ? '#1e293b' : '#cbd5e1' },
+      rightPriceScale: { 
+        borderColor: isDark ? '#1e293b' : '#cbd5e1',
+        scaleMargins: { top: 0.1, bottom: 0.2 },
+      },
       timeScale: {
         borderColor: isDark ? '#1e293b' : '#cbd5e1',
         timeVisible: true,
         secondsVisible: false,
       },
-      width: containerRef.current.clientWidth,
-      height: isFullScreen ? window.innerHeight - 100 : 440,
+      handleScroll: {
+        vertTouchDrag: false,
+        horzTouchDrag: true,
+        mouseWheel: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+      width: initialWidth,
+      height: initialHeight,
     });
 
     chartRef.current = chart;
@@ -104,19 +122,29 @@ export const TradingChart: React.FC<TradingChartProps> = ({
       priceScaleId: '',
     });
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+      scaleMargins: { top: 0.75, bottom: 0 },
     });
     volumeSeriesRef.current = volumeSeries;
 
-    // Handle Window Resize
+    // Handle Smooth Auto-Resizing via ResizeObserver
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight > 100 
+          ? containerRef.current.clientHeight 
+          : (isFullScreen ? window.innerHeight - 100 : 400);
+        chartRef.current.applyOptions({ width: w, height: h });
       }
     };
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(containerRef.current);
     window.addEventListener('resize', handleResize);
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       mainSeriesRef.current = null;
       volumeSeriesRef.current = null;
@@ -141,22 +169,22 @@ export const TradingChart: React.FC<TradingChartProps> = ({
 
     if (type === 'Candlestick') {
       mainSeriesRef.current = chart.addCandlestickSeries({
-        upColor: '#10b981', downColor: '#ef4444',
-        borderVisible: false, wickUpColor: '#10b981', wickDownColor: '#ef4444',
+        upColor: '#0BA860', downColor: '#E5484D',
+        borderVisible: false, wickUpColor: '#0BA860', wickDownColor: '#E5484D',
       });
     } else if (type === 'Bar') {
       mainSeriesRef.current = chart.addBarSeries({
-        upColor: '#10b981', downColor: '#ef4444',
+        upColor: '#0BA860', downColor: '#E5484D',
       });
     } else if (type === 'Line') {
       mainSeriesRef.current = chart.addLineSeries({
-        color: '#3b82f6', lineWidth: 2,
+        color: '#00439D', lineWidth: 2,
       });
     } else if (type === 'Area') {
       mainSeriesRef.current = chart.addAreaSeries({
-        topColor: 'rgba(59, 130, 246, 0.4)',
-        bottomColor: 'rgba(59, 130, 246, 0.0)',
-        lineColor: '#3b82f6',
+        topColor: 'rgba(0, 67, 157, 0.4)',
+        bottomColor: 'rgba(0, 67, 157, 0.0)',
+        lineColor: '#00439D',
         lineWidth: 2,
       });
     }
@@ -371,13 +399,12 @@ export const TradingChart: React.FC<TradingChartProps> = ({
   return (
     <div className={`flex flex-col bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 h-full shadow-sm ${isFullScreen ? 'fixed inset-0 z-50 rounded-none p-6' : ''}`}>
       {/* 1. CHART HEADER CONTROL TOOLBAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 mb-2 border-b border-[var(--border-light)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-2 border-b border-[var(--border-light)] overflow-hidden">
         {/* Symbol, Source Badge & Price Summary */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between sm:justify-start gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-lg text-[var(--text-main)]">{symbol}</span>
-            <span className="text-xs bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border border-[var(--border-color)] px-2 py-0.5 rounded font-mono font-bold">{exchange}</span>
-            {/* Price Freshness / Source Tag Badge */}
+            <span className="font-extrabold text-base sm:text-lg text-[var(--text-main)]">{symbol}</span>
+            <span className="text-[10px] sm:text-xs bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border border-[var(--border-color)] px-1.5 py-0.5 rounded font-mono font-bold">{exchange}</span>
             <PriceBadge
               state={freshness.state}
               source={freshness.source}
@@ -387,17 +414,17 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           </div>
 
           {activeTick && (
-            <div className="flex items-center gap-2 num-font">
-              <span className="text-xl font-extrabold text-[var(--text-main)]">₹{activeTick.ltp.toFixed(2)}</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded ${activeTick.change >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'}`}>
+            <div className="flex items-center gap-1.5 num-font">
+              <span className="text-base sm:text-xl font-extrabold text-[var(--text-main)]">₹{activeTick.ltp.toFixed(2)}</span>
+              <span className={`text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded ${activeTick.change >= 0 ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border border-rose-500/20'}`}>
                 {activeTick.change >= 0 ? '+' : ''}{activeTick.change.toFixed(2)} ({activeTick.changePercent.toFixed(2)}%)
               </span>
             </div>
           )}
         </div>
 
-        {/* Chart Controls & Indicator Selector */}
-        <div className="flex items-center gap-2">
+        {/* Chart Controls & Indicator Selector (Scrollable Strip on Mobile) */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 max-w-full">
           {/* Indicator Toolbar */}
           <IndicatorToolbar
             indicators={indicators}
@@ -409,7 +436,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           {/* Trades Toggle Button */}
           <button
             onClick={() => setShowTradeMarkers(!showTradeMarkers)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all whitespace-nowrap ${
               showTradeMarkers
                 ? 'bg-amber-500/20 text-amber-500 border-amber-500/40'
                 : 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border-[var(--border-color)] hover:text-[var(--text-main)]'
@@ -420,25 +447,25 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           </button>
 
           {/* Chart Type Selector */}
-          <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl gap-1 text-xs">
-            {(['Candlestick', 'Bar', 'Line', 'Area'] as ChartType[]).map(t => (
+          <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl gap-0.5 text-xs shrink-0">
+            {(['Candlestick', 'Line', 'Area'] as ChartType[]).map(t => (
               <button
                 key={t}
                 onClick={() => setChartType(t)}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${chartType === t ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap ${chartType === t ? 'bg-[#00439D] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
               >
-                {t}
+                {t === 'Candlestick' ? 'Candles' : t}
               </button>
             ))}
           </div>
 
           {/* Timeframe Selector */}
-          <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl gap-1 text-xs font-bold">
+          <div className="flex bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-1 rounded-xl gap-0.5 text-xs font-bold shrink-0">
             {(['1m', '5m', '15m', '1h', '1D'] as Timeframe[]).map(tf => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
-                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${timeframe === tf ? 'bg-indigo-600 text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
+                className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap ${timeframe === tf ? 'bg-[#00439D] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}
               >
                 {tf}
               </button>
@@ -449,7 +476,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           {onBuyClick && (
             <button
               onClick={() => onBuyClick(symbol, activeTick?.ltp || 100)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-sm transition-all"
+              className="bg-[#0BA860] hover:bg-emerald-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-xs transition-all shrink-0 active:scale-95"
             >
               BUY
             </button>
@@ -457,7 +484,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           {onSellClick && (
             <button
               onClick={() => onSellClick(symbol, activeTick?.ltp || 100)}
-              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-sm transition-all"
+              className="bg-[#E5484D] hover:bg-rose-700 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl shadow-xs transition-all shrink-0 active:scale-95"
             >
               SELL
             </button>
@@ -466,7 +493,8 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           {/* Fullscreen Toggle */}
           <button
             onClick={() => setIsFullScreen(!isFullScreen)}
-            className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl transition-all"
+            className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl transition-all shrink-0"
+            title="Toggle Fullscreen Chart"
           >
             {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
