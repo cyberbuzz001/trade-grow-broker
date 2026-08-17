@@ -26,11 +26,15 @@ import { MobileHomeView } from './components/mobile/MobileHomeView';
 import { MobilePortfolioView } from './components/mobile/MobilePortfolioView';
 import { MobileProfileView } from './components/mobile/MobileProfileView';
 import { MobileOrderModal } from './components/mobile/MobileOrderModal';
+import { UnivestClientPanel } from './components/mobile/UnivestClientPanel';
 
 export function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  
+  // Client Panel Theme/Style View Mode ('UNIVEST' default)
+  const [viewMode, setViewMode] = useState<'UNIVEST' | 'GROWW'>('UNIVEST');
   
   // Responsive / Mobile View Mode State
   const [isMobileScreen, setIsMobileScreen] = useState<boolean>(window.innerWidth < 768);
@@ -197,7 +201,26 @@ export function App() {
     return <AuthModal onSuccess={(t: string) => setToken(t)} />;
   }
 
-  // ── 1. GOGROW MOBILE APP VIEW (FOR MOBILE VIEWPORTS < 768PX) ────────────────
+  // ── 1. UNIVEST-INSPIRED CLIENT PANEL (DEFAULT MOBILE & DESKTOP VIEW) ────────
+  if (viewMode === 'UNIVEST') {
+    return (
+      <MarketSocketProvider userToken={token}>
+        <UnivestClientPanel
+          user={user}
+          wallet={wallet}
+          ticks={ticks}
+          token={token}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={handleLogout}
+          onRefreshWallet={fetchWallet}
+          onOpenAdmin={() => setViewMode('GROWW')}
+        />
+      </MarketSocketProvider>
+    );
+  }
+
+  // ── 2. GOGROW MOBILE APP VIEW (FOR MOBILE VIEWPORTS < 768PX) ────────────────
   if (isMobileScreen) {
     return (
       <MarketSocketProvider userToken={token}>
