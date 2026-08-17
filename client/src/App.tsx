@@ -391,6 +391,7 @@ export function App() {
             setProfileInitialTab(tab || 'PROFILE');
             setIsProfileModalOpen(true);
           }}
+          onSwitchToUnivestView={() => setViewMode('UNIVEST')}
         />
 
         {/* 2. GROWW SUB-NAV & TICKER BAR */}

@@ -16,6 +16,7 @@ interface GrowwHeaderProps {
   onNavigateView: (view: SubView) => void;
   onOpenSupport?: () => void;
   onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT') => void;
+  onSwitchToUnivestView?: () => void;
 }
 
 export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
@@ -31,6 +32,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
   onNavigateView,
   onOpenSupport,
   onOpenProfileModal,
+  onSwitchToUnivestView,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -163,6 +165,18 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
           {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
           <span className="hidden xl:inline text-xs">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
+
+        {/* Univest View Switcher Button */}
+        {onSwitchToUnivestView && (
+          <button
+            onClick={onSwitchToUnivestView}
+            className="px-3 py-1.5 rounded-xl bg-[#00439D]/20 hover:bg-[#00439D]/30 text-blue-300 border border-[#00439D]/50 flex items-center gap-1.5 text-xs font-bold transition shadow-sm cursor-pointer"
+            title="Switch to Univest Client Panel"
+          >
+            <Activity className="w-4 h-4 text-blue-400" />
+            <span className="hidden md:inline">Univest View</span>
+          </button>
+        )}
 
         {/* Admin Control Center Button (for Staff/Admin accounts) */}
         {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user?.role || '') && (

@@ -36,6 +36,8 @@ import {
 } from 'lucide-react';
 import { PriceBadge } from '../PriceBadge';
 import { User, Wallet, MarketTick } from '../../types';
+import { TradingChart } from '../charts/TradingChart/TradingChart';
+import { OptionChainView } from '../OptionChainView';
 
 // Univest Primary Brand Theme Colors
 const UNIVEST_BLUE = '#00439D';
@@ -55,7 +57,7 @@ export interface UnivestClientPanelProps {
   onOpenAdmin?: () => void;
 }
 
-export type ClientTab = 'HOME' | 'MARKETS' | 'PORTFOLIO' | 'ORDERS' | 'WALLET' | 'PROFILE';
+export type ClientTab = 'HOME' | 'MARKETS' | 'CHARTS' | 'OPTION_CHAIN' | 'PORTFOLIO' | 'ORDERS' | 'WALLET' | 'PROFILE';
 
 // Mock Stock & Market Data
 interface StockItem {
@@ -452,7 +454,7 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
             </div>
           </div>
 
-          {/* Right Action Chips: Virtual Balance & Notifications */}
+          {/* Right Action Chips: Wallet Balance, Pro Terminal Switcher & Notifications */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('WALLET')}
@@ -464,6 +466,18 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
               <Plus className="w-3 h-3 text-white/80" />
             </button>
 
+            {/* Pro Terminal View Switcher */}
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-xs font-extrabold text-white transition-all shadow-sm active:scale-95"
+                title="Switch to Full Pro Terminal View (Lightweight Charts, Option Chains, Commodities)"
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Pro Terminal</span>
+              </button>
+            )}
+
             <button
               onClick={() => alert("No new notifications")}
               className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white transition-colors relative"
@@ -473,16 +487,6 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400" />
             </button>
-
-            {user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'DEALER'].includes(user.role) && onOpenAdmin && (
-              <button
-                onClick={onOpenAdmin}
-                className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-600 text-xs font-extrabold text-slate-950 transition-all shadow-sm"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Admin Panel</span>
-              </button>
-            )}
           </div>
 
         </div>
@@ -821,6 +825,39 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* ── TAB 2B: CHARTS & TERMINAL ────────────────────────────────────── */}
+        {activeTab === 'CHARTS' && (
+          <div className="space-y-4">
+            <div className="bg-slate-900 rounded-2xl p-3 border border-slate-800 shadow-md">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-white">
+                <h3 className="font-extrabold text-sm flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-emerald-400" />
+                  Interactive Pro Trading Chart — RELIANCE
+                </h3>
+                <span className="text-xs text-emerald-400 font-mono font-bold">NSE Live</span>
+              </div>
+              <div className="h-[500px] w-full mt-3 rounded-xl overflow-hidden border border-slate-800">
+                <TradingChart
+                  exchange="NSE"
+                  symbol="RELIANCE"
+                  token="NSE_RELIANCE"
+                  latestTick={ticks?.get('NSE_RELIANCE') || ticks?.get('RELIANCE')}
+                  theme="dark"
+                  onBuyClick={(sym, price) => handleOpenOrderModal({ symbol: sym, name: sym, exchange: 'NSE', ltp: price, change: 0, pChange: 0, category: 'STOCKS', high: price, low: price, volume: '1M', freshness: 'LIVE', sparkline: [price] }, 'BUY')}
+                  onSellClick={(sym, price) => handleOpenOrderModal({ symbol: sym, name: sym, exchange: 'NSE', ltp: price, change: 0, pChange: 0, category: 'STOCKS', high: price, low: price, volume: '1M', freshness: 'LIVE', sparkline: [price] }, 'SELL')}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TAB 2C: OPTION CHAIN ────────────────────────────────────────── */}
+        {activeTab === 'OPTION_CHAIN' && (
+          <div className="bg-white rounded-2xl p-2 sm:p-4 border border-slate-200 shadow-xs">
+            <OptionChainView token={token} ticks={ticks} onRefreshWallet={onRefreshWallet} />
           </div>
         )}
 
@@ -1195,22 +1232,18 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
               </div>
             </div>
 
-            {/* Interactive SVG Chart Preview */}
-            <div className="p-4 bg-slate-50/50 border-b border-slate-100">
-              <div className="h-44 w-full flex items-end gap-2 pt-4 px-2 bg-white rounded-2xl border border-slate-200/60 p-2">
-                {selectedStock.sparkline.map((val, idx) => {
-                  const min = Math.min(...selectedStock.sparkline);
-                  const max = Math.max(...selectedStock.sparkline);
-                  const heightPct = max === min ? 50 : ((val - min) / (max - min)) * 80 + 10;
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                      <div
-                        style={{ height: `${heightPct}%` }}
-                        className={`w-full rounded-t-md transition-all duration-300 ${selectedStock.change >= 0 ? 'bg-[#0BA860]' : 'bg-[#E5484D]'}`}
-                      />
-                    </div>
-                  );
-                })}
+            {/* Interactive Pro Trading Chart (Lightweight Charts) */}
+            <div className="p-3 bg-slate-900 border-b border-slate-800">
+              <div className="h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
+                <TradingChart
+                  exchange={selectedStock.exchange || 'NSE'}
+                  symbol={selectedStock.symbol}
+                  token={`NSE_${selectedStock.symbol}`}
+                  latestTick={ticks?.get(`NSE_${selectedStock.symbol}`) || ticks?.get(selectedStock.symbol)}
+                  theme="dark"
+                  onBuyClick={(sym, price) => handleOpenOrderModal(selectedStock, 'BUY')}
+                  onSellClick={(sym, price) => handleOpenOrderModal(selectedStock, 'SELL')}
+                />
               </div>
             </div>
 
@@ -1463,6 +1496,8 @@ export const UnivestClientPanel: React.FC<UnivestClientPanelProps> = ({
           {[
             { id: 'HOME', label: 'Home', icon: Home },
             { id: 'MARKETS', label: 'Markets', icon: Compass },
+            { id: 'CHARTS', label: 'Charts', icon: BarChart2 },
+            { id: 'OPTION_CHAIN', label: 'Options', icon: Layers },
             { id: 'PORTFOLIO', label: 'Portfolio', icon: Briefcase },
             { id: 'ORDERS', label: 'Orders', icon: ListOrdered },
             { id: 'PROFILE', label: 'Profile', icon: UserIcon }
