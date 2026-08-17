@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { User, Wallet } from './types';
+import { User, Wallet, MarketTick } from './types';
 import { MarketSocketProvider } from './hooks/useMarketSocket';
 import { GrowwHeader } from './components/GrowwHeader';
 import { GrowwSubNav, SubView } from './components/GrowwSubNav';
@@ -47,7 +47,7 @@ export function App() {
 
   const [terminalToken, setTerminalToken] = useState<string>('NSE_RELIANCE');
   const [terminalSymbol, setTerminalSymbol] = useState<string>('RELIANCE');
-  // NOTE: Market ticks are managed by MarketSocketProvider + useMarketSocket() hook.
+  const [ticks, setTicks] = useState<Map<string, MarketTick>>(new Map());
   
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -107,8 +107,84 @@ export function App() {
     if (token) fetchWallet();
   }, [token]);
 
-  // Market data WebSocket is handled exclusively by MarketSocketProvider.
-  // Each component uses useMarketSocket() or useSubscribeTokens() / useTickFreshness().
+  // Resilient WebSocket Live Market Data Connection with Auto-Reconnect & Heartbeat
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let pingInterval: NodeJS.Timeout | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isComponentMounted = true;
+
+    const connect = () => {
+      if (!isComponentMounted) return;
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws${token ? `?token=${token}` : ''}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        // Send ping every 25s to keep connection active
+        pingInterval = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ action: 'PING' }));
+          }
+        }, 25000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          const storeTickInMap = (map: Map<string, MarketTick>, t: MarketTick) => {
+            if (!t || !t.instrumentToken) return;
+            map.set(t.instrumentToken, t);
+            if (t.symbol) {
+              const clean = t.symbol.trim();
+              map.set(clean, t);
+              map.set(`NSE_${clean}`, t);
+              map.set(`MCX_${clean}`, t);
+              map.set(`BSE_${clean}`, t);
+            }
+          };
+
+          if (message.type === 'TICK_SNAPSHOT' && Array.isArray(message.data)) {
+            setTicks(prev => {
+              const next = new Map(prev);
+              message.data.forEach((t: MarketTick) => storeTickInMap(next, t));
+              return next;
+            });
+          } else if (message.type === 'MARKET_TICK' && message.data) {
+            setTicks(prev => {
+              const next = new Map(prev);
+              storeTickInMap(next, message.data as MarketTick);
+              return next;
+            });
+          }
+        } catch (_) {}
+      };
+
+      ws.onclose = () => {
+        if (pingInterval) clearInterval(pingInterval);
+        if (isComponentMounted) {
+          reconnectTimeout = setTimeout(connect, 2000);
+        }
+      };
+
+      ws.onerror = () => {
+        try { ws?.close(); } catch (_) {}
+      };
+    };
+
+    connect();
+
+    return () => {
+      isComponentMounted = false;
+      if (pingInterval) clearInterval(pingInterval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [token]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -132,6 +208,7 @@ export function App() {
               <MobileHomeView
                 user={user}
                 wallet={wallet}
+                ticks={ticks}
                 theme={theme}
                 onToggleTheme={toggleTheme}
                 onOpenSearch={() => setIsSearchOpen(true)}
@@ -148,6 +225,7 @@ export function App() {
 
             {activeMobileTab === 'PORTFOLIO' && (
               <MobilePortfolioView
+                ticks={ticks}
                 token={token}
                 wallet={wallet}
                 onBack={() => setActiveMobileTab('HOME')}
@@ -160,7 +238,7 @@ export function App() {
 
             {activeMobileTab === 'OPTION_CHAIN' && (
               <div className="p-2 pb-24">
-                <OptionChainView token={token} onRefreshWallet={fetchWallet} />
+                <OptionChainView token={token} ticks={ticks} onRefreshWallet={fetchWallet} />
               </div>
             )}
 
@@ -300,6 +378,7 @@ export function App() {
           }}
           isTerminalMode={isTerminalMode}
           onToggleTerminal={() => setIsTerminalMode(!isTerminalMode)}
+          ticks={ticks}
           user={user}
         />
 
@@ -309,6 +388,7 @@ export function App() {
             /* GROWW WEB TERMINAL MODE (IMAGES 4 & 5) */
             <GrowwTerminalView
               token={token}
+              ticks={ticks}
               wallet={wallet}
               onRefreshWallet={fetchWallet}
               initialSymbol={terminalSymbol}
@@ -320,11 +400,12 @@ export function App() {
             <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
               
               {activeCategory === 'COMMODITIES' ? (
-                <McxCommodityView onRefreshWallet={fetchWallet} />
+                <McxCommodityView ticks={ticks} onRefreshWallet={fetchWallet} />
               ) : (
                 <>
                   {activeSubView === 'EXPLORE' && (
                     <GrowwExploreView
+                      ticks={ticks}
                       token={token}
                       wallet={wallet}
                       onRefreshWallet={fetchWallet}
@@ -364,6 +445,7 @@ export function App() {
                   {activeSubView === 'WATCHLIST' && (
                     <GrowwWatchlistView
                       token={token}
+                      ticks={ticks}
                       onRefreshWallet={fetchWallet}
                       onSelectSymbolForTerminal={(sym) => {
                         setTerminalSymbol(sym);
@@ -376,6 +458,7 @@ export function App() {
                     <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-6 shadow-xs">
                       <OptionChainView
                         token={token}
+                        ticks={ticks}
                         onRefreshWallet={fetchWallet}
                       />
                     </div>

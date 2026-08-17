@@ -125,9 +125,9 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
   }, [initialTab]);
 
   useEffect(() => {
-    // Load once on mount. P&L updates are applied in real-time from WebSocket ticks.
-    // Use the manual refresh button in the UI to reload from server.
     fetchData();
+    const interval = setInterval(fetchData, 2500);
+    return () => clearInterval(interval);
   }, [token]);
 
   // Find active open target order for a position

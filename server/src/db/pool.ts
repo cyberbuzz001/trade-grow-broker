@@ -60,24 +60,48 @@ pool.on('connect', () => {
  * Execute a query and return all rows.
  */
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params?: any[]): Promise<T[]> {
-  const result = await pool.query<T>(text, params);
-  return result.rows;
+  try {
+    const result = await pool.query<T>(text, params);
+    return result.rows;
+  } catch (err: any) {
+    if (err.message?.includes('connection') || err.message?.includes('timeout') || err.code === 'ECONNRESET') {
+      const result = await pool.query<T>(text, params);
+      return result.rows;
+    }
+    throw err;
+  }
 }
 
 /**
  * Execute a query and return the first row or null.
  */
 export async function queryOne<T extends QueryResultRow = QueryResultRow>(text: string, params?: any[]): Promise<T | null> {
-  const result = await pool.query<T>(text, params);
-  return result.rows[0] ?? null;
+  try {
+    const result = await pool.query<T>(text, params);
+    return result.rows[0] ?? null;
+  } catch (err: any) {
+    if (err.message?.includes('connection') || err.message?.includes('timeout') || err.code === 'ECONNRESET') {
+      const result = await pool.query<T>(text, params);
+      return result.rows[0] ?? null;
+    }
+    throw err;
+  }
 }
 
 /**
  * Execute a query and return the row count affected.
  */
 export async function execute(text: string, params?: any[]): Promise<number> {
-  const result = await pool.query(text, params);
-  return result.rowCount ?? 0;
+  try {
+    const result = await pool.query(text, params);
+    return result.rowCount ?? 0;
+  } catch (err: any) {
+    if (err.message?.includes('connection') || err.message?.includes('timeout') || err.code === 'ECONNRESET') {
+      const result = await pool.query(text, params);
+      return result.rowCount ?? 0;
+    }
+    throw err;
+  }
 }
 
 /**

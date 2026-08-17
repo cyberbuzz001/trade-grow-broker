@@ -254,14 +254,8 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
         attempts++;
         setReconnectCount(attempts);
 
-        if (attempts > MAX_RECONNECT_ATTEMPTS) {
-          setStatus('UNAVAILABLE');
-          logMarketTelemetry('RECONNECT_FAILED_MAX', { maxAttempts: MAX_RECONNECT_ATTEMPTS });
-          return;
-        }
-
         setStatus('DISCONNECTED');
-        const backoffMs = Math.min(INITIAL_BACKOFF_MS * Math.pow(2, attempts - 1), MAX_BACKOFF_MS);
+        const backoffMs = Math.min(INITIAL_BACKOFF_MS * Math.pow(1.5, Math.min(attempts - 1, 6)), 5000);
         logMarketTelemetry('RECONNECT_ATTEMPT', { attempt: attempts, backoffMs });
 
         reconnectTimeoutRef.current = setTimeout(connect, backoffMs);

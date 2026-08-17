@@ -9,12 +9,13 @@ import { GreeksEngine } from '../marketData/GreeksEngine';
 
 export class ExecutionEngine {
   private static timer: NodeJS.Timeout | null = null;
-  private static lastAuditAt = 0;
-  private static readonly AUDIT_INTERVAL_MS = 120_000; // 2 minutes
 
   public static start(): void {
     console.log('[ExecutionEngine] Starting simulated order matching loop (500ms cycle)...');
-    this.timer = setInterval(() => this.processPendingOrders(), 500);
+    if (this.timer) clearInterval(this.timer);
+    this.timer = setInterval(() => {
+      this.processPendingOrders().catch(err => console.error('[ExecutionEngine] Matching cycle error:', err.message));
+    }, 500);
   }
 
   public static stop(): void {
@@ -23,21 +24,21 @@ export class ExecutionEngine {
 
   public static async processPendingOrders(): Promise<void> {
     try {
-      // Query pending orders FIRST — exit immediately if nothing to process.
-      // This prevents auditAndRepairAllPositions() and option chain pre-warm
-      // from running 2x/sec when the order queue is empty.
+      // Self-healing: repair positions with missing/zero entry prices across all accounts automatically
+      await PortfolioService.auditAndRepairAllPositions().catch(() => {});
+
+      // Pre-warm option chain ticks for NIFTY & SENSEX to ensure 100% tick accuracy across all strike tokens
+      try {
+        const { OptionChainEngine } = await import('../marketData/OptionChainEngine');
+        await OptionChainEngine.generateOptionChain({ symbol: 'NIFTY', strikeRange: '20' }).catch(() => {});
+        await OptionChainEngine.generateOptionChain({ symbol: 'SENSEX', strikeRange: '20' }).catch(() => {});
+      } catch (_) {}
+
       const pendingOrders = await query<any>(
         `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') ORDER BY created_at ASC LIMIT 50`
       );
 
       if (pendingOrders.length === 0) return;
-
-      // Run position audit at most once every 2 minutes, only when orders exist
-      const now = Date.now();
-      if (now - ExecutionEngine.lastAuditAt > ExecutionEngine.AUDIT_INTERVAL_MS) {
-        ExecutionEngine.lastAuditAt = now;
-        await PortfolioService.auditAndRepairAllPositions().catch(() => {});
-      }
 
       for (const order of pendingOrders) {
         const engine = MarketDataEngine.getInstance();

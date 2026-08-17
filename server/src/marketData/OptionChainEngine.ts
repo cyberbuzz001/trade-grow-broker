@@ -20,9 +20,6 @@ export class OptionChainEngine {
     ['NSE_MIDCPNIFTY', 13100.00]
   ]);
 
-  /** 2-second result cache keyed by symbol+expiry+strikeRange */
-  private static chainCache = new Map<string, { ts: number; result: any }>();
-
   /**
    * Generates production-grade Option Chain Matrix centered on live spot price.
    * Supports NIFTY (NSE), SENSEX (BSE), BANKNIFTY (NSE), FINNIFTY (NSE), MIDCPNIFTY (NSE).
@@ -41,13 +38,6 @@ export class OptionChainEngine {
     chain: OptionChainItem[];
   }> {
     const rawSym = (params.symbol || 'NIFTY').toUpperCase().trim();
-
-    // Return cached result if available and fresh (500ms TTL / 2x per sec)
-    const cacheKey = `${rawSym}_${params.expiry || ''}_${params.strikeRange || '10'}`;
-    const cached = OptionChainEngine.chainCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < 500) {
-      return cached.result;
-    }
     const isSensex = rawSym === 'SENSEX' || rawSym === 'BSE SENSEX';
     const isBanknifty = rawSym === 'BANKNIFTY';
     const isFinnifty = rawSym === 'FINNIFTY';
@@ -389,7 +379,7 @@ export class OptionChainEngine {
     });
     const pcrRatio = totalCallOI > 0 ? Number((totalPutOI / totalCallOI).toFixed(2)) : 1.0;
 
-    const result = {
+    return {
       underlying,
       exchange,
       spotPrice,
@@ -402,10 +392,5 @@ export class OptionChainEngine {
       maxPainStrike: atmStrike,
       chain,
     };
-
-    // Store in 2-second cache
-    OptionChainEngine.chainCache.set(cacheKey, { ts: Date.now(), result });
-
-    return result;
   }
 }

@@ -65,8 +65,9 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
   };
 
   useEffect(() => {
-    // Load once on mount. P&L is updated in real-time via WebSocket ticks through getLiveLtp().
     fetchPortfolio();
+    const interval = setInterval(fetchPortfolio, 2500);
+    return () => clearInterval(interval);
   }, [token]);
 
   const getLiveLtp = (item: any): number => {

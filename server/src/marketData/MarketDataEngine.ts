@@ -34,20 +34,14 @@ export class MarketDataEngine {
     const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'ANGELONE';
     this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || angelOne;
 
-    // Redis pub/sub subscription is ONLY needed for multi-process horizontal scaling
-    // where multiple Node.js worker processes share a Redis pub/sub bus.
-    // In single-process mode (the default), subscribing to the same channel this process
-    // also publishes to causes every tick to fire callbacks TWICE (loop-back double delivery).
-    // Enable via MULTI_PROCESS_REDIS=true only when running multiple server replicas.
-    if (process.env.MULTI_PROCESS_REDIS === 'true') {
-      redis.subscribe('market:ticks', (msg: string) => {
-        try {
-          const tick: MarketTick = JSON.parse(msg);
-          this.tickCache.set(tick.instrumentToken, tick);
-          this.globalCallbacks.forEach(cb => cb(tick));
-        } catch (_) {}
-      });
-    }
+    // Subscribe to Redis pub/sub for tick broadcasts (multi-process horizontal scaling)
+    redis.subscribe('market:ticks', (msg: string) => {
+      try {
+        const tick: MarketTick = JSON.parse(msg);
+        this.tickCache.set(tick.instrumentToken, tick);
+        this.globalCallbacks.forEach(cb => cb(tick));
+      } catch (_) {}
+    });
   }
 
   public static getInstance(): MarketDataEngine {
