@@ -773,10 +773,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                 <select value={editRole} onChange={e => setEditRole(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-semibold focus:outline-none focus:border-blue-500">
                   <option value="USER">USER (Standard Client)</option>
-                  <option value="MANAGER">MANAGER</option>
-                  <option value="RISK_MANAGER">RISK_MANAGER</option>
-                  <option value="FINANCE_MANAGER">FINANCE_MANAGER</option>
-                  <option value="ADMIN">ADMIN</option>
+                  <option value="MANAGER">MANAGER (Client Account Oversight)</option>
+                  <option value="FINANCE_MANAGER">FINANCE_MANAGER (Deposits & Ledgers)</option>
+                  <option value="RISK_MANAGER">RISK_MANAGER (Exposure & Margins)</option>
+                  <option value="OPERATIONS_MANAGER">OPERATIONS_MANAGER (Operations Oversight)</option>
+                  <option value="KYC_OFFICER">KYC_OFFICER (KYC & Documents)</option>
+                  <option value="DEALER">DEALER (Order Desk Execution)</option>
+                  <option value="SUPPORT_AGENT">SUPPORT_AGENT (Customer Support)</option>
+                  <option value="ANALYST">ANALYST (Market Research & Stats)</option>
+                  <option value="READ_ONLY_AUDITOR">READ_ONLY_AUDITOR (Compliance Audit)</option>
+                  <option value="ADMIN">ADMIN (System Administrator)</option>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN (Full Platform Authority)</option>
                 </select>
               </div>
 
@@ -946,10 +953,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-semibold"
                   >
                     <option value="USER">USER (Standard Client)</option>
-                    <option value="MANAGER">MANAGER</option>
-                    <option value="RISK_MANAGER">RISK_MANAGER</option>
-                    <option value="FINANCE_MANAGER">FINANCE_MANAGER</option>
-                    <option value="ADMIN">ADMIN</option>
+                    <option value="MANAGER">MANAGER (Client Account Oversight)</option>
+                    <option value="FINANCE_MANAGER">FINANCE_MANAGER (Deposits & Ledgers)</option>
+                    <option value="RISK_MANAGER">RISK_MANAGER (Exposure & Margins)</option>
+                    <option value="OPERATIONS_MANAGER">OPERATIONS_MANAGER (Operations Oversight)</option>
+                    <option value="KYC_OFFICER">KYC_OFFICER (KYC & Documents)</option>
+                    <option value="DEALER">DEALER (Order Desk Execution)</option>
+                    <option value="SUPPORT_AGENT">SUPPORT_AGENT (Customer Support)</option>
+                    <option value="ANALYST">ANALYST (Market Research & Stats)</option>
+                    <option value="READ_ONLY_AUDITOR">READ_ONLY_AUDITOR (Compliance Audit)</option>
+                    <option value="ADMIN">ADMIN (System Administrator)</option>
+                    <option value="SUPER_ADMIN">SUPER_ADMIN (Full Platform Authority)</option>
                   </select>
                 </div>
               </div>

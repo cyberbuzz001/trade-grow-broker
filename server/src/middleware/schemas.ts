@@ -92,5 +92,19 @@ export const UpdateUserStatusSchema = z.object({
 });
 
 export const UpdateUserRoleSchema = z.object({
-  role: z.enum(['USER', 'MANAGER', 'FINANCE_MANAGER', 'RISK_MANAGER', 'KYC_OFFICER', 'READ_ONLY_AUDITOR', 'ADMIN', 'SUPER_ADMIN'])
+  role: z.enum([
+    'USER',
+    'MANAGER',
+    'FINANCE_MANAGER',
+    'RISK_MANAGER',
+    'OPERATIONS_MANAGER',
+    'KYC_OFFICER',
+    'DEALER',
+    'SUPPORT_AGENT',
+    'ANALYST',
+    'READ_ONLY_AUDITOR',
+    'ADMIN',
+    'SUPER_ADMIN'
+  ])
 });
+

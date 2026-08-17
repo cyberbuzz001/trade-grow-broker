@@ -17,14 +17,15 @@ import { SystemMonitor } from './admin/SystemMonitor';
 import { AuditLogViewer } from './admin/AuditLogViewer';
 import { MarketDataAdmin } from './admin/MarketDataAdmin';
 import { LinkPeAdminManagement } from './admin/LinkPeAdminManagement';
-import { QrCode as QrCodeIcon } from 'lucide-react';
+import { PermissionsDashboard } from './admin/PermissionsDashboard';
+import { QrCode as QrCodeIcon, ShieldCheck } from 'lucide-react';
 
 interface AdminPanelProps {
   token: string;
 }
 
 type AdminPage =
-  | 'DASHBOARD' | 'CUSTOMERS' | 'CUSTOMER_360' | 'KYC' | 'ORDERS'
+  | 'DASHBOARD' | 'CUSTOMERS' | 'CUSTOMER_360' | 'PERMISSIONS' | 'KYC' | 'ORDERS'
   | 'RISK' | 'KILL_SWITCH' | 'BROKER' | 'FUNDS' | 'LINKPE_UPI' | 'LEDGER' | 'SYSTEM' | 'AUDIT' | 'MARKET_DATA';
 
 interface NavItem {
@@ -43,6 +44,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
   const navItems: NavItem[] = [
     { key: 'DASHBOARD', label: 'Executive Dashboard', icon: <LayoutDashboard className="w-4 h-4" />, section: 'OVERVIEW' },
     { key: 'CUSTOMERS', label: 'Customers', icon: <Users className="w-4 h-4" />, section: 'OPERATIONS' },
+    { key: 'PERMISSIONS', label: 'Roles & Permissions', icon: <ShieldCheck className="w-4 h-4 text-blue-400" />, section: 'OPERATIONS', badge: 'RBAC' },
     { key: 'KYC', label: 'KYC Queue', icon: <FileCheck className="w-4 h-4" />, section: 'OPERATIONS' },
     { key: 'ORDERS', label: 'Order Monitor', icon: <Activity className="w-4 h-4" />, section: 'TRADING' },
     { key: 'RISK', label: 'Risk Command Center', icon: <ShieldAlert className="w-4 h-4" />, section: 'RISK' },
@@ -73,6 +75,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
       case 'DASHBOARD': return <AdminDashboard token={token} />;
       case 'CUSTOMERS': return <CustomerList token={token} onSelectCustomer={handleSelectCustomer} />;
       case 'CUSTOMER_360': return selectedCustomerId ? <Customer360 token={token} customerId={selectedCustomerId} onBack={handleBackFromCustomer} /> : null;
+      case 'PERMISSIONS': return <PermissionsDashboard token={token} />;
       case 'KYC': return <KYCQueue token={token} />;
       case 'ORDERS': return <OrderMonitor token={token} />;
       case 'RISK': return <RiskCommandCenter token={token} />;

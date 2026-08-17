@@ -1785,8 +1785,8 @@ router.patch('/customers/:id', authenticateToken, checkRole(['SUPER_ADMIN', 'ADM
     }
 
     // Protect sensitive fields from unauthorized roles
-    if (role && role !== current.role && req.user!.role !== 'SUPER_ADMIN') {
-      res.status(403).json({ success: false, error: { code: 'PERMISSION_DENIED', message: 'Only SUPER_ADMIN can change user role' } });
+    if (role && role !== current.role && req.user!.role !== 'SUPER_ADMIN' && req.user!.role !== 'ADMIN') {
+      res.status(403).json({ success: false, error: { code: 'PERMISSION_DENIED', message: 'Only SUPER_ADMIN or ADMIN can change user role' } });
       return;
     }
 
@@ -2356,7 +2356,281 @@ router.post('/customers/:id/kyc/request-reupload', authenticateToken, checkRole(
 });
 
 // ============================================================
-// 30. EMIT POSITION/TRADE EVENTS FROM EXECUTION ENGINE
+// 30. PERMISSIONS & ROLE-BASED ACCESS CONTROL (RBAC) DASHBOARD
+// ============================================================
+
+const SYSTEM_PERMISSION_CATEGORIES = [
+  {
+    category: 'Financial Operations',
+    description: 'Wallet credits, withdrawals, direct balance adjustments & reserve management',
+    permissions: [
+      { key: 'DEPOSITS_APPROVE', label: 'Approve Deposits', description: 'Review and approve client UPI, Bank, and Gateway deposit receipts', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER'] },
+      { key: 'WITHDRAWALS_APPROVE', label: 'Approve Withdrawals', description: 'Authorize client withdrawal payout and bank settlement transfers', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER'] },
+      { key: 'DIRECT_BALANCE_ADJUST', label: 'Direct Balance Adjustment', description: 'Manually credit or debit user trading capital with audited ledger entry', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+      { key: 'PAYMENT_GATEWAYS_MANAGE', label: 'Manage Payment Gateways', description: 'Configure LinkPe merchant keys, QR codes, and bank accounts', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+      { key: 'RESERVES_RECONCILE', label: 'Reserve & Solvency Audit', description: 'Audit broker physical bank cash reserves vs user aggregate liabilities', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
+    ]
+  },
+  {
+    category: 'Trading & Risk Oversight',
+    description: 'Order execution, kill-switches, margin limits, and emergency square-offs',
+    permissions: [
+      { key: 'SIM_ORDER_CANCEL', label: 'Force-Cancel Orders', description: 'Cancel pending and executing simulated equity & derivative orders', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER'] },
+      { key: 'POSITIONS_FORCE_CLOSE', label: 'Force-Liquidate Positions', description: 'Emergency market square-off open positions for margin calls', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER'] },
+      { key: 'RISK_LIMITS_EDIT', label: 'Configure Risk Parameters', description: 'Modify margin multipliers, intraday leverage, and MTM loss limits', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER'] },
+      { key: 'KILL_SWITCH_TRIGGER', label: 'Platform Kill Switch', description: 'Halt all order placements and market execution platform-wide', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER'] },
+    ]
+  },
+  {
+    category: 'Operations & User Management',
+    description: 'Account creation, customer status freezes, KYC approvals, and credentials',
+    permissions: [
+      { key: 'KYC_VERIFY_APPROVE', label: 'Approve KYC Applications', description: 'Verify Aadhaar, PAN, and bank details for trading accounts', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'MANAGER'] },
+      { key: 'KYC_REJECT', label: 'Reject / Request KYC Re-upload', description: 'Reject incomplete documents and trigger customer re-upload requests', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER'] },
+      { key: 'USER_CREATE', label: 'Create New Customer', description: 'Manually provision new client profile and initial simulated capital', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+      { key: 'USER_LOCK_UNLOCK', label: 'Lock / Freeze Accounts', description: 'Temporarily freeze customer accounts to prevent logins and trading', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER'] },
+      { key: 'USER_RESET_PASSWORD', label: 'Issue Password Resets', description: 'Generate one-time reset credentials for user account recovery', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+    ]
+  },
+  {
+    category: 'Audit, Feeds & System Security',
+    description: 'Compliance audit trail, PII visibility, exchange feed credentials, and staff RBAC',
+    permissions: [
+      { key: 'VIEW_AUDIT_LOGS', label: 'View Immutable Audit Trail', description: 'Inspect timestamped actor logs for all admin and financial actions', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_MANAGER', 'READ_ONLY_AUDITOR'] },
+      { key: 'VIEW_PII', label: 'View Unmasked PII', description: 'Access unmasked client phone numbers, emails, and KYC documentation', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER'] },
+      { key: 'MARKET_DATA_CONFIG', label: 'Market Data & Feeds Config', description: 'Configure Angel One / Dhan API keys and market data download storage', defaultRoles: ['SUPER_ADMIN', 'ADMIN'] },
+      { key: 'MANAGE_ROLES_PERMISSIONS', label: 'Manage Roles & Permissions', description: 'Assign staff roles and configure user granular permission overrides', defaultRoles: ['SUPER_ADMIN', 'ADMIN'] },
+    ]
+  }
+];
+
+// GET: System Permission Definitions & Default Matrix
+router.get('/permissions/matrix', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const roles = [
+      'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_MANAGER', 'RISK_MANAGER', 
+      'OPERATIONS_MANAGER', 'KYC_OFFICER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST', 
+      'READ_ONLY_AUDITOR', 'USER'
+    ];
+
+    res.json({
+      success: true,
+      roles,
+      categories: SYSTEM_PERMISSION_CATEGORIES
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// GET: All Users with Roles, Custom Permissions & Capacity Limits
+router.get('/permissions/users', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const users = await query<any>(
+      `SELECT u.id, u.username, u.email, u.full_name, u.phone_number, u.role, u.status, u.is_kyc_completed, u.created_at,
+              COALESCE(ml.max_users, 100) as max_users,
+              COALESCE(ml.max_exposure_per_user, 1000000) as max_exposure_per_user,
+              COALESCE(ml.max_deposit_approval, 50000) as max_deposit_approval,
+              COALESCE(ml.max_withdrawal_approval, 25000) as max_withdrawal_approval,
+              COALESCE(ml.max_daily_loss_cap, 100000) as max_daily_loss_cap,
+              COUNT(ma.user_id) as assigned_users_count
+       FROM users u
+       LEFT JOIN manager_limits ml ON u.id = ml.manager_id
+       LEFT JOIN manager_assignments ma ON u.id = ma.manager_id
+       GROUP BY u.id, ml.max_users, ml.max_exposure_per_user, ml.max_deposit_approval, ml.max_withdrawal_approval, ml.max_daily_loss_cap
+       ORDER BY 
+         CASE 
+           WHEN u.role = 'SUPER_ADMIN' THEN 1
+           WHEN u.role = 'ADMIN' THEN 2
+           WHEN u.role = 'MANAGER' THEN 3
+           WHEN u.role = 'FINANCE_MANAGER' THEN 4
+           WHEN u.role = 'RISK_MANAGER' THEN 5
+           WHEN u.role = 'OPERATIONS_MANAGER' THEN 6
+           WHEN u.role = 'KYC_OFFICER' THEN 7
+           WHEN u.role = 'DEALER' THEN 8
+           WHEN u.role = 'SUPPORT_AGENT' THEN 9
+           WHEN u.role = 'ANALYST' THEN 10
+           WHEN u.role = 'READ_ONLY_AUDITOR' THEN 11
+           ELSE 12
+         END ASC,
+         u.created_at ASC`
+    );
+
+    // Fetch granular permissions overrides
+    const permissionsRows = await query<any>(
+      `SELECT manager_id, permission_key, granted FROM manager_permissions`
+    );
+
+    const permMap: Record<string, Record<string, boolean>> = {};
+    for (const row of permissionsRows) {
+      if (!permMap[row.manager_id]) permMap[row.manager_id] = {};
+      permMap[row.manager_id][row.permission_key] = row.granted;
+    }
+
+    const enrichedUsers = users.map(u => ({
+      ...u,
+      customPermissions: permMap[u.id] || {}
+    }));
+
+    res.json({ success: true, users: enrichedUsers });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST: Assign User Role
+router.post('/permissions/assign-role', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, role } = req.body;
+    if (!userId || !role) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'userId and role are required' } });
+      return;
+    }
+
+    const validRoles = [
+      'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_MANAGER', 'RISK_MANAGER', 
+      'OPERATIONS_MANAGER', 'KYC_OFFICER', 'DEALER', 'SUPPORT_AGENT', 'ANALYST', 
+      'READ_ONLY_AUDITOR', 'USER'
+    ];
+
+    if (!validRoles.includes(role)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_ROLE', message: `Invalid role '${role}'` } });
+      return;
+    }
+
+    const target = await queryOne<any>('SELECT id, username, email, role FROM users WHERE id = $1', [userId]);
+    if (!target) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+      return;
+    }
+
+    if (target.role === role) {
+      res.json({ success: true, message: `User is already assigned role '${role}'` });
+      return;
+    }
+
+    await execute('UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2', [role, userId]);
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_CHANGED_USER_ROLE', 'USER', userId,
+      { oldRole: target.role }, { newRole: role }, getClientIp(req)
+    );
+
+    adminEventBus.emitUserEvent('USER_PROFILE_UPDATED', userId, { role });
+
+    res.json({ success: true, message: `Role for ${target.username} successfully updated to ${role}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST: Toggle Single Permission for User
+router.post('/permissions/toggle-permission', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, permissionKey, granted } = req.body;
+    if (!userId || !permissionKey) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'userId and permissionKey are required' } });
+      return;
+    }
+
+    const id = 'perm_' + generateUUID();
+    await execute(
+      `INSERT INTO manager_permissions (id, manager_id, permission_key, granted, created_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (manager_id, permission_key)
+       DO UPDATE SET granted = EXCLUDED.granted`,
+      [id, userId, permissionKey, Boolean(granted)]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_TOGGLED_USER_PERMISSION', 'USER', userId,
+      null, { permissionKey, granted: Boolean(granted) }, getClientIp(req)
+    );
+
+    res.json({ success: true, message: `Permission '${permissionKey}' updated.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// POST: Save User Profile, Role, Granular Permissions & Capacity Limits in One Call
+router.post('/permissions/save-user-permissions', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { userId, role, permissions, limits } = req.body;
+    if (!userId) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'userId is required' } });
+      return;
+    }
+
+    const target = await queryOne<any>('SELECT id, username, role FROM users WHERE id = $1', [userId]);
+    if (!target) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+      return;
+    }
+
+    await withTransaction(async (client) => {
+      // 1. Update role if specified
+      if (role && role !== target.role) {
+        await client.query('UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2', [role, userId]);
+      }
+
+      // 2. Update permissions if provided
+      if (permissions && typeof permissions === 'object') {
+        for (const [key, val] of Object.entries(permissions)) {
+          const permId = 'perm_' + generateUUID();
+          await client.query(
+            `INSERT INTO manager_permissions (id, manager_id, permission_key, granted, created_at)
+             VALUES ($1, $2, $3, $4, NOW())
+             ON CONFLICT (manager_id, permission_key)
+             DO UPDATE SET granted = EXCLUDED.granted`,
+            [permId, userId, key, Boolean(val)]
+          );
+        }
+      }
+
+      // 3. Update manager limits if provided
+      if (limits && typeof limits === 'object') {
+        await client.query(
+          `INSERT INTO manager_limits (manager_id, max_users, max_accounts, max_exposure_per_user, max_deposit_approval, max_withdrawal_approval, max_daily_loss_cap, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+           ON CONFLICT (manager_id)
+           DO UPDATE SET
+             max_users = COALESCE(EXCLUDED.max_users, manager_limits.max_users),
+             max_accounts = COALESCE(EXCLUDED.max_accounts, manager_limits.max_accounts),
+             max_exposure_per_user = COALESCE(EXCLUDED.max_exposure_per_user, manager_limits.max_exposure_per_user),
+             max_deposit_approval = COALESCE(EXCLUDED.max_deposit_approval, manager_limits.max_deposit_approval),
+             max_withdrawal_approval = COALESCE(EXCLUDED.max_withdrawal_approval, manager_limits.max_withdrawal_approval),
+             max_daily_loss_cap = COALESCE(EXCLUDED.max_daily_loss_cap, manager_limits.max_daily_loss_cap),
+             updated_at = NOW()`,
+          [
+            userId,
+            limits.maxUsers ?? 100,
+            limits.maxAccounts ?? 100,
+            limits.maxExposurePerUser ?? 1000000,
+            limits.maxDepositApproval ?? 50000,
+            limits.maxWithdrawalApproval ?? 25000,
+            limits.maxDailyLossCap ?? 100000
+          ]
+        );
+      }
+    });
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'ADMIN_UPDATED_USER_PERMISSIONS_AND_LIMITS', 'USER', userId,
+      { oldRole: target.role }, { newRole: role, permissions, limits }, getClientIp(req)
+    );
+
+    res.json({ success: true, message: `Permissions & limits for ${target.username} saved successfully.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// 31. EMIT POSITION/TRADE EVENTS FROM EXECUTION ENGINE
 // Helper: called from ExecutionEngine after trade execution
 // ============================================================
 export function emitAdminTradeEvent(userId: string, trade: any): void {

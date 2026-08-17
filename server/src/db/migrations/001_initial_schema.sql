@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   email                 TEXT UNIQUE NOT NULL,
   password_hash         TEXT NOT NULL,
   role                  TEXT NOT NULL DEFAULT 'USER'
-                        CHECK (role IN ('SUPER_ADMIN','ADMIN','RISK_MANAGER','OPERATIONS_MANAGER','DEALER','SUPPORT_AGENT','ANALYST','USER','READ_ONLY_AUDITOR')),
+                        CHECK (role IN ('SUPER_ADMIN','ADMIN','MANAGER','FINANCE_MANAGER','RISK_MANAGER','OPERATIONS_MANAGER','KYC_OFFICER','DEALER','SUPPORT_AGENT','ANALYST','USER','READ_ONLY_AUDITOR')),
   status                TEXT NOT NULL DEFAULT 'ACTIVE'
                         CHECK (status IN ('ACTIVE','SUSPENDED','DISABLED','PENDING_VERIFICATION')),
   totp_secret           TEXT,

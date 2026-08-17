@@ -97,7 +97,7 @@ export class OptionChainEngine {
           atmStrike: liveAtmStrike,
           expiry: liveExpiry,
           lotSize,
-          spotSource: 'dhan_feed',
+          spotSource: 'dhan',
           pcrRatio,
           maxPainStrike: liveAtmStrike,
           chain: filtered
