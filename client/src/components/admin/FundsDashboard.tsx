@@ -339,10 +339,10 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left text-slate-300">
-            <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
-              <tr>
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[980px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-950/60">
                 <th className="py-2.5 px-3">Req ID</th>
                 <th className="py-2.5 px-3">Client</th>
                 <th className="py-2.5 px-3">Type</th>
@@ -351,7 +351,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 <th className="py-2.5 px-3">Reference / Note</th>
                 <th className="py-2.5 px-3">Requested At</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
-                <th className="py-2.5 px-3 text-center">Action</th>
+                <th className="py-2.5 px-3 text-center min-w-[180px]">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -385,20 +385,20 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                       {r.status === 'PENDING' ? 'PENDING APPROVAL' : r.status}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-center">
+                  <td className="py-2.5 px-3 text-center min-w-[180px]">
                     {r.status === 'PENDING' ? (
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                         <button
                           onClick={() => handleApprove(r.id, r.request_id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg transition shadow flex items-center gap-1"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
                         >
-                          <CheckCircle className="w-3 h-3" /> Approve
+                          <CheckCircle className="w-3.5 h-3.5" /> Approve
                         </button>
                         <button
                           onClick={() => handleReject(r.id, r.request_id)}
-                          className="bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg transition shadow flex items-center gap-1"
+                          className="bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
                         >
-                          <XCircle className="w-3 h-3" /> Reject
+                          <XCircle className="w-3.5 h-3.5" /> Reject
                         </button>
                       </div>
                     ) : (
