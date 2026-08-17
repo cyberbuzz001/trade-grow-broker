@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw } from 'lucide-react';
+import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw, X } from 'lucide-react';
 
 interface FundsDashboardProps { token: string; }
 
@@ -205,8 +205,18 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       )}
 
       {actionMsg && (
-        <div className={`p-3 rounded-lg text-xs font-semibold ${actionMsg.type === 'success' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'}`}>
-          {actionMsg.text}
+        <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between shadow-md transition-all ${actionMsg.type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-800' : 'bg-rose-950/90 text-rose-300 border border-rose-800'}`}>
+          <div className="flex items-center gap-2">
+            {actionMsg.type === 'error' ? <XCircle className="w-4 h-4 text-rose-400 shrink-0" /> : <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
+            <span>{actionMsg.text.replace(/^[A-Z_]+:/, '')}</span>
+          </div>
+          <button 
+            onClick={() => setActionMsg(null)}
+            className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer ml-3 shrink-0"
+            title="Dismiss notification"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 

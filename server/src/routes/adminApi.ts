@@ -787,7 +787,9 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
 
     res.json({ success: true, ...result });
   } catch (err: any) {
-    const [code, msg] = err.message.includes(':') ? err.message.split(':', 2) : ['SERVER_ERROR', err.message];
+    const colonIdx = err.message ? err.message.indexOf(':') : -1;
+    const code = colonIdx !== -1 ? err.message.slice(0, colonIdx) : 'SERVER_ERROR';
+    const msg = colonIdx !== -1 ? err.message.slice(colonIdx + 1) : (err.message || 'Server error occurred');
     res.status(code === 'NOT_FOUND' ? 404 : 400).json({ success: false, error: { code, message: msg } });
   }
 });
