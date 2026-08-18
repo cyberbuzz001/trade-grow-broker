@@ -550,3 +550,213 @@
   min-width: 44px;
 }
 
+/* ════════════════════════════════════════════════════════════
+   PREMIUM TRADEGROW ANIMATION & MOTION SYSTEM
+   GPU-only properties: transform + opacity
+   All animations respect prefers-reduced-motion
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Live Pulse Dot (Real-time indicator) ─────────────────── */
+@keyframes livePulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.15); }
+}
+
+.live-dot {
+  animation: livePulse 1.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Skeleton Shimmer (Premium Loading State) ─────────────── */
+@keyframes shimmer {
+  0%   { background-position: -300px 0; }
+  100% { background-position: 300px 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface-elevated) 25%,
+    rgba(148,163,184,0.15) 50%,
+    var(--bg-surface-elevated) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Price Flash (Improved: only animates color, not layout) ─ */
+@keyframes priceFlashUp {
+  0%   { background-color: rgba(22, 163, 74, 0.25); color: #15803d; }
+  70%  { background-color: rgba(22, 163, 74, 0.10); }
+  100% { background-color: transparent; color: inherit; }
+}
+
+@keyframes priceFlashDown {
+  0%   { background-color: rgba(220, 38, 38, 0.22); color: #b91c1c; }
+  70%  { background-color: rgba(220, 38, 38, 0.08); }
+  100% { background-color: transparent; color: inherit; }
+}
+
+.price-flash-up {
+  animation: priceFlashUp 0.40s ease-out forwards;
+}
+.price-flash-down {
+  animation: priceFlashDown 0.40s ease-out forwards;
+}
+
+/* Dark theme variants */
+.dark .price-flash-up {
+  animation: priceFlashUpDark 0.40s ease-out forwards;
+}
+.dark .price-flash-down {
+  animation: priceFlashDownDark 0.40s ease-out forwards;
+}
+
+@keyframes priceFlashUpDark {
+  0%   { background-color: rgba(34, 197, 94, 0.28); color: #22c55e; }
+  70%  { background-color: rgba(34, 197, 94, 0.10); }
+  100% { background-color: transparent; color: inherit; }
+}
+@keyframes priceFlashDownDark {
+  0%   { background-color: rgba(239, 68, 68, 0.28); color: #ef4444; }
+  70%  { background-color: rgba(239, 68, 68, 0.10); }
+  100% { background-color: transparent; color: inherit; }
+}
+
+/* ── P&L Number update flash ──────────────────────────────── */
+@keyframes pnlGain {
+  0%   { color: #15803d; }
+  100% { color: inherit; }
+}
+@keyframes pnlLoss {
+  0%   { color: #b91c1c; }
+  100% { color: inherit; }
+}
+.pnl-gain-flash { animation: pnlGain 0.5s ease-out forwards; }
+.pnl-loss-flash { animation: pnlLoss 0.5s ease-out forwards; }
+
+/* ── Staggered Card Entrance ──────────────────────────────── */
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-enter {
+  animation: cardEnter 0.25s ease-out both;
+  will-change: transform, opacity;
+}
+.card-enter-1 { animation-delay: 0ms; }
+.card-enter-2 { animation-delay: 40ms; }
+.card-enter-3 { animation-delay: 80ms; }
+.card-enter-4 { animation-delay: 120ms; }
+.card-enter-5 { animation-delay: 160ms; }
+
+/* ── Nav icon micro-lift on active ───────────────────────── */
+@keyframes navActivate {
+  0%   { transform: translateY(0); }
+  40%  { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+
+.nav-icon-active {
+  animation: navActivate 0.20s ease-out;
+}
+
+/* ── Shake (error feedback, applied to component only) ───── */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-5px); }
+  40%       { transform: translateX(5px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+.shake { animation: shake 0.35s ease-out; }
+
+/* ── Spinner → Checkmark ──────────────────────────────────── */
+@keyframes checkPop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.check-pop { animation: checkPop 0.30s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+/* ── Bottom Nav floating elevation ────────────────────────── */
+.mobile-nav-glass {
+  background: rgba(255,255,255,0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(226,232,240,0.8);
+  box-shadow: 0 -4px 20px rgba(15,23,42,0.07), 0 -1px 4px rgba(15,23,42,0.04);
+}
+.dark .mobile-nav-glass {
+  background: rgba(15,23,42,0.94);
+  border-top: 1px solid rgba(51,65,85,0.6);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.40), 0 -1px 4px rgba(0,0,0,0.25);
+}
+
+/* ── Background depth for home page ──────────────────────── */
+.home-bg-depth {
+  background:
+    radial-gradient(ellipse 80% 45% at 50% 0%,   rgba(22,163,74,0.055) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 30% at 80% 100%, rgba(99,102,241,0.04) 0%, transparent 70%),
+    var(--bg-body);
+}
+.dark .home-bg-depth {
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 0%,   rgba(34,197,94,0.06) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 30% at 80% 100%, rgba(99,102,241,0.05) 0%, transparent 65%),
+    var(--bg-body);
+}
+
+/* ── Bottom sheet backdrop (light/dark auto) ──────────────── */
+.sheet-backdrop-light {
+  background: rgba(248,250,252,0.18);
+}
+.sheet-backdrop-dark {
+  background: rgba(2,6,23,0.22);
+}
+
+/* ── Reconnecting spin (icon only, restrained) ────────────── */
+@keyframes gentleSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.reconnect-spin {
+  animation: gentleSpin 1.2s linear infinite;
+  display: inline-block;
+}
+
+/* ════════════════════════════════════════════════════════════
+   REDUCED MOTION — Disable / simplify all animations
+   ════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .skeleton-shimmer,
+  .price-flash-up,
+  .price-flash-down,
+  .pnl-gain-flash,
+  .pnl-loss-flash,
+  .card-enter,
+  .nav-icon-active,
+  .shake,
+  .check-pop,
+  .reconnect-spin {
+    animation: none !important;
+    transition: none !important;
+  }
+  .skeleton-shimmer {
+    background: var(--bg-surface-elevated) !important;
+  }
+}
+
+/* ── @supports fallback for backdrop-filter ──────────────── */
+@supports not (backdrop-filter: blur(1px)) {
+  .mobile-nav-glass {
+    background: rgba(255,255,255,0.98) !important;
+    box-shadow: 0 -4px 20px rgba(15,23,42,0.10) !important;
+  }
+  .dark .mobile-nav-glass {
+    background: rgba(15,23,42,0.99) !important;
+  }
+}

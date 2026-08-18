@@ -15,7 +15,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <nav 
       aria-label="Mobile Navigation Bar"
-      className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-surface)]/95 backdrop-blur-2xl border-t border-[var(--border-color)] px-1.5 h-15 flex items-center justify-around shadow-lg pb-[env(safe-area-inset-bottom,4px)]"
+      className="mobile-nav-glass fixed bottom-0 left-0 right-0 z-50 px-1.5 h-15 flex items-center justify-around pb-[env(safe-area-inset-bottom,4px)]"
     >
       
       {/* Home Tab */}
@@ -31,7 +31,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'HOME' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'HOME' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 nav-icon-active' : ''}`}>
           <Home className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Home</span>
@@ -50,7 +50,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'WATCHLIST' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'WATCHLIST' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 nav-icon-active' : ''}`}>
           <Bookmark className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Watchlist</span>
@@ -69,7 +69,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'OPTION_CHAIN' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'OPTION_CHAIN' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 nav-icon-active' : ''}`}>
           <Layers className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Options</span>
@@ -88,7 +88,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'POSITIONS' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'POSITIONS' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 nav-icon-active' : ''}`}>
           <Briefcase className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Positions</span>
@@ -108,7 +108,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
           }`}
         >
-          <div className={`p-1 rounded-lg transition-colors ${activeTab === 'ADMIN' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : ''}`}>
+          <div className={`p-1 rounded-lg transition-colors ${activeTab === 'ADMIN' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 nav-icon-active' : ''}`}>
             <ShieldCheck className="w-4.5 h-4.5" />
           </div>
           <span className="text-[10px] tracking-tight">Admin</span>
@@ -128,7 +128,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'PROFILE' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'PROFILE' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 nav-icon-active' : ''}`}>
           <User className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Profile</span>

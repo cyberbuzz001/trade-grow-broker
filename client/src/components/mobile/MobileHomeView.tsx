@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, ArrowUpRight, ArrowDownRight, Zap, Sun, Moon, Sparkles, TrendingUp, Layers, Award, Shield, FileText, SlidersHorizontal } from 'lucide-react';
 import { MarketTick, User, Wallet } from '../../types';
 import { useMarketSocket, useSubscribeTokens } from '../../hooks/useMarketSocket';
-import { IndexActionModal } from '../IndexActionModal';
+import { IndexActionModal, LivePrice } from '../IndexActionModal';
 import { MobileChartModal } from './MobileChartModal';
 
 interface MobileHomeViewProps {
@@ -58,7 +58,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
   ];
 
   return (
-    <div className="pb-28 pt-3 px-3.5 space-y-4 font-body bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] touch-action-manipulation overscroll-y-contain">
+    <div className="home-bg-depth pb-28 pt-3 px-3.5 space-y-4 font-body min-h-screen text-[var(--text-main)] touch-action-manipulation overscroll-y-contain">
       
       {/* 1. TOP BROKER MOBILE HEADER BAR */}
       <div className="flex items-center justify-between">
@@ -159,7 +159,10 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Market Indices</span>
-          <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">REAL-TIME TIX</span>
+          <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+            <span className="live-dot w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+            REAL-TIME
+          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -169,14 +172,14 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'NIFTY 50', token: 'NSE_NIFTY50', exchange: 'NSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="card-enter card-enter-1 bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-0.5">
               <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">NIFTY 50</span>
               <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-bold bg-emerald-500/10 px-1 py-0.2 rounded">+0.42%</span>
             </div>
             <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
-              {formatLtp(getNifty(), 24856.15)}
+              <LivePrice value={getNifty()?.ltp ?? 24856.15} prefix="" decimals={2} />
             </div>
             <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-emerald-500 h-full w-[65%]"></div>
@@ -189,14 +192,14 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'SENSEX', token: 'BSE_SENSEX', exchange: 'BSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="card-enter card-enter-2 bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-0.5">
               <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">SENSEX</span>
               <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-bold bg-emerald-500/10 px-1 py-0.2 rounded">+0.38%</span>
             </div>
             <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
-              {formatLtp(getSensex(), 81254.30)}
+              <LivePrice value={getSensex()?.ltp ?? 81254.30} prefix="" decimals={2} />
             </div>
             <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-emerald-500 h-full w-[58%]"></div>
@@ -209,14 +212,14 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', exchange: 'NSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-rose-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="card-enter card-enter-3 bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-rose-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-0.5">
               <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">BANK NIFTY</span>
               <span className="text-rose-600 dark:text-rose-400 font-mono text-[9px] font-bold bg-rose-500/10 px-1 py-0.2 rounded">-0.15%</span>
             </div>
             <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
-              {formatLtp(getBankNifty(), 52150.75)}
+              <LivePrice value={getBankNifty()?.ltp ?? 52150.75} prefix="" decimals={2} />
             </div>
             <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-rose-500 h-full w-[42%]"></div>
@@ -229,14 +232,14 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', exchange: 'NSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="card-enter card-enter-4 bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-0.5">
               <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">FIN NIFTY</span>
               <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-bold bg-emerald-500/10 px-1 py-0.2 rounded">+0.22%</span>
             </div>
             <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
-              {formatLtp(getFinNifty(), 23890.40)}
+              <LivePrice value={getFinNifty()?.ltp ?? 23890.40} prefix="" decimals={2} />
             </div>
             <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-emerald-500 h-full w-[50%]"></div>
