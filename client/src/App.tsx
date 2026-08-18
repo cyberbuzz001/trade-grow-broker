@@ -54,7 +54,13 @@ export function App() {
   const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT'>('PROFILE');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isLinkPeModalOpen, setIsLinkPeModalOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return (localStorage.getItem('user_theme') as 'light' | 'dark') || 'dark';
+    } catch (_) {
+      return 'dark';
+    }
+  });
 
   // Detect Mobile Viewport
   useEffect(() => {
@@ -66,6 +72,11 @@ export function App() {
   // Sync theme
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('light', theme === 'light');
+    try {
+      localStorage.setItem('user_theme', theme);
+    } catch (_) {}
   }, [theme]);
 
   const toggleTheme = () => {

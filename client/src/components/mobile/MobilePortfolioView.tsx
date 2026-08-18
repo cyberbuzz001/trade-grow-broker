@@ -295,7 +295,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
   const totalCombinedPnl = holdingsPnl + positionsPnl + closedTradesPnl;
 
   return (
-    <div className="pb-24 pt-3 px-3.5 space-y-4 font-body bg-slate-950 min-h-screen text-slate-100 touch-action-manipulation overscroll-y-contain select-none">
+    <div className="pb-24 pt-3 px-3.5 space-y-4 font-body bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] touch-action-manipulation overscroll-y-contain select-none">
       
       {/* 1. TOP HEADER */}
       <div className="flex items-center justify-between">
@@ -305,12 +305,12 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
             navigator.vibrate?.(20);
             onBack();
           }}
-          className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
+          className="min-h-[44px] min-w-[44px] rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] active:scale-95 transition-all cursor-pointer shadow-xs"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        <h1 className="text-base font-bold text-white">
+        <h1 className="text-base font-bold text-[var(--text-main)]">
           Portfolio & Positions
         </h1>
 
@@ -320,7 +320,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
             navigator.vibrate?.(20);
             fetchPortfolio();
           }}
-          className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 hover:text-white active:scale-95 transition-all cursor-pointer"
+          className="min-h-[44px] min-w-[44px] rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-emerald-500 hover:text-[var(--text-main)] active:scale-95 transition-all cursor-pointer shadow-xs"
           title="Refresh Portfolio"
         >
           <RefreshCw className="w-4 h-4" />
@@ -329,39 +329,39 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
       {actionMessage && (
         <div className={`p-3 rounded-xl text-xs font-bold border flex items-center justify-between ${
-          actionMessage.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+          actionMessage.type === 'success' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30'
         }`}>
           <span>{actionMessage.text}</span>
-          <button type="button" onClick={() => setActionMessage(null)} className="text-slate-400 hover:text-white font-bold">
+          <button type="button" onClick={() => setActionMessage(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] font-bold">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* 2. REAL-TIME P&L BANNER */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4.5 relative overflow-hidden shadow-md backdrop-blur-xl group">
-        <div className="flex items-center justify-between mb-1 text-xs font-mono text-slate-400">
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 relative overflow-hidden shadow-xs backdrop-blur-xl group">
+        <div className="flex items-center justify-between mb-1 text-xs font-mono text-[var(--text-muted)]">
           <span>Real-Time Portfolio P&L</span>
-          <span className="text-emerald-400 font-bold">LIVE FEED</span>
+          <span className="text-emerald-500 font-bold">LIVE FEED</span>
         </div>
 
         <div className="flex items-baseline justify-between font-mono">
-          <h2 className={`text-3xl font-black tabular-nums ${totalCombinedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <h2 className={`text-3xl font-black tabular-nums ${totalCombinedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {totalCombinedPnl >= 0 ? '+' : ''}₹{totalCombinedPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h2>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${totalCombinedPnl >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${totalCombinedPnl >= 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'}`}>
             {totalCombinedPnl >= 0 ? 'PROFIT' : 'LOSS'}
           </span>
         </div>
 
-        <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-400 pt-2 border-t border-slate-800 mt-2">
-          <span>Positions P&L: <strong className={positionsPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>₹{positionsPnl.toFixed(2)}</strong></span>
-          <span>Closed P&L: <strong className={closedTradesPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>₹{closedTradesPnl.toFixed(2)}</strong></span>
+        <div className="flex items-center justify-between text-xs font-mono font-bold text-[var(--text-muted)] pt-2 border-t border-[var(--border-color)] mt-2">
+          <span>Positions P&L: <strong className={positionsPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}>₹{positionsPnl.toFixed(2)}</strong></span>
+          <span>Closed P&L: <strong className={closedTradesPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}>₹{closedTradesPnl.toFixed(2)}</strong></span>
         </div>
       </div>
 
       {/* 3. SEGMENTED TABS */}
-      <div className="grid grid-cols-3 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-xl font-headline">
+      <div className="grid grid-cols-3 gap-1 p-1 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl font-headline">
         <button
           type="button"
           onClick={() => {
@@ -370,8 +370,8 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
           }}
           className={`py-2 rounded-lg text-[11px] font-black transition-all cursor-pointer min-h-[44px] ${
             activeSegment === 'POSITIONS'
-              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
           }`}
         >
           Open ({openPositions.length})
@@ -385,8 +385,8 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
           }}
           className={`py-2 rounded-lg text-[11px] font-black transition-all cursor-pointer min-h-[44px] ${
             activeSegment === 'CLOSED_TRADES'
-              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
           }`}
         >
           Closed ({closedTrades.length})
@@ -400,8 +400,8 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
           }}
           className={`py-2 rounded-lg text-[11px] font-black transition-all cursor-pointer min-h-[44px] ${
             activeSegment === 'HOLDINGS'
-              ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-emerald-500 text-white shadow-xs font-extrabold'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
           }`}
         >
           Holdings ({holdings.length})
@@ -412,10 +412,10 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
       <div className="space-y-3">
         {activeSegment === 'POSITIONS' && (
           openPositions.length === 0 ? (
-            <div className="bg-slate-900/90 border border-slate-800 p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl">
-              <Briefcase className="w-8 h-8 text-slate-500 mx-auto" />
-              <h3 className="font-bold text-sm text-white">No Open Positions Today</h3>
-              <p className="text-xs text-slate-400">Your intraday trading positions are squared off.</p>
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl shadow-xs">
+              <Briefcase className="w-8 h-8 text-[var(--text-muted)] mx-auto" />
+              <h3 className="font-bold text-sm text-[var(--text-main)]">No Open Positions Today</h3>
+              <p className="text-xs text-[var(--text-muted)]">Your intraday trading positions are squared off.</p>
             </div>
           ) : (
             openPositions.map(pos => {
@@ -429,40 +429,40 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
               const activeTarget = getActiveTargetOrder(pos);
 
               return (
-                <div key={pos.id || pos.symbol} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3 backdrop-blur-xl shadow-md font-mono">
+                <div key={pos.id || pos.symbol} className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 space-y-3 backdrop-blur-xl shadow-xs font-mono">
                   {/* Row 1: Symbol & P&L */}
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-2">
                     <div>
-                      <h4 className="font-extrabold text-sm text-white">{pos.symbol}</h4>
-                      <span className="text-[11px] text-slate-400">
-                        {absQty} Qty • <span className="text-indigo-400 font-bold">{pos.productType || 'MIS'}</span>
+                      <h4 className="font-extrabold text-sm text-[var(--text-main)]">{pos.symbol}</h4>
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        {absQty} Qty • <span className="text-indigo-500 font-bold">{pos.productType || 'MIS'}</span>
                       </span>
                     </div>
                     <div className="text-right">
-                      <div className={`font-black text-base tabular-nums ${isGain ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <div className={`font-black text-base tabular-nums ${isGain ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {isGain ? '+' : ''}₹{uPnl.toFixed(2)}
                       </div>
-                      <div className="text-[10px] text-slate-400">Unrealized P&L</div>
+                      <div className="text-[10px] text-[var(--text-muted)]">Unrealized P&L</div>
                     </div>
                   </div>
 
                   {/* Row 2: Price & Target Badges */}
                   <div className="flex items-center justify-between text-xs pt-0.5">
                     <div>
-                      <span className="text-slate-400">Avg: </span>
-                      <strong className="text-white">₹{avgPrice.toFixed(2)}</strong>
+                      <span className="text-[var(--text-muted)]">Avg: </span>
+                      <strong className="text-[var(--text-main)]">₹{avgPrice.toFixed(2)}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400">LTP: </span>
-                      <strong className="text-cyan-300 font-extrabold">₹{ltp.toFixed(2)}</strong>
+                      <span className="text-[var(--text-muted)]">LTP: </span>
+                      <strong className="text-cyan-600 dark:text-cyan-300 font-extrabold">₹{ltp.toFixed(2)}</strong>
                     </div>
                   </div>
 
                   {/* Released Profit (Realized P&L) Row */}
                   {realizedPnl !== 0 && (
-                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60 font-mono">
-                      <span className="text-slate-400">Released Profit:</span>
-                      <strong className={`font-bold ${realizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-[var(--border-color)] font-mono">
+                      <span className="text-[var(--text-muted)]">Released Profit:</span>
+                      <strong className={`font-bold ${realizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {realizedPnl >= 0 ? '+' : ''}₹{realizedPnl.toFixed(2)}
                       </strong>
                     </div>
@@ -471,14 +471,14 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                   {/* Active Target Indicator Badge */}
                   {activeTarget && (
                     <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 p-2 rounded-xl text-xs">
-                      <div className="flex items-center gap-1.5 text-emerald-300 font-bold">
-                        <Target className="w-4 h-4 text-emerald-400" />
+                      <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-300 font-bold">
+                        <Target className="w-4 h-4 text-emerald-500" />
                         <span>Target ₹{parseFloat(activeTarget.price).toFixed(2)} ({activeTarget.side} LIMIT)</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => setCancelTargetModalOrder(activeTarget)}
-                        className="text-slate-400 hover:text-rose-400 p-1"
+                        className="text-[var(--text-muted)] hover:text-rose-500 p-1"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -490,7 +490,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenSetTargetModal(pos, activeTarget)}
-                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs py-2.5 px-3 rounded-xl border border-cyan-500/30 flex items-center justify-center gap-1.5 active:scale-95 transition-transform min-h-[44px]"
+                      className="flex-1 bg-[var(--bg-surface-elevated)] hover:bg-[var(--border-color)] text-cyan-600 dark:text-cyan-300 font-bold text-xs py-2.5 px-3 rounded-xl border border-cyan-500/30 flex items-center justify-center gap-1.5 active:scale-95 transition-transform min-h-[44px]"
                     >
                       <Target className="w-4 h-4" />
                       <span>{activeTarget ? 'Modify Target' : 'Set Target'}</span>
@@ -499,7 +499,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setSquareOffModalPos(pos)}
-                      className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs py-2.5 px-3 rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-transform min-h-[44px]"
+                      className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs py-2.5 px-3 rounded-xl shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform min-h-[44px]"
                     >
                       <ShieldAlert className="w-4 h-4" />
                       <span>Square Off</span>
@@ -513,37 +513,37 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
         {activeSegment === 'CLOSED_TRADES' && (
           closedTrades.length === 0 ? (
-            <div className="bg-slate-900/90 border border-slate-800 p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl">
-              <History className="w-8 h-8 text-slate-500 mx-auto" />
-              <h3 className="font-bold text-sm text-white">No Closed Trades Today</h3>
-              <p className="text-xs text-slate-400">Completed trade history will appear here after exiting a position.</p>
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl shadow-xs">
+              <History className="w-8 h-8 text-[var(--text-muted)] mx-auto" />
+              <h3 className="font-bold text-sm text-[var(--text-main)]">No Closed Trades Today</h3>
+              <p className="text-xs text-[var(--text-muted)]">Completed trade history will appear here after exiting a position.</p>
             </div>
           ) : (
             closedTrades.map(ct => {
               const isProfit = (ct.netPnl || 0) >= 0;
               return (
-                <div key={ct.id || ct.executionId} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-2.5 backdrop-blur-xl shadow-md font-mono">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                <div key={ct.id || ct.executionId} className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 space-y-2.5 backdrop-blur-xl shadow-xs font-mono">
+                  <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-2">
                     <div>
-                      <h4 className="font-extrabold text-sm text-white">{ct.symbol}</h4>
-                      <span className="text-[11px] text-slate-400">
-                        {ct.quantity} Units • <strong className="text-emerald-400">{ct.entrySide}</strong> → <strong className="text-rose-400">{ct.exitSide}</strong>
+                      <h4 className="font-extrabold text-sm text-[var(--text-main)]">{ct.symbol}</h4>
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        {ct.quantity} Units • <strong className="text-emerald-500">{ct.entrySide}</strong> → <strong className="text-rose-500">{ct.exitSide}</strong>
                       </span>
                     </div>
                     <div className="text-right">
-                      <div className={`font-black text-base tabular-nums ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <div className={`font-black text-base tabular-nums ${isProfit ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {isProfit ? '+' : ''}₹{parseFloat(ct.netPnl || 0).toFixed(2)}
                       </div>
-                      <span className="text-[10px] bg-slate-950 text-cyan-300 border border-slate-800 px-1.5 py-0.5 rounded font-mono font-bold">
+                      <span className="text-[10px] bg-[var(--bg-surface-elevated)] text-cyan-600 dark:text-cyan-300 border border-[var(--border-color)] px-1.5 py-0.5 rounded font-mono font-bold">
                         {ct.exitReason ? ct.exitReason.replace('_', ' ') : 'CLOSED'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-mono pt-0.5 text-slate-300">
-                    <div>Entry: <strong className="text-white">₹{parseFloat(ct.entryPrice || 0).toFixed(2)}</strong></div>
-                    <div>Exit: <strong className="text-cyan-300">₹{parseFloat(ct.exitPrice || 0).toFixed(2)}</strong></div>
-                    <div className="text-slate-400 text-[10px]">
+                  <div className="flex items-center justify-between text-xs font-mono pt-0.5 text-[var(--text-muted)]">
+                    <div>Entry: <strong className="text-[var(--text-main)]">₹{parseFloat(ct.entryPrice || 0).toFixed(2)}</strong></div>
+                    <div>Exit: <strong className="text-cyan-600 dark:text-cyan-300">₹{parseFloat(ct.exitPrice || 0).toFixed(2)}</strong></div>
+                    <div className="text-[var(--text-muted)] text-[10px]">
                       {ct.closedAt ? new Date(ct.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                     </div>
                   </div>
@@ -555,10 +555,10 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
         {activeSegment === 'HOLDINGS' && (
           holdings.length === 0 ? (
-            <div className="bg-slate-900/90 border border-slate-800 p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl">
-              <Briefcase className="w-8 h-8 text-slate-500 mx-auto" />
-              <h3 className="font-bold text-sm text-white">No Demat Holdings</h3>
-              <p className="text-xs text-slate-400">No long-term equity holdings in portfolio.</p>
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-8 rounded-2xl text-center space-y-2 backdrop-blur-xl shadow-xs">
+              <Briefcase className="w-8 h-8 text-[var(--text-muted)] mx-auto" />
+              <h3 className="font-bold text-sm text-[var(--text-main)]">No Demat Holdings</h3>
+              <p className="text-xs text-[var(--text-muted)]">No long-term equity holdings in portfolio.</p>
             </div>
           ) : (
             holdings.map(item => {
@@ -571,17 +571,17 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                 <div
                   key={item.symbol}
                   onClick={() => onSelectStock(item.symbol, item.symbol, ltp)}
-                  className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl space-y-2 cursor-pointer hover:border-emerald-500/50 transition-all backdrop-blur-xl"
+                  className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-4 rounded-2xl space-y-2 cursor-pointer hover:border-emerald-500/50 transition-all backdrop-blur-xl shadow-xs"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-sm text-white">{item.symbol}</h4>
-                      <span className="text-xs text-slate-400 font-mono">{item.quantity} shares • Avg ₹{item.averagePrice.toFixed(2)}</span>
+                      <h4 className="font-bold text-sm text-[var(--text-main)]">{item.symbol}</h4>
+                      <span className="text-xs text-[var(--text-muted)] font-mono">{item.quantity} shares • Avg ₹{item.averagePrice.toFixed(2)}</span>
                     </div>
 
                     <div className="text-right num-font font-mono">
-                      <div className="font-bold text-sm text-white">₹{ltp.toFixed(2)}</div>
-                      <div className={`text-xs font-bold ${isGain ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <div className="font-bold text-sm text-[var(--text-main)]">₹{ltp.toFixed(2)}</div>
+                      <div className={`text-xs font-bold ${isGain ? 'text-emerald-500' : 'text-rose-500'}`}>
                         {isGain ? '+' : ''}₹{pnl.toFixed(2)}
                       </div>
                     </div>
@@ -595,13 +595,13 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
       {/* MOBILE MODAL: SQUARE OFF CONFIRMATION */}
       {squareOffModalPos && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 font-mono">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                <AlertTriangle className="text-amber-400 w-4 h-4" /> Square Off Position?
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 font-mono">
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
+              <h3 className="text-sm font-extrabold text-[var(--text-main)] flex items-center gap-2">
+                <AlertTriangle className="text-amber-500 w-4 h-4" /> Square Off Position?
               </h3>
-              <button type="button" onClick={() => setSquareOffModalPos(null)} className="text-slate-400 hover:text-white">
+              <button type="button" onClick={() => setSquareOffModalPos(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -616,26 +616,26 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
               return (
                 <>
-                  <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2 text-xs">
+                  <div className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-3.5 rounded-xl space-y-2 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Instrument:</span>
-                      <strong className="text-white">{pos.symbol}</strong>
+                      <span className="text-[var(--text-muted)]">Instrument:</span>
+                      <strong className="text-[var(--text-main)]">{pos.symbol}</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Quantity:</span>
-                      <strong className="text-emerald-400">{absQty} Units ({exitSide})</strong>
+                      <span className="text-[var(--text-muted)]">Quantity:</span>
+                      <strong className="text-emerald-500">{absQty} Units ({exitSide})</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Current LTP:</span>
-                      <strong className="text-white">₹{liveLtp.toFixed(2)}</strong>
+                      <span className="text-[var(--text-muted)]">Current LTP:</span>
+                      <strong className="text-[var(--text-main)]">₹{liveLtp.toFixed(2)}</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Order Type:</span>
-                      <strong className="text-amber-400">MARKET</strong>
+                      <span className="text-[var(--text-muted)]">Order Type:</span>
+                      <strong className="text-amber-500">MARKET</strong>
                     </div>
-                    <div className="flex justify-between border-t border-slate-800 pt-1.5 font-bold">
-                      <span className="text-slate-300">Estimated Exit Value:</span>
-                      <strong className="text-cyan-300 font-mono">₹{estimatedExitVal.toFixed(2)}</strong>
+                    <div className="flex justify-between border-t border-[var(--border-color)] pt-1.5 font-bold">
+                      <span className="text-[var(--text-muted)]">Estimated Exit Value:</span>
+                      <strong className="text-cyan-600 dark:text-cyan-300 font-mono">₹{estimatedExitVal.toFixed(2)}</strong>
                     </div>
                   </div>
 
@@ -644,7 +644,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                       type="button"
                       onClick={() => setSquareOffModalPos(null)}
                       disabled={isSubmittingExit}
-                      className="px-4 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs flex-1 min-h-[44px]"
+                      className="px-4 py-2.5 bg-[var(--bg-surface-elevated)] text-[var(--text-main)] font-bold rounded-xl text-xs flex-1 min-h-[44px]"
                     >
                       Cancel
                     </button>
@@ -666,14 +666,14 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
       {/* MOBILE MODAL: SET TARGET */}
       {targetModalPos && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 font-mono">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                <Target className="text-cyan-400 w-4 h-4" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 font-mono">
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
+              <h3 className="text-sm font-extrabold text-[var(--text-main)] flex items-center gap-2">
+                <Target className="text-cyan-500 w-4 h-4" />
                 {isTargetConfirmStep ? 'Confirm Target Order' : `Set Target — ${targetModalPos.symbol}`}
               </h3>
-              <button type="button" onClick={() => setTargetModalPos(null)} className="text-slate-400 hover:text-white">
+              <button type="button" onClick={() => setTargetModalPos(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -693,19 +693,19 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
               if (!isTargetConfirmStep) {
                 return (
                   <>
-                    <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                    <div className="bg-[var(--bg-surface-elevated)] p-3.5 rounded-xl border border-[var(--border-color)] space-y-1.5 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-slate-400">LTP / Avg:</span>
-                        <strong className="text-cyan-300">₹{liveLtp.toFixed(2)} / ₹{avgPrice.toFixed(2)}</strong>
+                        <span className="text-[var(--text-muted)]">LTP / Avg:</span>
+                        <strong className="text-cyan-600 dark:text-cyan-300">₹{liveLtp.toFixed(2)} / ₹{avgPrice.toFixed(2)}</strong>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-400">Exit Side:</span>
-                        <strong className="text-rose-400">{exitSide} LIMIT</strong>
+                        <span className="text-[var(--text-muted)]">Exit Side:</span>
+                        <strong className="text-rose-500">{exitSide} LIMIT</strong>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">Target Price (₹)</label>
+                      <label className="block text-xs font-bold text-[var(--text-muted)] mb-1">Target Price (₹)</label>
                       <input
                         type="number"
                         step="0.05"
@@ -715,15 +715,15 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                           setTargetPriceError(null);
                         }}
                         placeholder={netQty > 0 ? `Above ₹${liveLtp.toFixed(2)}` : `Below ₹${liveLtp.toFixed(2)}`}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-cyan-500"
+                        className="w-full bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--text-main)] focus:outline-none focus:border-cyan-500"
                       />
                       {targetPriceError && (
-                        <p className="text-xs text-rose-400 font-bold mt-1">{targetPriceError}</p>
+                        <p className="text-xs text-rose-500 font-bold mt-1">{targetPriceError}</p>
                       )}
                     </div>
 
                     <div className="flex items-center justify-end gap-2.5 pt-1">
-                      <button type="button" onClick={() => setTargetModalPos(null)} className="px-4 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs flex-1 min-h-[44px]">
+                      <button type="button" onClick={() => setTargetModalPos(null)} className="px-4 py-2.5 bg-[var(--bg-surface-elevated)] text-[var(--text-main)] font-bold rounded-xl text-xs flex-1 min-h-[44px]">
                         Cancel
                       </button>
                       <button type="button" onClick={handleProceedToTargetConfirm} className="px-5 py-2.5 bg-blue-600 text-white font-black rounded-xl text-xs flex-1 min-h-[44px]">
@@ -736,21 +736,21 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
               return (
                 <>
-                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                  <div className="bg-[var(--bg-surface-elevated)] p-3.5 rounded-xl border border-[var(--border-color)] space-y-1.5 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Order:</span>
-                      <strong className="text-emerald-400">{exitSide} LIMIT @ ₹{targetPriceNum.toFixed(2)}</strong>
+                      <span className="text-[var(--text-muted)]">Order:</span>
+                      <strong className="text-emerald-500">{exitSide} LIMIT @ ₹{targetPriceNum.toFixed(2)}</strong>
                     </div>
-                    <div className="flex justify-between border-t border-slate-800 pt-1.5">
-                      <span className="text-slate-300">Estimated Target P&L:</span>
-                      <strong className={estTargetPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                    <div className="flex justify-between border-t border-[var(--border-color)] pt-1.5">
+                      <span className="text-[var(--text-muted)]">Estimated Target P&L:</span>
+                      <strong className={estTargetPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
                         {estTargetPnl >= 0 ? '+' : ''}₹{estTargetPnl.toFixed(2)}
                       </strong>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-end gap-2.5 pt-1">
-                    <button type="button" onClick={() => setIsTargetConfirmStep(false)} className="px-4 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs flex-1 min-h-[44px]">
+                    <button type="button" onClick={() => setIsTargetConfirmStep(false)} className="px-4 py-2.5 bg-[var(--bg-surface-elevated)] text-[var(--text-main)] font-bold rounded-xl text-xs flex-1 min-h-[44px]">
                       Back
                     </button>
                     <button type="button" onClick={confirmPlaceTargetOrder} disabled={isSubmittingExit} className="px-5 py-2.5 bg-blue-600 text-white font-black rounded-xl text-xs flex-1 shadow-lg active:scale-95 disabled:opacity-50 min-h-[44px]">
@@ -766,20 +766,20 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
       {/* MOBILE MODAL: CANCEL TARGET CONFIRMATION */}
       {cancelTargetModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 font-mono">
-            <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-              <AlertTriangle className="text-rose-400 w-4 h-4" /> Cancel Target Order?
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-3 font-mono">
+            <h3 className="text-sm font-extrabold text-[var(--text-main)] flex items-center gap-2">
+              <AlertTriangle className="text-rose-500 w-4 h-4" /> Cancel Target Order?
             </h3>
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
-              <div>Order: <strong className="text-rose-400">{cancelTargetModalOrder.side} LIMIT @ ₹{cancelTargetModalOrder.price}</strong></div>
-              <div>Symbol: <strong className="text-white">{cancelTargetModalOrder.symbol}</strong></div>
+            <div className="bg-[var(--bg-surface-elevated)] p-3 rounded-xl border border-[var(--border-color)] text-xs">
+              <div>Order: <strong className="text-rose-500">{cancelTargetModalOrder.side} LIMIT @ ₹{cancelTargetModalOrder.price}</strong></div>
+              <div>Symbol: <strong className="text-[var(--text-main)]">{cancelTargetModalOrder.symbol}</strong></div>
             </div>
-            <p className="text-[11px] text-slate-400 font-sans">
+            <p className="text-[11px] text-[var(--text-muted)] font-sans">
               Cancelling the target order leaves your position open without closing it.
             </p>
             <div className="flex justify-end gap-2.5 pt-1">
-              <button onClick={() => setCancelTargetModalOrder(null)} className="px-4 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs flex-1 min-h-[44px]">Keep Order</button>
+              <button onClick={() => setCancelTargetModalOrder(null)} className="px-4 py-2.5 bg-[var(--bg-surface-elevated)] text-[var(--text-main)] font-bold rounded-xl text-xs flex-1 min-h-[44px]">Keep Order</button>
               <button onClick={confirmCancelTargetOrder} className="px-5 py-2.5 bg-rose-600 text-white font-black rounded-xl text-xs flex-1 min-h-[44px]">Cancel Target</button>
             </div>
           </div>

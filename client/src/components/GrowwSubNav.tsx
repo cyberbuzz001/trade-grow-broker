@@ -77,21 +77,21 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
   ];
 
   return (
-    <div className="bg-slate-950 border-b border-slate-800 transition-colors">
+    <div className="bg-[var(--bg-surface)] border-b border-[var(--border-color)] transition-colors">
       
       {/* 1. REAL-TIME TICKER STRIP */}
-      <div className="ticker-wrap font-mono text-xs tabular-nums px-4 lg:px-6 border-b border-slate-850 bg-slate-900/90">
+      <div className="ticker-wrap font-mono text-xs tabular-nums px-4 lg:px-6 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
         <div className="flex items-center gap-6 overflow-x-auto scrollbar-none py-1.5 w-full">
           
           {/* NIFTY 50 */}
           <div
             onClick={() => setSelectedIndexModal({ symbol: 'NIFTY 50', token: 'NSE_NIFTY50', exchange: 'NSE' })}
-            className="flex items-center gap-2 flex-shrink-0 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            className="flex items-center gap-2 flex-shrink-0 group cursor-pointer hover:bg-[var(--bg-surface-elevated)] px-2 py-0.5 rounded-lg transition-all"
             title="Click to view NIFTY 50 Chart / Option Chain"
           >
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">NIFTY 50</span>
-            <span className="font-bold text-white num-font">{formatLtp(niftyTick, 24856.15)}</span>
-            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${niftyChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            <span className="font-bold text-[var(--text-muted)] text-[11px] group-hover:text-emerald-500 transition-colors">NIFTY 50</span>
+            <span className="font-bold text-[var(--text-main)] num-font">{formatLtp(niftyTick, 24856.15)}</span>
+            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${niftyChg.isPos ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
               {niftyChg.text}
             </span>
           </div>
@@ -99,12 +99,12 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           {/* SENSEX */}
           <div
             onClick={() => setSelectedIndexModal({ symbol: 'SENSEX', token: 'BSE_SENSEX', exchange: 'BSE' })}
-            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-[var(--border-color)] group cursor-pointer hover:bg-[var(--bg-surface-elevated)] px-2 py-0.5 rounded-lg transition-all"
             title="Click to view SENSEX Chart / Option Chain"
           >
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">SENSEX</span>
-            <span className="font-bold text-white num-font">{formatLtp(sensexTick, 81254.30)}</span>
-            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${sensexChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            <span className="font-bold text-[var(--text-muted)] text-[11px] group-hover:text-emerald-500 transition-colors">SENSEX</span>
+            <span className="font-bold text-[var(--text-main)] num-font">{formatLtp(sensexTick, 81254.30)}</span>
+            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${sensexChg.isPos ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
               {sensexChg.text}
             </span>
           </div>
@@ -112,12 +112,12 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           {/* BANK NIFTY */}
           <div
             onClick={() => setSelectedIndexModal({ symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', exchange: 'NSE' })}
-            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-[var(--border-color)] group cursor-pointer hover:bg-[var(--bg-surface-elevated)] px-2 py-0.5 rounded-lg transition-all"
             title="Click to view BANK NIFTY Chart / Option Chain"
           >
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">BANK NIFTY</span>
-            <span className="font-bold text-white num-font">{formatLtp(bankNiftyTick, 52150.75)}</span>
-            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${bankNiftyChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            <span className="font-bold text-[var(--text-muted)] text-[11px] group-hover:text-emerald-500 transition-colors">BANK NIFTY</span>
+            <span className="font-bold text-[var(--text-main)] num-font">{formatLtp(bankNiftyTick, 52150.75)}</span>
+            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${bankNiftyChg.isPos ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
               {bankNiftyChg.text}
             </span>
           </div>
@@ -125,21 +125,21 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           {/* FIN NIFTY */}
           <div
             onClick={() => setSelectedIndexModal({ symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', exchange: 'NSE' })}
-            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800 group cursor-pointer hover:bg-slate-800/60 px-2 py-0.5 rounded-lg transition-all"
+            className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-[var(--border-color)] group cursor-pointer hover:bg-[var(--bg-surface-elevated)] px-2 py-0.5 rounded-lg transition-all"
             title="Click to view FIN NIFTY Chart / Option Chain"
           >
-            <span className="font-bold text-slate-400 text-[11px] group-hover:text-emerald-400 transition-colors">FIN NIFTY</span>
-            <span className="font-bold text-white num-font">{formatLtp(finNiftyTick, 23890.40)}</span>
-            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${finNiftyChg.isPos ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            <span className="font-bold text-[var(--text-muted)] text-[11px] group-hover:text-emerald-500 transition-colors">FIN NIFTY</span>
+            <span className="font-bold text-[var(--text-main)] num-font">{formatLtp(finNiftyTick, 23890.40)}</span>
+            <span className={`flex items-center font-extrabold text-[11px] px-1.5 py-0.2 rounded ${finNiftyChg.isPos ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
               {finNiftyChg.text}
             </span>
           </div>
 
           {/* INDIA VIX */}
-          <div className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-slate-800">
-            <span className="font-bold text-slate-400 text-[11px]">INDIA VIX</span>
-            <span className="font-bold text-amber-400 num-font">14.12</span>
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1 rounded">-1.84%</span>
+          <div className="flex items-center gap-2 flex-shrink-0 pl-4 border-l border-[var(--border-color)]">
+            <span className="font-bold text-[var(--text-muted)] text-[11px]">INDIA VIX</span>
+            <span className="font-bold text-amber-500 num-font">14.12</span>
+            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1 rounded">-1.84%</span>
           </div>
         </div>
       </div>
@@ -162,9 +162,8 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
         />
       )}
 
-
       {/* 2. SUB-NAV TABS & TERMINAL WORKSPACE TOGGLE */}
-      <div className="px-4 lg:px-6 py-2 flex items-center justify-between overflow-x-auto scrollbar-none bg-slate-900/60">
+      <div className="px-4 lg:px-6 py-2 flex items-center justify-between overflow-x-auto scrollbar-none bg-[var(--bg-surface)]">
         <div className="flex items-center gap-1.5 flex-shrink-0 font-headline">
           {navItems.map(item => {
             const isActive = activeView === item.id && !isTerminalMode;
@@ -174,14 +173,14 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
                 onClick={() => onSelectView(item.id)}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 shadow-xs'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)]'
                 }`}
               >
                 {item.icon}
                 <span>{item.label}</span>
                 {item.shortcut && (
-                  <span className={`text-[10px] font-mono opacity-60 px-1 rounded ${isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                  <span className={`text-[10px] font-mono opacity-60 px-1 rounded ${isActive ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300' : 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)]'}`}>
                     {item.shortcut}
                   </span>
                 )}
@@ -195,18 +194,19 @@ export const GrowwSubNav: React.FC<GrowwSubNavProps> = ({
           onClick={onToggleTerminal}
           className={`flex items-center gap-2 px-4 py-1.5 rounded-xl border text-xs font-bold transition-all flex-shrink-0 cursor-pointer ${
             isTerminalMode
-              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/30 font-black'
-              : 'bg-slate-850 border-slate-750 text-slate-300 hover:text-white hover:border-emerald-500/50'
+              ? 'bg-emerald-500 text-white border-emerald-400 shadow-md shadow-emerald-500/30 font-black'
+              : 'bg-[var(--bg-surface-elevated)] border-[var(--border-color)] text-[var(--text-main)] hover:border-emerald-500/50'
           }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
           <span>Pro Terminal Workspace</span>
           {isTerminalMode && (
-            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping"></span>
+            <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
           )}
         </button>
       </div>
 
     </div>
+
   );
 };

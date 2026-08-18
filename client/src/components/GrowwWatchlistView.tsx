@@ -143,19 +143,19 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full font-body text-slate-100">
+    <div className="flex flex-col gap-6 w-full font-body text-[var(--text-main)]">
       
       {/* 1. TOP HEADER BANNER & SEARCH CONTROL */}
-      <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-md backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-5 rounded-2xl shadow-xs backdrop-blur-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <Bookmark className="w-5 h-5 text-emerald-400" />
-            <h1 className="text-xl font-black text-white tracking-tight">Pro Watchlist</h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/30 font-mono">
+            <Bookmark className="w-5 h-5 text-emerald-500" />
+            <h1 className="text-xl font-black text-[var(--text-main)] tracking-tight">Pro Watchlist</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border border-emerald-500/30 font-mono">
               {watchlist.length} Tracked
             </span>
           </div>
-          <p className="text-xs text-slate-400 font-medium mt-1">
+          <p className="text-xs text-[var(--text-muted)] font-medium mt-1">
             Real-time WebSocket tick stream, depth monitor & 1-click order execution.
           </p>
         </div>
@@ -163,20 +163,20 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
         {/* Search Input Box */}
         <div className="relative w-full md:w-80">
           <div className="relative flex items-center">
-            <Search size={16} className="absolute left-3.5 text-slate-400" />
+            <Search size={16} className="absolute left-3.5 text-[var(--text-muted)]" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search symbol to track (e.g. RELIANCE)..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-all shadow-inner"
+              className="w-full pl-10 pr-4 py-2 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl text-xs font-bold text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-emerald-500 transition-all shadow-inner"
             />
           </div>
 
           {/* Autocomplete Suggestions */}
           {catalogSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-11 z-30 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-2 max-h-60 overflow-y-auto">
-              <div className="text-[10px] font-bold uppercase text-slate-400 px-3 py-1">
+            <div className="absolute left-0 right-0 top-11 z-30 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl shadow-2xl p-2 max-h-60 overflow-y-auto">
+              <div className="text-[10px] font-bold uppercase text-[var(--text-muted)] px-3 py-1">
                 Add to Watchlist
               </div>
               {catalogSuggestions.map(item => (
@@ -186,10 +186,10 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                   className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-emerald-500/10 text-left transition-colors cursor-pointer"
                 >
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-white">{item.symbol}</span>
-                    <span className="text-[10px] text-slate-400">{item.name}</span>
+                    <span className="text-xs font-bold text-[var(--text-main)]">{item.symbol}</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">{item.name}</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] flex items-center gap-1">
                     <Plus size={12} /> Add
                   </span>
                 </button>
@@ -204,8 +204,8 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
         <div
           className={`p-4 rounded-xl border text-xs font-bold flex items-center justify-between ${
             actionMsg.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
           }`}
         >
           <span>{actionMsg.text}</span>
@@ -224,8 +224,8 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
               onClick={() => setActiveFilter(cat)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                 activeFilter === cat
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md font-black'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                  ? 'bg-emerald-500 text-white border-emerald-400 shadow-xs font-black'
+                  : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-emerald-500 hover:text-[var(--text-main)]'
               }`}
             >
               {cat}
@@ -235,24 +235,24 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
 
         <button
           onClick={() => setWatchlist(DEFAULT_WATCHLIST)}
-          className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-bold text-[var(--text-muted)] hover:text-emerald-500 transition-colors cursor-pointer"
         >
           <RefreshCw size={13} /> Reset Defaults
         </button>
       </div>
 
       {/* 3. WATCHLIST SYMBOLS TABLE */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl shadow-md overflow-hidden backdrop-blur-xl">
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-xs overflow-hidden backdrop-blur-xl">
         {filteredWatchlist.length === 0 ? (
           <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
-            <Eye size={32} className="text-slate-500 opacity-50 animate-pulse" />
-            <span className="text-sm font-bold text-slate-400">No symbols found matching filter</span>
+            <Eye size={32} className="text-[var(--text-muted)] opacity-50 animate-pulse" />
+            <span className="text-sm font-bold text-[var(--text-muted)]">No symbols found matching filter</span>
             <button
               onClick={() => {
                 setActiveFilter('ALL');
                 setSearchQuery('');
               }}
-              className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer"
+              className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
             >
               Show All Tracked Symbols
             </button>
@@ -261,7 +261,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 tracking-wider num-font">
+                <tr className="bg-[var(--bg-surface-elevated)] border-b border-[var(--border-color)] text-[10px] font-bold uppercase text-[var(--text-muted)] tracking-wider num-font">
                   <th className="py-3 px-5">Symbol</th>
                   <th className="py-3 px-4">Exchange</th>
                   <th className="py-3 px-4 text-right">LTP Price</th>
@@ -271,7 +271,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                   <th className="py-3 px-5 text-center">Order Execution</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-xs font-bold num-font">
+              <tbody className="divide-y divide-[var(--border-color)] text-xs font-bold num-font">
                 {filteredWatchlist.map(item => {
                   const freshness = freshnessMap.get(item.token);
                   const tick = freshness?.tick || ticks?.get(item.token);
@@ -281,32 +281,32 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                   const isPositive = change >= 0;
 
                   return (
-                    <tr key={item.token} className="hover:bg-slate-800/50 transition-colors group">
+                    <tr key={item.token} className="hover:bg-[var(--bg-surface-elevated)] transition-colors group">
                       {/* Symbol & Name */}
                       <td className="py-3.5 px-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-black text-xs">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-black text-xs">
                             {item.symbol.substring(0, 2)}
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-bold text-xs text-white group-hover:text-emerald-400 transition-colors">
+                            <span className="font-bold text-xs text-[var(--text-main)] group-hover:text-emerald-500 transition-colors">
                               {item.symbol}
                             </span>
-                            <span className="text-[10px] text-slate-400">{item.name}</span>
+                            <span className="text-[10px] text-[var(--text-muted)]">{item.name}</span>
                           </div>
                         </div>
                       </td>
 
                       {/* Exchange Tag */}
                       <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">
+                        <span className="px-2 py-0.5 rounded bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[10px] font-bold text-[var(--text-muted)]">
                           {item.exchange}
                         </span>
                       </td>
 
                       {/* LTP */}
                       <td className="py-3.5 px-4 text-right">
-                        <span className="font-bold text-sm text-white">
+                        <span className="font-bold text-sm text-[var(--text-main)]">
                           ₹{ltp > 0 ? ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                         </span>
                       </td>
@@ -314,7 +314,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                       {/* Change */}
                       <td className="py-3.5 px-4 text-right">
                         {ltp > 0 ? (
-                          <div className={`flex flex-col items-end ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <div className={`flex flex-col items-end ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
                             <span className="font-bold flex items-center gap-0.5">
                               {isPositive ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
                               {isPositive ? '+' : ''}{change.toFixed(2)}
@@ -324,16 +324,16 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                             </span>
                           </div>
                         ) : (
-                          <span className="text-slate-500">—</span>
+                          <span className="text-[var(--text-muted)]">—</span>
                         )}
                       </td>
 
                       {/* High / Low */}
-                      <td className="py-3.5 px-4 text-right text-[11px] text-slate-400 font-mono">
+                      <td className="py-3.5 px-4 text-right text-[11px] text-[var(--text-muted)] font-mono">
                         {tick?.high && tick?.low ? (
                           <div className="flex flex-col items-end">
-                            <span className="text-emerald-400">H: ₹{tick.high.toFixed(2)}</span>
-                            <span className="text-rose-400">L: ₹{tick.low.toFixed(2)}</span>
+                            <span className="text-emerald-500">H: ₹{tick.high.toFixed(2)}</span>
+                            <span className="text-rose-500">L: ₹{tick.low.toFixed(2)}</span>
                           </div>
                         ) : (
                           '—'
@@ -354,13 +354,13 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleOpenOrder(item, 'BUY', ltp)}
-                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
+                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-xs transition-transform active:scale-95 cursor-pointer"
                           >
                             BUY
                           </button>
                           <button
                             onClick={() => handleOpenOrder(item, 'SELL', ltp)}
-                            className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
+                            className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg shadow-xs transition-transform active:scale-95 cursor-pointer"
                           >
                             SELL
                           </button>
@@ -368,7 +368,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                             <button
                               onClick={() => onSelectSymbolForTerminal(item.symbol)}
                               title="Open Terminal View"
-                              className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-500 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-emerald-500 hover:border-emerald-500 transition-colors cursor-pointer"
                             >
                               <TrendingUp size={13} />
                             </button>
@@ -376,7 +376,7 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
                           <button
                             onClick={() => handleRemoveSymbol(item.token)}
                             title="Remove from Watchlist"
-                            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-rose-400/80 hover:text-rose-400 hover:border-rose-500/40 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-rose-500/80 hover:text-rose-500 hover:border-rose-500/40 transition-colors cursor-pointer"
                           >
                             <Trash2 size={13} />
                           </button>
@@ -402,5 +402,6 @@ export const GrowwWatchlistView: React.FC<GrowwWatchlistViewProps> = ({
         />
       )}
     </div>
+
   );
 };

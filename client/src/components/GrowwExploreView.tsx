@@ -104,25 +104,25 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
   const pnlPct = portfolioValue > 0 ? (todaysPnl / portfolioValue) * 100 : 0;
 
   return (
-    <div className="space-y-6 pb-12 font-body text-slate-100">
+    <div className="space-y-6 pb-12 font-body text-[var(--text-main)]">
       
       {/* 0. BENTO GRID METRICS DASHBOARD */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Bento Tile 1: Portfolio Value */}
-        <div className="bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-md backdrop-blur-xl group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all"></div>
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-indigo-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-xs backdrop-blur-xl group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all pointer-events-none"></div>
           <div className="flex justify-between items-start mb-3">
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Portfolio Value</h3>
-            <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400">
+            <h3 className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider">Portfolio Value</h3>
+            <span className="p-2 rounded-xl bg-indigo-500/15 text-indigo-500">
               <Landmark className="w-4 h-4" />
             </span>
           </div>
           <div className="num-font">
-            <span className="text-2xl font-black text-white tracking-tight">
+            <span className="text-2xl font-black text-[var(--text-main)] tracking-tight">
               ₹{portfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <div className={`flex items-center gap-1.5 mt-2 text-xs font-bold ${todaysPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <div className={`flex items-center gap-1.5 mt-2 text-xs font-bold ${todaysPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
               {todaysPnl >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               <span>{todaysPnl >= 0 ? '+' : ''}₹{todaysPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({todaysPnl >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)</span>
             </div>
@@ -130,20 +130,20 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
         </div>
 
         {/* Bento Tile 2: Today's Real-Time P&L */}
-        <div className="bg-slate-900/90 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-md backdrop-blur-xl group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-emerald-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-xs backdrop-blur-xl group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all pointer-events-none"></div>
           <div className="flex justify-between items-start mb-3">
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Today's Real-Time P&L</h3>
-            <span className={`p-2 rounded-xl ${todaysPnl >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+            <h3 className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider">Today's Real-Time P&L</h3>
+            <span className={`p-2 rounded-xl ${todaysPnl >= 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'}`}>
               <TrendingUp className="w-4 h-4" />
             </span>
           </div>
           <div className="num-font">
-            <span className={`text-2xl font-black tracking-tight ${todaysPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`text-2xl font-black tracking-tight ${todaysPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
               {todaysPnl >= 0 ? '+' : ''}₹{todaysPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-emerald-400">
-              <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-[10px] uppercase font-mono">
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-emerald-500">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-[10px] uppercase font-mono font-bold">
                 WS STREAMING
               </span>
             </div>
@@ -151,36 +151,36 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
         </div>
 
         {/* Bento Tile 3: Active Positions */}
-        <div className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-md backdrop-blur-xl group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-amber-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-xs backdrop-blur-xl group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all pointer-events-none"></div>
           <div className="flex justify-between items-start mb-3">
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Active Positions</h3>
-            <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+            <h3 className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider">Active Positions</h3>
+            <span className="p-2 rounded-xl bg-amber-500/15 text-amber-500">
               <Layers className="w-4 h-4" />
             </span>
           </div>
           <div className="num-font">
-            <span className="text-2xl font-black text-white tracking-tight">{openPositionsCount}</span>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-slate-400">
+            <span className="text-2xl font-black text-[var(--text-main)] tracking-tight">{openPositionsCount}</span>
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-[var(--text-muted)]">
               <span>{longCount} Long • {shortCount} Short</span>
             </div>
           </div>
         </div>
 
         {/* Bento Tile 4: Margin Balance */}
-        <div className="bg-slate-900/90 border border-slate-800 hover:border-teal-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-md backdrop-blur-xl group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl group-hover:bg-teal-500/20 transition-all"></div>
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-teal-500/50 rounded-2xl p-5 relative overflow-hidden transition-all shadow-xs backdrop-blur-xl group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl group-hover:bg-teal-500/20 transition-all pointer-events-none"></div>
           <div className="flex justify-between items-start mb-3">
-            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider">Available Margin</h3>
-            <span className="p-2 rounded-xl bg-teal-500/20 text-teal-400">
+            <h3 className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-wider">Available Margin</h3>
+            <span className="p-2 rounded-xl bg-teal-500/15 text-teal-500">
               <Award className="w-4 h-4" />
             </span>
           </div>
           <div className="num-font">
-            <span className="text-2xl font-black text-white tracking-tight">
+            <span className="text-2xl font-black text-[var(--text-main)] tracking-tight">
               ₹{availableMargin.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-emerald-400">
+            <div className="flex items-center gap-1.5 mt-2 text-xs font-bold text-emerald-500">
               <span>Ready for F&O Trade</span>
             </div>
           </div>
@@ -189,27 +189,27 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
       </div>
 
       {/* QUICK ACTIONS ACTION BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 border border-slate-800 p-3 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-color)] p-3.5 rounded-2xl shadow-xs">
         <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-bold text-white">Quick Terminal Execution</span>
+          <Zap className="w-4 h-4 text-emerald-500" />
+          <span className="text-xs font-bold text-[var(--text-main)]">Quick Terminal Execution</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onSelectSymbol && onSelectSymbol('RELIANCE')}
-            className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <span>+ Buy Equity</span>
           </button>
           <button
             onClick={() => onSelectSymbol && onSelectSymbol('NIFTY 24850 CE')}
-            className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <span>Option Chain Matrix</span>
           </button>
           <button
             onClick={() => onSelectSymbol && onSelectSymbol('MARKET_SCANNER')}
-            className="bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
           >
             <span>Market Scanner</span>
           </button>
@@ -223,10 +223,10 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
         <div className="lg:col-span-8 space-y-6">
         
           {/* MOST BOUGHT STOCKS */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 backdrop-blur-xl">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-5 backdrop-blur-xl shadow-xs">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-500" />
                 Most Traded Contracts & Stocks
               </h3>
             </div>
@@ -243,18 +243,18 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
                   <div
                     key={stock.symbol}
                     onClick={() => onSelectSymbol && onSelectSymbol(stock.name)}
-                    className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-xl shadow-xs hover:border-emerald-500/50 transition-all cursor-pointer group"
+                    className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] p-3.5 rounded-xl shadow-xs hover:border-emerald-500/50 transition-all cursor-pointer group"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-black flex items-center justify-center text-xs mb-2 group-hover:scale-105 transition-transform">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-black flex items-center justify-center text-xs mb-2 group-hover:scale-105 transition-transform">
                       {stock.logo}
                     </div>
-                    <h4 className="font-bold text-xs text-white truncate mb-1">
+                    <h4 className="font-bold text-xs text-[var(--text-main)] truncate mb-1">
                       {stock.name}
                     </h4>
-                    <div className="num-font font-bold text-xs text-slate-200">
+                    <div className="num-font font-bold text-xs text-[var(--text-main)]">
                       ₹{price.toFixed(2)}
                     </div>
-                    <div className={`num-font font-bold text-[11px] flex items-center gap-0.5 mt-0.5 ${isGain ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <div className={`num-font font-bold text-[11px] flex items-center gap-0.5 mt-0.5 ${isGain ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {isGain ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                       <span>{Math.abs(change).toFixed(2)} ({Math.abs(changePct).toFixed(2)}%)</span>
                     </div>
@@ -265,21 +265,21 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
           </div>
 
           {/* TOP MOVERS TODAY TABLE */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 backdrop-blur-xl">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-5 backdrop-blur-xl shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-base font-bold text-[var(--text-main)] flex items-center gap-2">
+                <Activity className="w-4 h-4 text-indigo-500" />
                 Market Movers (1D)
               </h3>
 
               {/* Filter Tabs */}
-              <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-1.5 bg-[var(--bg-surface-elevated)] p-1 rounded-xl border border-[var(--border-color)]">
                 <button
                   onClick={() => setMoverTab('GAINERS')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     moverTab === 'GAINERS'
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                   }`}
                 >
                   Gainers
@@ -288,8 +288,8 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
                   onClick={() => setMoverTab('LOSERS')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     moverTab === 'LOSERS'
-                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                   }`}
                 >
                   Losers
@@ -298,8 +298,8 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
                   onClick={() => setMoverTab('VOLUME')}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     moverTab === 'VOLUME'
-                      ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                   }`}
                 >
                   Volume Shockers
@@ -308,17 +308,17 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
             </div>
 
             {/* Movers Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
+            <div className="overflow-x-auto rounded-xl border border-[var(--border-color)]">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold">
+                  <tr className="bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] uppercase text-[10px] font-bold">
                     <th className="py-3 px-4">Company</th>
                     <th className="py-3 px-4 text-center">Trend</th>
                     <th className="py-3 px-4 text-right">LTP Price</th>
                     <th className="py-3 px-4 text-right">Volume</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800 num-font">
+                <tbody className="divide-y divide-[var(--border-color)] num-font">
                   {activeMoversList.map(m => {
                     const liveTick = ticks?.get(m.internalToken || m.symbol);
                     const price = liveTick ? liveTick.ltp : m.price;
@@ -331,13 +331,13 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
                       <tr
                         key={m.symbol}
                         onClick={() => onSelectSymbol && onSelectSymbol(m.name)}
-                        className="hover:bg-slate-800/50 transition-colors cursor-pointer"
+                        className="hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer"
                       >
                         <td className="py-3 px-4 flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 font-black flex items-center justify-center text-xs border border-emerald-500/20">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-black flex items-center justify-center text-xs border border-emerald-500/20">
                             {m.logo || m.name.charAt(0)}
                           </div>
-                          <span className="font-bold text-xs text-white">{m.name}</span>
+                          <span className="font-bold text-xs text-[var(--text-main)]">{m.name}</span>
                         </td>
 
                         {/* Sparkline Graphic */}
@@ -355,13 +355,13 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
                         </td>
 
                         <td className="py-3 px-4 text-right font-bold">
-                          <div className="text-xs text-white">₹{price.toFixed(2)}</div>
-                          <div className={`text-[11px] ${isGain ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <div className="text-xs text-[var(--text-main)]">₹{price.toFixed(2)}</div>
+                          <div className={`text-[11px] ${isGain ? 'text-emerald-500' : 'text-rose-500'}`}>
                             {isGain ? '+' : ''}{change.toFixed(2)} ({isGain ? '+' : ''}{changePct.toFixed(2)}%)
                           </div>
                         </td>
 
-                        <td className="py-3 px-4 text-right text-slate-400 font-bold">
+                        <td className="py-3 px-4 text-right text-[var(--text-muted)] font-bold">
                           {typeof volume === 'number' ? volume.toLocaleString('en-IN') : volume}
                         </td>
                       </tr>
@@ -378,94 +378,94 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
         <div className="lg:col-span-4 space-y-6">
           
           {/* PRODUCTS & TOOLS BENTO CARD */}
-          <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl backdrop-blur-xl">
-            <h4 className="font-bold text-sm text-white mb-4 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-emerald-400" />
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-5 rounded-2xl backdrop-blur-xl shadow-xs">
+            <h4 className="font-bold text-sm text-[var(--text-main)] mb-4 flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-emerald-500" />
               Products & Trading Tools
             </h4>
 
             <div className="space-y-3">
               <div 
                 onClick={() => onSelectSymbol && onSelectSymbol('NIFTY 24850 CE')}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 transition-colors cursor-pointer"
+                className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] hover:border-emerald-500/50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-500 flex items-center justify-center">
                     <Layers className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="font-bold text-xs text-white block">Option Chain Matrix</span>
-                    <span className="text-[10px] text-slate-400">Live Call & Put OI Skew</span>
+                    <span className="font-bold text-xs text-[var(--text-main)] block">Option Chain Matrix</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">Live Call & Put OI Skew</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
               </div>
 
               <div 
                 onClick={() => onSelectSymbol && onSelectSymbol('MARKET_SCANNER')}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 transition-colors cursor-pointer"
+                className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] hover:border-emerald-500/50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-500 flex items-center justify-center">
                     <Activity className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="font-bold text-xs text-white block">AI Market Scanner</span>
-                    <span className="text-[10px] text-slate-400">Volume Breakouts & RSI</span>
+                    <span className="font-bold text-xs text-[var(--text-main)] block">AI Market Scanner</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">Volume Breakouts & RSI</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
               </div>
 
               <div 
                 onClick={() => onSelectSymbol && onSelectSymbol('STRATEGY_BUILDER')}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 transition-colors cursor-pointer"
+                className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] hover:border-emerald-500/50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-500 flex items-center justify-center">
                     <Award className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="font-bold text-xs text-white block">Option Strategy Builder</span>
-                    <span className="text-[10px] text-slate-400">Multi-leg spreads & payoff</span>
+                    <span className="font-bold text-xs text-[var(--text-main)] block">Option Strategy Builder</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">Multi-leg spreads & payoff</span>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
+                <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
               </div>
             </div>
           </div>
 
           {/* CLIENT PROFILE & KYC VERIFICATION CARD */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-indigo-950/40 border border-slate-800 hover:border-emerald-500/40 p-5 rounded-2xl transition-all shadow-md">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-emerald-500/40 p-5 rounded-2xl transition-all shadow-xs">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center justify-center">
                   <Shield className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-xs text-white">Profile & KYC Verification</h4>
-                  <p className="text-[10px] text-slate-400">Account status & compliance</p>
+                  <h4 className="font-bold text-xs text-[var(--text-main)]">Profile & KYC Verification</h4>
+                  <p className="text-[10px] text-[var(--text-muted)]">Account status & compliance</p>
                 </div>
               </div>
-              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase">
                 Active
               </span>
             </div>
 
-            <p className="text-[11px] text-slate-400 mb-3.5 leading-relaxed">
+            <p className="text-[11px] text-[var(--text-muted)] mb-3.5 leading-relaxed">
               Ensure your profile details, PAN/Aadhaar documents, and bank payout methods are up to date.
             </p>
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => onOpenProfile?.('KYC')}
-                className="w-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-slate-950 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500 hover:text-white py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Update KYC</span>
               </button>
               <button
                 onClick={() => onOpenProfile?.('PROFILE')}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full bg-[var(--bg-surface-elevated)] hover:bg-[var(--border-color)] text-[var(--text-main)] border border-[var(--border-color)] py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Edit Profile</span>
               </button>

@@ -58,7 +58,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
   ];
 
   return (
-    <div className="pb-28 pt-3 px-3.5 space-y-4 font-body bg-slate-950 min-h-screen text-slate-100 touch-action-manipulation overscroll-y-contain">
+    <div className="pb-28 pt-3 px-3.5 space-y-4 font-body bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] touch-action-manipulation overscroll-y-contain">
       
       {/* 1. TOP BROKER MOBILE HEADER BAR */}
       <div className="flex items-center justify-between">
@@ -67,19 +67,19 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-indigo-600 flex items-center justify-center text-white font-black text-sm border border-emerald-400/40 shadow-md">
               {(user.username || 'T').charAt(0).toUpperCase()}
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-slate-950"></span>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[var(--bg-surface)]"></span>
           </div>
 
           <div>
             <div className="flex items-center gap-1.5">
-              <h1 className="font-extrabold text-sm text-white tracking-tight leading-none">
-                Trade<span className="text-emerald-400">Grow</span>
+              <h1 className="font-extrabold text-sm text-[var(--text-main)] tracking-tight leading-none">
+                Trade<span className="text-emerald-500">Grow</span>
               </h1>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase font-mono">
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 uppercase font-mono">
                 PRO
               </span>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono font-bold leading-tight block mt-0.5">
+            <span className="text-[10px] text-[var(--text-muted)] font-mono font-bold leading-tight block mt-0.5">
               Dhan HQ Live Tick Stream
             </span>
           </div>
@@ -93,10 +93,10 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
                 navigator.vibrate?.(20);
                 onToggleTheme();
               }}
-              className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer active:scale-95"
+              className="min-h-[44px] min-w-[44px] rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-xs"
               title="Toggle Theme"
             >
-              {theme === 'dark' ? <Sun className="w-4.5 h-4.5 text-amber-400" /> : <Moon className="w-4.5 h-4.5 text-indigo-400" />}
+              {theme === 'dark' ? <Sun className="w-4.5 h-4.5 text-amber-400" /> : <Moon className="w-4.5 h-4.5 text-indigo-500" />}
             </button>
           )}
 
@@ -106,7 +106,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               onOpenSearch();
             }}
-            className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-emerald-400 flex items-center justify-center transition-all shadow-sm cursor-pointer active:scale-95"
+            className="min-h-[44px] min-w-[44px] rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-emerald-500 flex items-center justify-center transition-all shadow-xs cursor-pointer active:scale-95"
             title="Search Symbol (Cmd+K)"
           >
             <Search className="w-4.5 h-4.5" />
@@ -115,28 +115,28 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
       </div>
 
       {/* 2. REAL-TIME MARGIN & CAPITAL CARD (Kite/Groww Style) */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4.5 relative overflow-hidden shadow-lg backdrop-blur-xl group">
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 relative overflow-hidden shadow-sm backdrop-blur-xl group">
         <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all pointer-events-none"></div>
         
         <div className="relative z-10 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider font-mono">Available Trading Margin</span>
-            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono">
+            <span className="text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-wider font-mono">Available Trading Margin</span>
+            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-bold font-mono">
               ₹0 BROKERAGE
             </span>
           </div>
 
           <div className="flex items-baseline justify-between pt-1">
-            <h2 className="font-mono text-3xl font-black tracking-tight tabular-nums text-white">
+            <h2 className="font-mono text-3xl font-black tracking-tight tabular-nums text-[var(--text-main)]">
               ₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h2>
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-slate-400 pt-2 border-t border-slate-800 font-mono">
-            <span className="text-emerald-400 flex items-center gap-1">
+          <div className="flex items-center justify-between text-xs font-bold text-[var(--text-muted)] pt-2 border-t border-[var(--border-color)] font-mono">
+            <span className="text-emerald-500 flex items-center gap-1">
               <Zap className="w-3.5 h-3.5" /> 5.0x Intraday Leverage (MIS)
             </span>
-            <span className="text-slate-300">Ready</span>
+            <span className="text-[var(--text-main)]">Ready</span>
           </div>
         </div>
 
@@ -158,8 +158,8 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
       {/* 3. LIVE MARKET INDEX CHIPS (Kite / Groww Mobile Ticker Bar) */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Market Indices (Tap for Chart/Option Chain)</span>
-          <span className="text-[10px] font-mono text-emerald-400">REAL-TIME TIX</span>
+          <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Market Indices (Tap for Chart/Option Chain)</span>
+          <span className="text-[10px] font-mono text-emerald-500 font-bold">REAL-TIME TIX</span>
         </div>
 
         <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
@@ -169,17 +169,17 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'NIFTY 50', token: 'NSE_NIFTY50', exchange: 'NSE' });
             }}
-            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-white">NIFTY 50</span>
-              <span className="text-emerald-400 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.42%</span>
+              <span className="text-[11px] font-bold text-[var(--text-main)]">NIFTY 50</span>
+              <span className="text-emerald-500 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.42%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-white">
+            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getNifty(), 24856.15)}
             </div>
-            <div className="w-full bg-slate-950 rounded-full h-1 mt-2 overflow-hidden">
-              <div className="bg-emerald-400 h-full w-[65%]"></div>
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+              <div className="bg-emerald-500 h-full w-[65%]"></div>
             </div>
           </div>
 
@@ -189,17 +189,17 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'SENSEX', token: 'BSE_SENSEX', exchange: 'BSE' });
             }}
-            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-white">SENSEX</span>
-              <span className="text-emerald-400 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.38%</span>
+              <span className="text-[11px] font-bold text-[var(--text-main)]">SENSEX</span>
+              <span className="text-emerald-500 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.38%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-white">
+            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getSensex(), 81254.30)}
             </div>
-            <div className="w-full bg-slate-950 rounded-full h-1 mt-2 overflow-hidden">
-              <div className="bg-emerald-400 h-full w-[58%]"></div>
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+              <div className="bg-emerald-500 h-full w-[58%]"></div>
             </div>
           </div>
 
@@ -209,17 +209,17 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', exchange: 'NSE' });
             }}
-            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-rose-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-rose-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-white">BANK NIFTY</span>
-              <span className="text-rose-400 font-mono text-[10px] font-bold bg-rose-500/10 px-1.5 py-0.2 rounded">-0.15%</span>
+              <span className="text-[11px] font-bold text-[var(--text-main)]">BANK NIFTY</span>
+              <span className="text-rose-500 font-mono text-[10px] font-bold bg-rose-500/10 px-1.5 py-0.2 rounded">-0.15%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-white">
+            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getBankNifty(), 52150.75)}
             </div>
-            <div className="w-full bg-slate-950 rounded-full h-1 mt-2 overflow-hidden">
-              <div className="bg-rose-400 h-full w-[42%]"></div>
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+              <div className="bg-rose-500 h-full w-[42%]"></div>
             </div>
           </div>
 
@@ -229,17 +229,17 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', exchange: 'NSE' });
             }}
-            className="bg-slate-900/90 rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-slate-800 hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all"
+            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
           >
             <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-white">FIN NIFTY</span>
-              <span className="text-emerald-400 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.22%</span>
+              <span className="text-[11px] font-bold text-[var(--text-main)]">FIN NIFTY</span>
+              <span className="text-emerald-500 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.22%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-white">
+            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getFinNifty(), 23890.40)}
             </div>
-            <div className="w-full bg-slate-950 rounded-full h-1 mt-2 overflow-hidden">
-              <div className="bg-emerald-400 h-full w-[50%]"></div>
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+              <div className="bg-emerald-500 h-full w-[50%]"></div>
             </div>
           </div>
         </div>
@@ -247,19 +247,19 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
 
       {/* 4. TOP BROKER QUICK ACTION GRID (Groww / Kite Shortcuts) */}
       <div>
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono block mb-2">Shortcuts & Tools</span>
+        <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono block mb-2">Shortcuts & Tools</span>
         <div className="grid grid-cols-3 gap-2">
           <div 
             onClick={() => {
               navigator.vibrate?.(20);
               onSelectStock('NIFTY 24850 CE', 'Nifty Option Chain', 125.0);
             }}
-            className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95"
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95 shadow-xs"
           >
-            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
+            <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-500">
               <Layers className="w-4 h-4" />
             </div>
-            <span className="text-[11px] font-bold text-white text-center leading-tight">Option Chain</span>
+            <span className="text-[11px] font-bold text-[var(--text-main)] text-center leading-tight">Option Chain</span>
           </div>
 
           <div 
@@ -267,12 +267,12 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               onSelectStock('MARKET_SCANNER', 'Market Scanner', 0);
             }}
-            className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95"
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95 shadow-xs"
           >
-            <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400">
+            <div className="p-2 rounded-lg bg-indigo-500/15 text-indigo-500">
               <Zap className="w-4 h-4" />
             </div>
-            <span className="text-[11px] font-bold text-white text-center leading-tight">AI Screener</span>
+            <span className="text-[11px] font-bold text-[var(--text-main)] text-center leading-tight">AI Screener</span>
           </div>
 
           <div 
@@ -280,12 +280,12 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               onSelectStock('RELIANCE', 'Reliance Industries', 3014.20);
             }}
-            className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95"
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95 shadow-xs"
           >
-            <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+            <div className="p-2 rounded-lg bg-amber-500/15 text-amber-500">
               <Award className="w-4 h-4" />
             </div>
-            <span className="text-[11px] font-bold text-white text-center leading-tight">IPO (8 Open)</span>
+            <span className="text-[11px] font-bold text-[var(--text-main)] text-center leading-tight">IPO (8 Open)</span>
           </div>
         </div>
       </div>
@@ -293,12 +293,12 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
       {/* 5. WATCHLIST & CONTRACTS (With 1-Tap Touch BUY/SELL Buttons) */}
       <div>
         <div className="flex justify-between items-center mb-2.5">
-          <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-emerald-400" /> Watchlist Contracts
+          <h3 className="font-bold text-sm text-[var(--text-main)] flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-emerald-500" /> Watchlist Contracts
           </h3>
           <button 
             type="button"
-            className="text-xs text-emerald-400 font-bold hover:underline cursor-pointer min-h-[44px] flex items-center" 
+            className="text-xs text-emerald-500 font-bold hover:underline cursor-pointer min-h-[44px] flex items-center" 
             onClick={() => {
               navigator.vibrate?.(20);
               onOpenSearch();
@@ -318,7 +318,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
             return (
               <div
                 key={item.symbol}
-                className="bg-slate-900/90 rounded-2xl p-3.5 flex items-center justify-between border border-slate-800 hover:border-slate-700 transition-all backdrop-blur-xl"
+                className="bg-[var(--bg-surface)] rounded-2xl p-3.5 flex items-center justify-between border border-[var(--border-color)] hover:border-emerald-500/30 transition-all backdrop-blur-xl shadow-xs"
               >
                 <div
                   className="flex items-center gap-3 cursor-pointer flex-1 min-h-[44px]"
@@ -327,34 +327,34 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
                     onSelectStock(item.code, item.name, price);
                   }}
                 >
-                  <div className="w-9 h-9 rounded-xl bg-slate-950 border border-slate-800 text-emerald-400 font-black flex items-center justify-center text-xs">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-emerald-500 font-black flex items-center justify-center text-xs">
                     {item.logo}
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-white">{item.code}</h4>
-                    <p className="text-[10px] text-slate-400">{item.name}</p>
+                    <h4 className="font-bold text-xs text-[var(--text-main)]">{item.code}</h4>
+                    <p className="text-[10px] text-[var(--text-muted)]">{item.name}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {/* Price Info */}
                   <div className="text-right num-font tabular-nums">
-                    <p className="font-bold text-xs text-white">₹{price.toFixed(2)}</p>
-                    <p className={`text-[10px] font-bold flex items-center justify-end ${isGain ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <p className="font-bold text-xs text-[var(--text-main)]">₹{price.toFixed(2)}</p>
+                    <p className={`text-[10px] font-bold flex items-center justify-end ${isGain ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {isGain ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                       {isGain ? '+' : ''}{changePct.toFixed(2)}%
                     </p>
                   </div>
 
                   {/* Direct Touch BUY & SELL Buttons (Min 44x44px touch target) */}
-                  <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-[var(--border-color)]">
                     <button
                       type="button"
                       onClick={() => {
                         navigator.vibrate?.(30);
                         onOpenQuickOrder?.({ name: item.name, symbol: item.code, price, side: 'BUY' });
                       }}
-                      className="min-h-[44px] min-w-[52px] bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-2.5 py-2 rounded-xl shadow-md active:scale-95 transition-transform cursor-pointer"
+                      className="min-h-[44px] min-w-[52px] bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-2.5 py-2 rounded-xl shadow-xs active:scale-95 transition-transform cursor-pointer"
                     >
                       BUY
                     </button>
@@ -364,7 +364,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
                         navigator.vibrate?.(30);
                         onOpenQuickOrder?.({ name: item.name, symbol: item.code, price, side: 'SELL' });
                       }}
-                      className="min-h-[44px] min-w-[52px] bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-2.5 py-2 rounded-xl shadow-md active:scale-95 transition-transform cursor-pointer"
+                      className="min-h-[44px] min-w-[52px] bg-rose-600 hover:bg-rose-500 text-white font-black text-xs px-2.5 py-2 rounded-xl shadow-xs active:scale-95 transition-transform cursor-pointer"
                     >
                       SELL
                     </button>

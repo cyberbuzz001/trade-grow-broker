@@ -51,7 +51,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[var(--bg-glass)] backdrop-blur-xl border-b border-[var(--border-color)] px-4 lg:px-6 h-16 flex items-center justify-between shadow-md transition-all">
+    <header className="sticky top-0 z-40 bg-[var(--bg-glass)] backdrop-blur-xl border-b border-[var(--border-color)] px-4 lg:px-6 h-16 flex items-center justify-between shadow-xs transition-all">
       
       {/* 1. BRAND LOGO & LIVE WS STATUS & CATEGORY TABS */}
       <div className="flex items-center gap-6">
@@ -62,7 +62,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         >
           <div className="relative">
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-indigo-600 rounded-xl blur-xs opacity-60 group-hover:opacity-100 transition duration-300"></div>
-            <div className="relative w-9 h-9 rounded-xl bg-slate-900 border border-emerald-500/40 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+            <div className="relative w-9 h-9 rounded-xl bg-[var(--bg-surface)] border border-emerald-500/40 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M4 18 L10 10 L14 14 L20 6" stroke="#22C55E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M18 4 C18 4 22 4 22 8 C22 8 18 8 18 4Z" fill="#A7F3D0" opacity="0.9"/>
@@ -72,16 +72,16 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-xl tracking-tight text-white hidden sm:inline-block font-headline">
+              <span className="font-extrabold text-xl tracking-tight text-[var(--text-main)] hidden sm:inline-block font-headline">
                 Trade<span className="text-[#22C55E]">Grow</span>
               </span>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest hidden lg:inline-block">
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 uppercase tracking-widest hidden lg:inline-block">
                 PRO
               </span>
             </div>
             <div className="flex items-center gap-1 -mt-0.5 hidden sm:flex">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-[10px] text-emerald-400 font-bold font-mono tracking-wider">
+              <span className="text-[10px] text-emerald-500 font-bold font-mono tracking-wider">
                 LIVE MARKET TIX
               </span>
             </div>
@@ -89,7 +89,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         </div>
 
         {/* Category Navigation Tabs */}
-        <nav className="hidden lg:flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800">
+        <nav className="hidden lg:flex items-center gap-1 bg-[var(--bg-surface-elevated)] p-1 rounded-xl border border-[var(--border-color)]">
           {[
             { id: 'STOCKS', label: 'Stocks' },
             { id: 'FO', label: 'F&O' },
@@ -100,8 +100,8 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
               onClick={() => onCategorySelect(cat.id as any)}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeCategory === cat.id
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-xs'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-xs'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface)]'
               }`}
             >
               {cat.label}
@@ -114,13 +114,13 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
       <div className="flex-1 max-w-md mx-4 hidden md:block">
         <button
           onClick={onOpenSearch}
-          className="w-full flex items-center justify-between bg-slate-900/80 border border-slate-800 hover:border-emerald-500/50 px-3.5 py-2 rounded-xl text-xs text-slate-400 transition-all shadow-inner group cursor-pointer"
+          className="w-full flex items-center justify-between bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] hover:border-emerald-500/50 px-3.5 py-2 rounded-xl text-xs text-[var(--text-muted)] transition-all shadow-inner group cursor-pointer"
         >
           <div className="flex items-center gap-2.5">
-            <Search className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
-            <span className="group-hover:text-slate-300">Search Nifty, Stocks, F&O contracts...</span>
+            <Search className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-colors" />
+            <span className="group-hover:text-[var(--text-main)]">Search Nifty, Stocks, F&O contracts...</span>
           </div>
-          <kbd className="bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 px-2 py-0.5 rounded-md font-mono">
+          <kbd className="bg-[var(--bg-surface)] border border-[var(--border-color)] text-[10px] font-bold text-[var(--text-muted)] px-2 py-0.5 rounded-md font-mono">
             Ctrl+K
           </kbd>
         </button>
@@ -131,17 +131,17 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         {/* Wallet Balance Pill with Direct + Deposit trigger */}
         <div 
           onClick={onOpenWalletModal}
-          className="hidden sm:flex items-center gap-2 bg-slate-900/90 border border-slate-800 hover:border-emerald-500/50 px-3 py-1.5 rounded-xl cursor-pointer transition-all shadow-xs group"
+          className="hidden sm:flex items-center gap-2 bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-emerald-500/50 px-3 py-1.5 rounded-xl cursor-pointer transition-all shadow-xs group"
           title="Click to Deposit / Withdraw Funds"
         >
-          <Wallet className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+          <Wallet className="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform" />
           <div className="flex flex-col text-left">
-            <span className="text-[10px] text-slate-400 font-medium leading-none">Available Margin</span>
-            <span className="text-xs font-bold text-emerald-400 num-font leading-tight">
+            <span className="text-[10px] text-[var(--text-muted)] font-medium leading-none">Available Margin</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 num-font leading-tight">
               ₹{walletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </span>
           </div>
-          <button className="ml-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white text-[10px] font-extrabold flex items-center gap-0.5 transition-colors cursor-pointer">
+          <button className="ml-1 px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white text-[10px] font-extrabold flex items-center gap-0.5 transition-colors cursor-pointer">
             <Plus className="w-3 h-3" /> Add
           </button>
         </div>
@@ -149,7 +149,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         {/* Mobile Search Button */}
         <button
           onClick={onOpenSearch}
-          className="md:hidden p-2 text-slate-400 hover:text-emerald-400 rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+          className="md:hidden p-2 text-[var(--text-muted)] hover:text-emerald-500 rounded-xl hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer"
         >
           <Search className="w-5 h-5" />
         </button>
@@ -157,28 +157,27 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         {/* Theme Mode Toggle Button */}
         <button
           onClick={onToggleTheme}
-          className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+          className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs"
           title="Toggle Light / Dark Theme"
         >
-          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
           <span className="hidden xl:inline text-xs">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
-
 
         {/* Admin Control Center Button (for Staff/Admin accounts) */}
         {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user?.role || '') && (
           <button
             onClick={() => onNavigateView('ADMIN')}
-            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5 text-xs font-bold transition shadow-sm cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 flex items-center gap-1.5 text-xs font-bold transition shadow-xs cursor-pointer"
             title="Open Admin Control Center"
           >
-            <ShieldCheck className="w-4 h-4 text-rose-400" />
+            <ShieldCheck className="w-4 h-4 text-rose-500" />
             <span className="hidden md:inline">Admin Panel</span>
           </button>
         )}
 
         {/* Notification Bell with Badge */}
-        <div className="relative cursor-pointer p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-colors">
+        <div className="relative cursor-pointer p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] rounded-xl transition-colors">
           <Bell className="w-5 h-5" />
           <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-extrabold text-[9px] flex items-center justify-center animate-pulse">
             3
@@ -197,21 +196,21 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
 
           {/* GROWW PROFILE DROPDOWN MENU */}
           {isProfileOpen && (
-            <div className="absolute right-0 mt-3 w-80 bg-slate-900/95 backdrop-blur-2xl border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="absolute right-0 mt-3 w-80 bg-[var(--bg-surface)] backdrop-blur-2xl border border-[var(--border-color)] rounded-2xl shadow-xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               
               {/* User Identity Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
                 <div>
-                  <h4 className="font-bold text-sm text-white capitalize">
+                  <h4 className="font-bold text-sm text-[var(--text-main)] capitalize">
                     {user.username || 'Trader Account'}
                   </h4>
-                  <p className="text-xs text-slate-400 font-medium">
+                  <p className="text-xs text-[var(--text-muted)] font-medium">
                     {user.email || 'trader@tradegrow.sim'}
                   </p>
                 </div>
                 <button
                   onClick={() => { setIsProfileOpen(false); onNavigateView('ADMIN'); }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-emerald-500 hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer"
                   title="Admin Settings"
                 >
                   <Settings className="w-4 h-4" />
@@ -221,55 +220,55 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
               {/* Wallet Balance Card inside Profile Menu */}
               <div
                 onClick={() => { setIsProfileOpen(false); if (onOpenWalletModal) onOpenWalletModal(); }}
-                className="mt-3 p-3 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-emerald-500/50 cursor-pointer transition-all flex items-center justify-between group"
+                className="mt-3 p-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer transition-all flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
                     <Wallet className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-bold text-sm text-white num-font">
+                    <div className="font-bold text-sm text-[var(--text-main)] num-font">
                       ₹{walletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
                       Trading Margin Balance
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
               </div>
 
               {/* Menu Links List */}
-              <div className="mt-3 space-y-1 text-xs font-bold border-b border-slate-800 pb-3">
+              <div className="mt-3 space-y-1 text-xs font-bold border-b border-[var(--border-color)] pb-3">
                 {/* 1. MY PROFILE */}
                 <button
                   onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('PROFILE'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-500 flex items-center justify-center">
                       <Settings className="w-3.5 h-3.5" />
                     </div>
                     <span>My Profile & Account</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
                 {/* 2. KYC VERIFICATION */}
                 <button
                   onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('KYC'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-500 flex items-center justify-center">
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>
                     <div className="text-left">
                       <div>KYC & Documents</div>
-                      <div className="text-[10px] text-emerald-400 font-medium">PAN • Aadhaar • Bank</div>
+                      <div className="text-[10px] text-emerald-500 font-medium">PAN • Aadhaar • Bank</div>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase">
                     Verify
                   </span>
                 </button>
@@ -277,69 +276,69 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
                 {/* 3. ORDERS */}
                 <button
                   onClick={() => { setIsProfileOpen(false); onNavigateView('ORDERS'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] flex items-center justify-center">
                       <Receipt className="w-3.5 h-3.5" />
                     </div>
                     <span>Orders & Trade History</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
                 {/* 4. BANK & FUNDS */}
                 <button
                   onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('FUNDS'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-500 flex items-center justify-center">
                       <Building2 className="w-3.5 h-3.5" />
                     </div>
                     <span>Bank & Deposit Methods</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
                 {/* 5. 2FA & SECURITY */}
                 <button
                   onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('SECURITY'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-cyan-500/15 text-cyan-400 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-500/15 text-cyan-500 flex items-center justify-center">
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>
                     <span>Security & 2FA / Password</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
                 {/* 6. SUPPORT */}
                 <button
                   onClick={() => { setIsProfileOpen(false); if (onOpenSupport) onOpenSupport(); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-500 flex items-center justify-center">
                       <Headset className="w-3.5 h-3.5" />
                     </div>
                     <span>24x7 Trade Support</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
                 </button>
 
                 {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(user?.role || '') && (
                   <button
                     onClick={() => { setIsProfileOpen(false); onNavigateView('ADMIN'); }}
-                    className="w-full flex items-center justify-between p-2.5 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-colors font-bold cursor-pointer"
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors font-bold cursor-pointer"
                   >
                     <div className="flex items-center gap-3">
-                      <ShieldCheck className="w-4 h-4 text-rose-400" />
+                      <ShieldCheck className="w-4 h-4 text-rose-500" />
                       <span>Admin Control Panel</span>
                     </div>
-                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-black uppercase">
+                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase">
                       {user.role}
                     </span>
                   </button>
@@ -347,13 +346,13 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
 
                 <button
                   onClick={() => { setIsProfileOpen(false); onNavigateView('ANALYTICS'); }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="w-4 h-4 text-slate-400" />
+                    <FileText className="w-4 h-4 text-[var(--text-muted)]" />
                     <span>Portfolio Analytics</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">
                     PRO
                   </span>
                 </button>
@@ -363,15 +362,15 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
               <div className="mt-3 flex items-center justify-between text-xs font-bold pt-1">
                 <button
                   onClick={onToggleTheme}
-                  className="flex items-center gap-2 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer"
                 >
-                  {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-400" />}
+                  {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[var(--text-muted)]" />}
                   <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
 
                 <button
                   onClick={() => { setIsProfileOpen(false); onLogout(); }}
-                  className="flex items-center gap-1.5 p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 p-2 rounded-xl text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Log out</span>
@@ -384,5 +383,6 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
       </div>
 
     </header>
+
   );
 };
