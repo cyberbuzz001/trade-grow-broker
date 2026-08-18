@@ -203,10 +203,10 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
           {/* Index Tabs */}
           <div className="flex flex-wrap items-center gap-2">
             {[
+              { id: 'NIFTY', name: 'NIFTY', ex: 'NSE', price: 24331.70, chg: -64.15, chgPct: -0.26, disabled: false },
               { id: 'SENSEX', name: 'BSE SENSEX', ex: 'BSE', price: 77787.60, chg: -292.36, chgPct: -0.37, disabled: false },
               { id: 'BANKNIFTY', name: 'BANKNIFTY', ex: 'NSE', price: 57600.00, chg: +120.40, chgPct: +0.21, disabled: true },
               { id: 'FINNIFTY', name: 'FINNIFTY', ex: 'NSE', price: 25800.00, chg: +45.10, chgPct: +0.18, disabled: true },
-              { id: 'NIFTY', name: 'NIFTY', ex: 'NSE', price: 24331.70, chg: -64.15, chgPct: -0.26, disabled: true },
             ].map(item => {
               const isActive = symbol === item.id;
               const isPos = item.chg >= 0;

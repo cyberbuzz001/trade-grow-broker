@@ -95,7 +95,7 @@ export const IndexActionModal: React.FC<IndexActionModalProps> = ({
             <span className="text-xs font-mono bg-white/20 px-2.5 py-1 rounded-lg">📈 Open</span>
           </button>
 
-          {cleanIndex === 'SENSEX' ? (
+          {cleanIndex === 'SENSEX' || cleanIndex === 'NIFTY' ? (
             <button
               onClick={() => {
                 onClose();

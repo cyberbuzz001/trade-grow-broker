@@ -662,8 +662,8 @@ export class DhanAdapter implements IMarketDataProvider {
   private static expiryListCache: Map<string, { timestamp: number; expiries: string[] }> = new Map();
 
   public async getExpiryList(symbol: string): Promise<string[]> {
-    const cleanSym = (symbol || 'SENSEX').toUpperCase().replace(/^(NSE_|BSE_)/, '');
-    if (cleanSym !== 'SENSEX') {
+    const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
+    if (cleanSym !== 'SENSEX' && cleanSym !== 'NIFTY') {
       return [];
     }
 
@@ -673,7 +673,7 @@ export class DhanAdapter implements IMarketDataProvider {
     }
 
     const underlyingSeg = 'IDX_I';
-    const underlyingScrip = 51;
+    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : 13;
 
     try {
       const res = await fetch(`${this.baseUrl}/v2/optionchain/expirylist`, {
@@ -704,12 +704,12 @@ export class DhanAdapter implements IMarketDataProvider {
   public async getOptionChain(symbol: string, expiry?: string): Promise<OptionChainItem[]> {
     SafetyLock.assertSimulationOnly('DhanAdapter.getOptionChain');
 
-    const cleanSym = (symbol || 'SENSEX').toUpperCase().replace(/^(NSE_|BSE_)/, '');
-    if (cleanSym !== 'SENSEX') {
+    const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
+    if (cleanSym !== 'SENSEX' && cleanSym !== 'NIFTY') {
       return [];
     }
     const underlyingSeg = 'IDX_I';
-    const underlyingScrip = 51;
+    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : 13;
     let targetExpiry = expiry ? expiry.trim() : '';
     if (!targetExpiry) {
       const liveExpiries = await this.getExpiryList(cleanSym);
