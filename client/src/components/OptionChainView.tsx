@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { OptionChainItem, MarketTick } from '../types';
 import { OrderPreviewModal, OrderPreviewDetails } from './OrderPreviewModal';
 import { OptionStrategyBuilder } from './OptionStrategyBuilder';
-import { Calendar, Search, Activity, Layers, ArrowUpRight, ArrowDownRight, X, SlidersHorizontal, ChevronDown, Plus } from 'lucide-react';
+import { Calendar, Search, Activity, Layers, ArrowUpRight, ArrowDownRight, X, SlidersHorizontal, ChevronDown, Plus, TrendingUp } from 'lucide-react';
 import { useSubscribeTokens } from '../hooks/useMarketSocket';
 import { useTickFreshness, useMultiTickFreshness } from '../hooks/useTickFreshness';
 import { getSpotToken } from './SpotPriceTicker';
 import { OptionChainRow } from './OptionChainRow';
+import { OptionStrikeChartModal, SelectedOptionContract } from './OptionStrikeChartModal';
 
 interface OptionChainProps {
   token?: string;
@@ -34,6 +35,10 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
   const [atmStrike, setAtmStrike] = useState<number>(77300);
   const [lotSize, setLotSize] = useState<number>(20);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Strike Chart Modal State
+  const [selectedChartContract, setSelectedChartContract] = useState<SelectedOptionContract | null>(null);
+  const [isChartOpen, setIsChartOpen] = useState<boolean>(false);
 
   // Order Preview Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderPreviewDetails | null>(null);
@@ -469,6 +474,14 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                       activeLtpKey={activeLtpKey}
                       onSelectLtp={setActiveLtpKey}
                       onOpenOrder={handleOpenOrder}
+                      onOpenChart={(contract) => {
+                        setSelectedChartContract(contract);
+                        setIsChartOpen(true);
+                      }}
+                      underlying={symbol}
+                      expiry={expiry}
+                      lotSize={lotSize}
+                      exchange={symbol.startsWith('SENSEX') || symbol.startsWith('BANKEX') ? 'BSE' : 'NSE'}
                       isMobile={false}
                     />
 
@@ -524,6 +537,14 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                       activeLtpKey={activeLtpKey}
                       onSelectLtp={setActiveLtpKey}
                       onOpenOrder={handleOpenOrder}
+                      onOpenChart={(contract) => {
+                        setSelectedChartContract(contract);
+                        setIsChartOpen(true);
+                      }}
+                      underlying={symbol}
+                      expiry={expiry}
+                      lotSize={lotSize}
+                      exchange={symbol.startsWith('SENSEX') || symbol.startsWith('BANKEX') ? 'BSE' : 'NSE'}
                       isMobile={true}
                     />
 
@@ -547,6 +568,25 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
 
         </div>
       </div>
+
+      {/* Real-Time Option Strike Price Chart Modal */}
+      <OptionStrikeChartModal
+        isOpen={isChartOpen}
+        onClose={() => setIsChartOpen(false)}
+        contract={selectedChartContract}
+        onSwitchContract={setSelectedChartContract}
+        onOpenOrderModal={(side, price) => {
+          if (!selectedChartContract) return;
+          setIsChartOpen(false);
+          handleOpenOrder(
+            selectedChartContract.instrumentToken,
+            selectedChartContract.strike,
+            selectedChartContract.optionType,
+            price,
+            side
+          );
+        }}
+      />
 
       {/* Order Preview & Execution Modal */}
       <OrderPreviewModal

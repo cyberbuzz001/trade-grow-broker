@@ -625,28 +625,34 @@ export class DhanAdapter implements IMarketDataProvider {
       }
     }
 
-    // Synthetic Fallback Generator
-    const quote = await this.getQuote(instrumentToken);
-    const basePrice = quote ? quote.ltp : 24500;
+    // Synthetic Fallback Generator (Option & Equity Aware)
+    const { MarketDataEngine } = require('./MarketDataEngine');
+    const cachedLiveTick = MarketDataEngine.getInstance().getCachedTick(instrumentToken);
+    const quote = cachedLiveTick || await this.getQuote(instrumentToken);
+    const isOption = instrumentToken.includes('_CE') || instrumentToken.includes('_PE') || instrumentToken.includes('BFO_') || instrumentToken.includes('NFO_');
+    const basePrice = quote && quote.ltp > 0 ? quote.ltp : (isOption ? 185.50 : 24500);
+
     const candles: Candle[] = [];
-    const stepSecs = timeframe === '1D' ? 86400 : 60;
+    const stepSecs = timeframe === '1D' ? 86400 : timeframe === '15m' || timeframe === '15M' ? 900 : timeframe === '5m' || timeframe === '5M' ? 300 : 60;
     const startTime = Math.floor(Date.now() / 1000) - count * stepSecs;
 
-    let currPrice = basePrice * 0.98;
+    let currPrice = basePrice * 0.95;
     for (let i = 0; i < count; i++) {
+      const isLast = i === count - 1;
       const open = currPrice;
-      const high = open * (1 + Math.random() * 0.005);
-      const low = open * (1 - Math.random() * 0.005);
-      const close = low + Math.random() * (high - low);
+      const variation = isOption ? 0.015 : 0.003;
+      const high = Math.max(open, open * (1 + Math.random() * variation));
+      const low = Math.min(open, open * (1 - Math.random() * variation));
+      const close = isLast ? basePrice : (low + Math.random() * (high - low));
       currPrice = close;
 
       candles.push({
         time: startTime + i * stepSecs,
         open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(low.toFixed(2)),
+        high: Number(Math.max(open, close, high).toFixed(2)),
+        low: Number(Math.min(open, close, low).toFixed(2)),
         close: Number(close.toFixed(2)),
-        volume: Math.floor(Math.random() * 5000) + 100
+        volume: Math.floor(Math.random() * 2000) + 50
       });
     }
 
