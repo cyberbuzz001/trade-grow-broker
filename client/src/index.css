@@ -54,20 +54,6 @@
   --loss: #ef4444;
   --loss-light: rgba(239, 68, 68, 0.12);
 
-  /* Univest Brand Color Tokens */
-  --univest-blue: #00439D;
-  --univest-blue-hover: #00337A;
-  --univest-blue-light: rgba(0, 67, 157, 0.08);
-  --univest-green: #0BA860;
-  --univest-green-light: rgba(11, 168, 96, 0.1);
-  --univest-red: #E5484D;
-  --univest-red-light: rgba(229, 72, 77, 0.1);
-  --univest-warning: #F5A623;
-  --univest-warning-light: rgba(245, 166, 35, 0.12);
-  --univest-bg: #F7F8FA;
-  --univest-card: #FFFFFF;
-  --univest-text-primary: #111827;
-  --univest-text-muted: #6B7280;
 
   /* Spacing Scale (Density 8/10 — Dense Dashboard) */
   --space-xs: 2px;

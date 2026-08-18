@@ -20,22 +20,18 @@ import { McxCommodityView } from './components/McxCommodityView';
 import { PortfolioAnalyticsView } from './components/PortfolioAnalyticsView';
 import { ClientProfileView } from './components/ClientProfileView';
 
-// GoGrow Mobile App View Components (from Frontend/mobileapp)
 import { MobileBottomNav } from './components/mobile/MobileBottomNav';
 import { MobileHomeView } from './components/mobile/MobileHomeView';
 import { MobilePortfolioView } from './components/mobile/MobilePortfolioView';
 import { MobileProfileView } from './components/mobile/MobileProfileView';
 import { MobileOrderModal } from './components/mobile/MobileOrderModal';
-import { UnivestClientPanel } from './components/mobile/UnivestClientPanel';
 
 export function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   
-  // Client Panel Theme/Style View Mode ('UNIVEST' default)
-  const [viewMode, setViewMode] = useState<'UNIVEST' | 'GROWW'>('UNIVEST');
-  
+
   // Responsive / Mobile View Mode State
   const [isMobileScreen, setIsMobileScreen] = useState<boolean>(window.innerWidth < 768);
   const [activeMobileTab, setActiveMobileTab] = useState<'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'WATCHLIST' | 'ORDERS' | 'OPTION_CHAIN' | 'ADMIN' | 'PROFILE'>('HOME');
@@ -201,24 +197,6 @@ export function App() {
     return <AuthModal onSuccess={(t: string) => setToken(t)} />;
   }
 
-  // ── 1. UNIVEST-INSPIRED CLIENT PANEL (DEFAULT MOBILE & DESKTOP VIEW) ────────
-  if (viewMode === 'UNIVEST') {
-    return (
-      <MarketSocketProvider userToken={token}>
-        <UnivestClientPanel
-          user={user}
-          wallet={wallet}
-          ticks={ticks}
-          token={token}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onLogout={handleLogout}
-          onRefreshWallet={fetchWallet}
-          onOpenAdmin={() => setViewMode('GROWW')}
-        />
-      </MarketSocketProvider>
-    );
-  }
 
   // ── 2. GOGROW MOBILE APP VIEW (FOR MOBILE VIEWPORTS < 768PX) ────────────────
   if (isMobileScreen) {
@@ -391,7 +369,6 @@ export function App() {
             setProfileInitialTab(tab || 'PROFILE');
             setIsProfileModalOpen(true);
           }}
-          onSwitchToUnivestView={() => setViewMode('UNIVEST')}
         />
 
         {/* 2. GROWW SUB-NAV & TICKER BAR */}
