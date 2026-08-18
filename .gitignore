@@ -48,3 +48,4 @@ Thumbs.db
 # Subagent / AI agent artifacts
 .gemini/
 .agents/
+scratch/

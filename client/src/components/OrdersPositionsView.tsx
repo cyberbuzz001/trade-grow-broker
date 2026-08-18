@@ -29,6 +29,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
   const [editingTargetOrder, setEditingTargetOrder] = useState<any | null>(null);
   const [cancelTargetModalOrder, setCancelTargetModalOrder] = useState<any | null>(null);
   const [isSubmittingExit, setIsSubmittingExit] = useState<boolean>(false);
+  const [isExitAllModalOpen, setIsExitAllModalOpen] = useState<boolean>(false);
 
   // Subscribed tokens generation for real-time WebSocket ticks
   const subscribedTokens = useMemo(() => {
@@ -200,6 +201,61 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     } finally {
       setIsSubmittingExit(false);
       setSquareOffModalPos(null);
+    }
+  };
+
+  const confirmExitAllPositions = async () => {
+    if (openPositions.length === 0 || isSubmittingExit) return;
+    setIsSubmittingExit(true);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const pos of openPositions) {
+      try {
+        const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
+        if (netQty === 0) continue;
+        const side = netQty > 0 ? 'SELL' : 'BUY';
+        const quantity = Math.abs(netQty);
+        const livePrice = getLiveLtp(pos);
+
+        const res = await fetch('/api/v1/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            instrumentToken: pos.instrumentToken || pos.instrument_token || `NSE_${pos.symbol}`,
+            exchange: pos.exchange || 'NSE',
+            symbol: pos.symbol,
+            side,
+            quantity,
+            price: livePrice,
+            orderType: 'MARKET',
+            productType: pos.productType || pos.product_type || 'MIS'
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (_) {
+        failCount++;
+      }
+    }
+
+    setIsSubmittingExit(false);
+    setIsExitAllModalOpen(false);
+    fetchData();
+    if (onRefreshWallet) onRefreshWallet();
+
+    if (failCount === 0) {
+      setActionMessage({ type: 'success', text: `Successfully squared off all ${successCount} active positions.` });
+    } else {
+      setActionMessage({ type: 'error', text: `Squared off ${successCount} positions. ${failCount} positions encountered errors.` });
     }
   };
 
@@ -435,9 +491,7 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
 
         {openPositions.length > 0 && (
           <button
-            onClick={() => {
-              if (openPositions.length > 0) handleOpenSquareOffModal(openPositions[0]);
-            }}
+            onClick={() => setIsExitAllModalOpen(true)}
             className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/40 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 min-h-[44px]"
           >
             <ShieldAlert size={15} /> EXIT ALL POSITIONS ({openPositions.length})
@@ -1088,6 +1142,64 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                 className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs shadow-lg cursor-pointer min-h-[44px]"
               >
                 Cancel Target Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL 4: EXIT ALL POSITIONS CONFIRMATION MODAL ────────────────── */}
+      {isExitAllModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 font-mono">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <ShieldAlert className="text-rose-500 w-5 h-5" /> Exit All Open Positions?
+              </h3>
+              <button type="button" onClick={() => setIsExitAllModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Total Open Positions:</span>
+                <span className="font-bold text-white text-sm">{openPositions.length} Positions</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Current Unrealized P&L:</span>
+                <span className={`font-bold ${totalUnrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {totalUnrealizedPnl >= 0 ? '+' : ''}₹{totalUnrealizedPnl.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Exit Method:</span>
+                <span className="font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                  MARKET ORDER (ALL)
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-[11px] text-rose-300 font-sans leading-relaxed">
+              ⚠️ This will send immediate MARKET square-off orders for all <strong>{openPositions.length}</strong> open positions. This action cannot be reversed.
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsExitAllModalOpen(false)}
+                disabled={isSubmittingExit}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs min-h-[44px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmExitAllPositions}
+                disabled={isSubmittingExit}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50 min-h-[44px]"
+              >
+                {isSubmittingExit ? 'Exiting All...' : 'Confirm Exit All'}
               </button>
             </div>
           </div>

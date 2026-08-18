@@ -1,11 +1,11 @@
-@import "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap";
+@import "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* UI/UX Pro Max Design System Tokens — TradeGrow Pro Dark Theme (Default) */
@@ -24,8 +24,8 @@
   --bg-body: #020617;
   --bg-surface: #0f172a;
   --bg-surface-elevated: #1e293b;
-  --bg-glass: rgba(15, 23, 42, 0.75);
-  --bg-glass-card: rgba(30, 41, 59, 0.7);
+  --bg-glass: rgba(15, 23, 42, 0.85);
+  --bg-glass-card: rgba(30, 41, 59, 0.75);
 
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
@@ -54,8 +54,16 @@
   --loss: #ef4444;
   --loss-light: rgba(239, 68, 68, 0.12);
 
+  /* Option Chain Color Accents */
+  --call-accent: #06b6d4;
+  --call-bg-itm: rgba(6, 182, 212, 0.08);
+  --call-bg-hover: rgba(6, 182, 212, 0.15);
+  --put-accent: #a855f7;
+  --put-bg-itm: rgba(168, 85, 247, 0.08);
+  --put-bg-hover: rgba(168, 85, 247, 0.15);
+  --atm-glow: rgba(234, 179, 8, 0.3);
 
-  /* Spacing Scale (Density 8/10 — Dense Dashboard) */
+  /* Spacing Scale (Density 8/10 — Dense High-Frequency Dashboard) */
   --space-xs: 2px;
   --space-sm: 4px;
   --space-md: 8px;
@@ -73,6 +81,7 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 }
 
@@ -80,7 +89,7 @@
   --bg-body: #020617;
   --bg-surface: #0f172a;
   --bg-surface-elevated: #1e293b;
-  --bg-glass: rgba(15, 23, 42, 0.8);
+  --bg-glass: rgba(15, 23, 42, 0.85);
   --bg-glass-card: rgba(30, 41, 59, 0.75);
 
   --text-main: #f8fafc;
@@ -95,7 +104,7 @@
   --bg-body: #f8fafc;
   --bg-surface: #ffffff;
   --bg-surface-elevated: #f1f5f9;
-  --bg-glass: rgba(255, 255, 255, 0.9);
+  --bg-glass: rgba(255, 255, 255, 0.92);
   --bg-glass-card: rgba(255, 255, 255, 0.95);
 
   --text-main: #0f172a;
@@ -121,6 +130,9 @@
   --loss: #dc2626;
   --loss-light: rgba(220, 38, 38, 0.1);
 
+  --call-bg-itm: rgba(6, 182, 212, 0.06);
+  --put-bg-itm: rgba(168, 85, 247, 0.06);
+
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.12);
@@ -139,6 +151,8 @@
     padding: 0;
     overflow-x: hidden;
     transition: background-color 0.2s ease, color 0.2s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   button, a, input, select, textarea {
@@ -149,6 +163,7 @@
 .num-font {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Scrollbar Customization */
@@ -162,12 +177,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(148, 163, 184, 0.25);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(148, 163, 184, 0.5);
 }
 
 /* Glassmorphism & Card Styles */
@@ -284,9 +299,9 @@
 /* Real-Time Price Flash Keyframes */
 @keyframes priceFlashUp {
   0% {
-    background-color: rgba(34, 197, 94, 0.35);
+    background-color: rgba(34, 197, 94, 0.4);
     color: #22c55e;
-    box-shadow: inset 0 0 10px rgba(34, 197, 94, 0.2);
+    box-shadow: inset 0 0 12px rgba(34, 197, 94, 0.25);
   }
   100% {
     background-color: transparent;
@@ -296,9 +311,9 @@
 
 @keyframes priceFlashDown {
   0% {
-    background-color: rgba(239, 68, 68, 0.35);
+    background-color: rgba(239, 68, 68, 0.4);
     color: #ef4444;
-    box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.2);
+    box-shadow: inset 0 0 12px rgba(239, 68, 68, 0.25);
   }
   100% {
     background-color: transparent;
@@ -314,6 +329,21 @@
   animation: priceFlashDown 0.35s ease-out;
 }
 
+/* Option Chain Highlights */
+.itm-call {
+  background-color: var(--call-bg-itm);
+}
+
+.itm-put {
+  background-color: var(--put-bg-itm);
+}
+
+.atm-strike-row {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.12) 0%, rgba(234, 179, 8, 0.18) 50%, rgba(168, 85, 247, 0.12) 100%);
+  border-top: 1px solid rgba(234, 179, 8, 0.5);
+  border-bottom: 1px solid rgba(234, 179, 8, 0.5);
+}
+
 /* Mobile Utilities & Navigation */
 @media (max-width: 768px) {
   .mobile-hide { display: none !important; }
@@ -321,7 +351,7 @@
   .mobile-bottom-nav {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 60px;
+    height: 64px;
     background: var(--bg-glass);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
@@ -331,6 +361,7 @@
     justify-content: space-around;
     z-index: 50;
     padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .mobile-nav-btn {
@@ -346,35 +377,19 @@
     border: none;
     padding: 6px 0;
     transition: color 0.15s ease;
+    min-height: 48px;
   }
 
   .mobile-nav-btn.active {
     color: var(--primary);
-  }
-
-  .mobile-fab {
-    position: fixed;
-    bottom: 72px;
-    right: 16px;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary), #6366f1);
-    color: white;
-    box-shadow: 0 4px 16px var(--primary-glow);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 49;
-    border: none;
   }
 }
 
 .mobile-bottom-sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.7);
-  backdrop-filter: blur(6px);
+  background: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -384,12 +399,12 @@
 
 .mobile-bottom-sheet-content {
   background: var(--bg-surface);
-  border-top-left-radius: var(--radius-lg);
-  border-top-right-radius: var(--radius-lg);
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
   border-top: 1px solid var(--border-color);
-  max-height: 85vh;
+  max-height: 88vh;
   overflow-y: auto;
-  padding-bottom: env(safe-area-inset-bottom, 20px);
+  padding-bottom: env(safe-area-inset-bottom, 24px);
   box-shadow: var(--shadow-xl);
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -408,3 +423,4 @@
   min-height: 44px;
   min-width: 44px;
 }
+

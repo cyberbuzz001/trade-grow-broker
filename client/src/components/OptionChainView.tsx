@@ -203,39 +203,16 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
           {/* Index Tabs */}
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: 'NIFTY', name: 'NIFTY', ex: 'NSE', price: 24331.70, chg: -64.15, chgPct: -0.26, disabled: false },
-              { id: 'SENSEX', name: 'BSE SENSEX', ex: 'BSE', price: 77787.60, chg: -292.36, chgPct: -0.37, disabled: false },
-              { id: 'BANKNIFTY', name: 'BANKNIFTY', ex: 'NSE', price: 57600.00, chg: +120.40, chgPct: +0.21, disabled: true },
-              { id: 'FINNIFTY', name: 'FINNIFTY', ex: 'NSE', price: 25800.00, chg: +45.10, chgPct: +0.18, disabled: true },
+              { id: 'NIFTY', name: 'NIFTY 50', ex: 'NSE', token: 'NSE_NIFTY50', price: 24331.70, chg: -64.15, chgPct: -0.26 },
+              { id: 'SENSEX', name: 'BSE SENSEX', ex: 'BSE', token: 'BSE_SENSEX', price: 77787.60, chg: -292.36, chgPct: -0.37 },
+              { id: 'BANKNIFTY', name: 'BANK NIFTY', ex: 'NSE', token: 'NSE_BANKNIFTY', price: 57600.00, chg: +120.40, chgPct: +0.21 },
+              { id: 'FINNIFTY', name: 'FIN NIFTY', ex: 'NSE', token: 'NSE_FINNIFTY', price: 25800.00, chg: +45.10, chgPct: +0.18 },
             ].map(item => {
               const isActive = symbol === item.id;
-              const isPos = item.chg >= 0;
-              const displayPrice = isActive ? liveSpotLtp : item.price;
-              const displayChgPct = isActive ? liveSpotChangePct : item.chgPct;
-
-              if (item.disabled) {
-                return (
-                  <div
-                    key={item.id}
-                    title={`${item.name} Option Chain is disabled to save API quota`}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs opacity-50 cursor-not-allowed min-h-[44px] border bg-slate-950/40 text-slate-500 border-slate-800/60 select-none"
-                  >
-                    <div className="flex flex-col items-start">
-                      <div className="flex items-center gap-1 font-extrabold tracking-tight">
-                        <span>{item.name}</span>
-                        <span className="text-[9px] bg-slate-800 text-slate-500 px-1 rounded">{item.ex}</span>
-                        <span className="text-[8px] bg-rose-500/20 text-rose-400 font-bold px-1 rounded border border-rose-500/30">DISABLED</span>
-                      </div>
-                      <div className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-slate-500">
-                        <span>₹{displayPrice.toFixed(2)}</span>
-                        <span className="text-[10px]">
-                          {displayChgPct.toFixed(2)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
+              const indexTick = spotFreshness.tick && isActive ? spotFreshness.tick : (freshnessMap.get(item.token)?.tick);
+              const displayPrice = isActive ? liveSpotLtp : (indexTick?.ltp && indexTick.ltp > 0 ? indexTick.ltp : item.price);
+              const displayChgPct = isActive ? liveSpotChangePct : (indexTick?.changePercent !== undefined ? indexTick.changePercent : item.chgPct);
+              const isPos = displayChgPct >= 0;
 
               return (
                 <button
@@ -258,9 +235,9 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                     </div>
                     <div className="flex items-center gap-1 font-mono text-[11px] tabular-nums">
                       <span className="text-white font-bold">₹{displayPrice.toFixed(2)}</span>
-                      <span className={`flex items-center text-[10px] font-semibold ${displayChgPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {displayChgPct >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                        {displayChgPct.toFixed(2)}%
+                      <span className={`flex items-center text-[10px] font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isPos ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                        {isPos ? '+' : ''}{displayChgPct.toFixed(2)}%
                       </span>
                     </div>
                   </div>
