@@ -95,24 +95,45 @@ export const IndexActionModal: React.FC<IndexActionModalProps> = ({
             <span className="text-xs font-mono bg-white/20 px-2.5 py-1 rounded-lg">📈 Open</span>
           </button>
 
-          <button
-            onClick={() => {
-              onClose();
-              onOpenOptionChain(cleanIndex);
-            }}
-            className="w-full p-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-black text-sm shadow-md flex items-center justify-between transition-all cursor-pointer active:scale-95"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400">
-                <Layers size={18} />
+          {cleanIndex === 'SENSEX' ? (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenOptionChain(cleanIndex);
+              }}
+              className="w-full p-4 rounded-2xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-black text-sm shadow-md flex items-center justify-between transition-all cursor-pointer active:scale-95"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400">
+                  <Layers size={18} />
+                </div>
+                <div className="text-left">
+                  <span className="block font-bold">View Full Option Chain</span>
+                  <span className="block text-[10px] text-slate-400 font-normal">All strikes, Greeks, IV, PCR & Open Interest</span>
+                </div>
               </div>
-              <div className="text-left">
-                <span className="block font-bold">View Full Option Chain</span>
-                <span className="block text-[10px] text-slate-400 font-normal">All strikes, Greeks, IV, PCR & Open Interest</span>
+              <span className="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg">⛓️ Open</span>
+            </button>
+          ) : (
+            <div
+              className="w-full p-4 rounded-2xl bg-slate-800/40 border border-slate-800 text-slate-500 font-bold text-sm shadow-none flex items-center justify-between opacity-60 cursor-not-allowed select-none"
+              title="Option Chain is disabled for this index to conserve API limits"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-slate-800 text-slate-600">
+                  <Layers size={18} />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="block font-bold text-slate-400">Option Chain</span>
+                    <span className="text-[9px] bg-rose-500/20 text-rose-400 font-bold px-1.5 py-0.5 rounded border border-rose-500/30">DISABLED</span>
+                  </div>
+                  <span className="block text-[10px] text-slate-500 font-normal">Option chain temporarily disabled to save API quota</span>
+                </div>
               </div>
+              <span className="text-xs font-mono bg-slate-800 text-slate-500 px-2.5 py-1 rounded-lg">🔒 Disabled</span>
             </div>
-            <span className="text-xs font-mono bg-indigo-500/20 text-indigo-300 px-2.5 py-1 rounded-lg">⛓️ Open</span>
-          </button>
+          )}
         </div>
       </div>
     </div>
