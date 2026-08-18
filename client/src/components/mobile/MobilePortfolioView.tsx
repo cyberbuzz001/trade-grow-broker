@@ -2,15 +2,18 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowUp, ArrowDown, ChevronLeft, Briefcase, Zap, ShieldCheck, ShieldAlert, 
   RefreshCw, Target, AlertTriangle, X, History, Search, SlidersHorizontal, 
-  MoreVertical, CheckCircle2, ChevronUp, ChevronDown, Clock, Layers, TrendingUp 
+  MoreVertical, CheckCircle2, ChevronUp, ChevronDown, Clock, Layers, TrendingUp,
+  BarChart2, LineChart
 } from 'lucide-react';
 import { MarketTick, Wallet, Holding } from '../../types';
 import { useSubscribeTokens, useMarketSocket } from '../../hooks/useMarketSocket';
+import { MobileChartModal } from './MobileChartModal';
 
 interface MobilePortfolioViewProps {
   ticks?: Map<string, MarketTick>;
   token?: string | null;
   wallet?: Wallet | null;
+  theme?: 'dark' | 'light';
   onBack?: () => void;
   onSelectStock?: (symbol: string, name: string, price: number) => void;
   onOpenOptionChain?: (symbol: string) => void;
@@ -20,6 +23,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
   ticks: propsTicks,
   token,
   wallet,
+  theme = 'light',
   onBack,
   onSelectStock,
   onOpenOptionChain,
@@ -43,6 +47,13 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
   // Modals & Drawers
   const [selectedPosDetail, setSelectedPosDetail] = useState<any | null>(null);
+  const [activeChartModal, setActiveChartModal] = useState<{
+    symbol: string;
+    token: string;
+    exchange: string;
+    price: number;
+  } | null>(null);
+
   const [squareOffModalPos, setSquareOffModalPos] = useState<any | null>(null);
   const [isExitAllModalOpen, setIsExitAllModalOpen] = useState<boolean>(false);
   const [targetModalPos, setTargetModalPos] = useState<any | null>(null);
@@ -101,7 +112,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
     let tick = instToken ? ticks?.get(instToken) : undefined;
     if (!tick && sym) {
-      tick = ticks?.get(sym) || ticks?.get(`NSE_${sym}`) || ticks?.get(`NFO_${sym}`) || ticks?.get(`BFO_${sym}`);
+      tick = ticks?.get(sym) || ticks?.get(`NSE_${sym}`) || ticks?.get(`NFO_${sym}`) || ticks?.get(`BFO_${sym}`) || ticks?.get(`BSE_${sym}`);
     }
 
     if (tick && tick.ltp > 0) return tick.ltp;
@@ -180,7 +191,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         },
         body: JSON.stringify({
           instrumentToken: pos.instrumentToken || pos.instrument_token || `NSE_${pos.symbol}`,
-          exchange: pos.exchange || 'NSE',
+          exchange: pos.exchange || (pos.symbol.includes('SENSEX') ? 'BSE' : 'NSE'),
           symbol: pos.symbol,
           side,
           quantity,
@@ -191,6 +202,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
       });
       const data = await res.json();
       if (data.success) {
+        navigator.vibrate?.([30, 50, 30]);
         setActionMessage({ type: 'success', text: `Square Off MARKET order placed for ${pos.symbol}` });
         fetchPortfolio();
       } else {
@@ -229,7 +241,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
           },
           body: JSON.stringify({
             instrumentToken: pos.instrumentToken || pos.instrument_token || `NSE_${pos.symbol}`,
-            exchange: pos.exchange || 'NSE',
+            exchange: pos.exchange || (pos.symbol.includes('SENSEX') ? 'BSE' : 'NSE'),
             symbol: pos.symbol,
             side,
             quantity,
@@ -331,7 +343,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
           },
           body: JSON.stringify({
             instrumentToken: pos.instrumentToken || pos.instrument_token || `NSE_${pos.symbol}`,
-            exchange: pos.exchange || 'NSE',
+            exchange: pos.exchange || (pos.symbol.includes('SENSEX') ? 'BSE' : 'NSE'),
             symbol: pos.symbol,
             side,
             quantity,
@@ -441,7 +453,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-2.5 py-1.5 min-w-[130px] flex-shrink-0 shadow-xs">
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <span className="text-[10px] font-black text-[var(--text-main)]">NIFTY</span>
-            <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-[var(--text-muted)] px-1 py-0.2 rounded font-mono font-bold">Expiry Tue</span>
+            <span className="text-[9px] bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] px-1 py-0.2 rounded font-mono font-bold">Expiry Tue</span>
           </div>
           <div className="flex items-baseline gap-1 font-mono">
             <span className="text-[11px] font-black text-[var(--text-main)] tabular-nums">
@@ -457,7 +469,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-2.5 py-1.5 min-w-[130px] flex-shrink-0 shadow-xs">
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <span className="text-[10px] font-black text-[var(--text-main)]">SENSEX</span>
-            <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-[var(--text-muted)] px-1 py-0.2 rounded font-mono font-bold">Expiry Thu</span>
+            <span className="text-[9px] bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] px-1 py-0.2 rounded font-mono font-bold">Expiry Thu</span>
           </div>
           <div className="flex items-baseline gap-1 font-mono">
             <span className="text-[11px] font-black text-[var(--text-main)] tabular-nums">
@@ -473,7 +485,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-2.5 py-1.5 min-w-[130px] flex-shrink-0 shadow-xs">
           <div className="flex items-center justify-between gap-1 mb-0.5">
             <span className="text-[10px] font-black text-[var(--text-main)]">BANK NIFTY</span>
-            <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-[var(--text-muted)] px-1 py-0.2 rounded font-mono font-bold">Expiry Wed</span>
+            <span className="text-[9px] bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] px-1 py-0.2 rounded font-mono font-bold">Expiry Wed</span>
           </div>
           <div className="flex items-baseline gap-1 font-mono">
             <span className="text-[11px] font-black text-[var(--text-main)] tabular-nums">
@@ -662,7 +674,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                     </div>
 
                     <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                      isFilled ? 'bg-emerald-500/10 text-emerald-600' : isPending ? 'bg-amber-500/10 text-amber-600' : 'bg-slate-100 text-slate-600'
+                      isFilled ? 'bg-emerald-500/10 text-emerald-600' : isPending ? 'bg-amber-500/10 text-amber-600' : 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)]'
                     }`}>
                       {order.status}
                     </span>
@@ -687,7 +699,7 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
 
       {/* ── 6. ANGEL ONE STICKY BOTTOM TOTAL P&L BAR (Above Navigation) ── */}
       {topTab === 'POSITIONS' && (
-        <div className="fixed bottom-15 left-0 right-0 z-40 bg-[var(--bg-surface)] border-t border-[var(--border-color)] px-4 py-2.5 flex items-center justify-between shadow-lg">
+        <div className="fixed bottom-15 left-0 right-0 z-30 bg-[var(--bg-surface)] border-t border-[var(--border-color)] px-4 py-2.5 flex items-center justify-between shadow-lg">
           <button
             type="button"
             onClick={() => setIsTotalExpanded(!isTotalExpanded)}
@@ -730,81 +742,156 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         </div>
       )}
 
-      {/* ── 7. ANGEL ONE POSITION ACTION BOTTOM SHEET ── */}
+      {/* ── 7. ANGEL ONE POSITION ACTION BOTTOM SHEET (PROMINENT, NO CLIPPING) ── */}
       {selectedPosDetail && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-[var(--bg-surface)] border-t border-[var(--border-color)] rounded-t-2xl p-4 max-w-md w-full shadow-2xl space-y-3 font-body pb-8">
-            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
-              <div>
-                <h3 className="text-sm font-black text-[var(--text-main)]">{selectedPosDetail.symbol}</h3>
-                <p className="text-[10px] text-[var(--text-muted)] font-mono">Product: {selectedPosDetail.productType || 'MIS'}</p>
-              </div>
-              <button onClick={() => setSelectedPosDetail(null)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text-main)]">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 pb-0">
+          <div className="bg-[var(--bg-surface)] border-t border-[var(--border-color)] rounded-t-3xl sm:rounded-3xl p-5 max-w-md w-full shadow-2xl space-y-4 font-body pb-8 pb-[env(safe-area-inset-bottom,24px)] animate-in slide-in-from-bottom duration-200">
+            
+            {/* Drag Handle */}
+            <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto sm:hidden opacity-80 mb-1" />
 
-            {/* Quick Action Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  const targetOrder = getActiveTargetOrder(selectedPosDetail);
-                  handleOpenSetTargetModal(selectedPosDetail, targetOrder);
-                }}
-                className="py-2.5 px-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] font-bold text-xs text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-              >
-                <Target className="w-4 h-4" />
-                <span>{getActiveTargetOrder(selectedPosDetail) ? 'Modify Target' : 'Set Target'}</span>
-              </button>
+            {/* Position Header & P&L */}
+            {(() => {
+              const pos = selectedPosDetail;
+              const netQty = pos.netQty !== undefined ? pos.netQty : (pos.net_qty !== undefined ? parseInt(pos.net_qty, 10) : ((pos.buyQty || 0) - (pos.sellQty || 0)));
+              const absQty = Math.abs(netQty);
+              const avgPrice = parseFloat(pos.averagePrice || pos.average_price || pos.entryPrice || 0);
+              const ltp = getLiveLtp(pos);
+              const uPnl = netQty > 0 ? (ltp - avgPrice) * netQty : absQty * (avgPrice - ltp);
+              const isGain = uPnl >= 0;
+              const targetOrder = getActiveTargetOrder(pos);
 
-              <button
-                type="button"
-                onClick={() => {
-                  setSquareOffModalPos(selectedPosDetail);
-                  setSelectedPosDetail(null);
-                }}
-                className="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform shadow-xs"
-              >
-                <ShieldAlert className="w-4 h-4" />
-                <span>Square Off</span>
-              </button>
-            </div>
+              return (
+                <>
+                  <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
+                    <div>
+                      <h3 className="text-base font-black text-[var(--text-main)] tracking-tight">{pos.symbol}</h3>
+                      <p className="text-[11px] text-[var(--text-muted)] font-mono flex items-center gap-2 mt-0.5">
+                        <span>{absQty} {absQty > 50 ? 'Qty' : 'Lot'}</span>
+                        <span>•</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase">{pos.productType || 'MIS'}</span>
+                      </p>
+                    </div>
 
-            {/* Chart & Option Chain Links */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedPosDetail(null);
-                  onSelectStock?.(selectedPosDetail.symbol, selectedPosDetail.symbol, getLiveLtp(selectedPosDetail));
-                }}
-                className="py-2 px-3 rounded-xl bg-[var(--bg-surface-elevated)] text-[var(--text-main)] font-bold text-xs flex items-center justify-center gap-1.5"
-              >
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                <span>View Chart</span>
-              </button>
+                    <button 
+                      onClick={() => setSelectedPosDetail(null)} 
+                      className="p-1.5 rounded-full bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedPosDetail(null);
-                  onOpenOptionChain?.(selectedPosDetail.symbol);
-                }}
-                className="py-2 px-3 rounded-xl bg-[var(--bg-surface-elevated)] text-[var(--text-main)] font-bold text-xs flex items-center justify-center gap-1.5"
-              >
-                <Layers className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Option Chain</span>
-              </button>
-            </div>
+                  {/* Summary Metric Strip */}
+                  <div className="grid grid-cols-3 gap-2 bg-[var(--bg-surface-elevated)] p-3 rounded-2xl border border-[var(--border-color)] text-center font-mono">
+                    <div>
+                      <span className="text-[10px] text-[var(--text-muted)] uppercase block">Buy Avg</span>
+                      <span className="text-xs font-bold text-[var(--text-main)]">₹{avgPrice.toFixed(2)}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-[var(--text-muted)] uppercase block">Live LTP</span>
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">₹{ltp.toFixed(2)}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-[var(--text-muted)] uppercase block">Position P&L</span>
+                      <span className={`text-xs font-black ${isGain ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {isGain ? '+' : ''}₹{uPnl.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ── 4 KEY ACTION BUTTONS ── */}
+                  <div className="space-y-2 pt-1">
+                    
+                    {/* Primary Row: Square Off & Place Target */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSetTargetModal(pos, targetOrder)}
+                        className="py-3 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-500/30 font-bold text-xs text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-xs min-h-[44px]"
+                      >
+                        <Target className="w-4 h-4 text-indigo-500" />
+                        <span>{targetOrder ? 'Modify Target' : 'Place Target'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSquareOffModalPos(pos);
+                          setSelectedPosDetail(null);
+                        }}
+                        className="py-3 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-md min-h-[44px]"
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                        <span>Square Off</span>
+                      </button>
+                    </div>
+
+                    {/* Secondary Row: Strike Price Chart & Option Chain */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPosDetail(null);
+                          setActiveChartModal({
+                            symbol: pos.symbol,
+                            token: pos.instrumentToken || pos.instrument_token || (pos.symbol.includes('SENSEX') ? `BSE_${pos.symbol}` : `NSE_${pos.symbol}`),
+                            exchange: pos.exchange || (pos.symbol.includes('SENSEX') ? 'BSE' : 'NSE'),
+                            price: ltp
+                          });
+                        }}
+                        className="py-3 px-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[var(--text-main)] font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:border-emerald-500/50 min-h-[44px]"
+                      >
+                        <LineChart className="w-4 h-4 text-emerald-500" />
+                        <span>Strike Price Chart</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPosDetail(null);
+                          const underlying = pos.symbol.includes('SENSEX') ? 'SENSEX' : (pos.symbol.includes('BANK') ? 'BANKNIFTY' : 'NIFTY');
+                          onOpenOptionChain?.(underlying);
+                        }}
+                        className="py-3 px-3 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[var(--text-main)] font-extrabold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:border-indigo-500/50 min-h-[44px]"
+                      >
+                        <Layers className="w-4 h-4 text-indigo-500" />
+                        <span>Option Chain</span>
+                      </button>
+                    </div>
+
+                  </div>
+                </>
+              );
+            })()}
+
           </div>
         </div>
       )}
 
-      {/* ── 8. SECURE EXIT ALL MODAL ── */}
+      {/* ── 8. STRIKE PRICE CHART MODAL ── */}
+      {activeChartModal && (
+        <MobileChartModal
+          isOpen={true}
+          onClose={() => setActiveChartModal(null)}
+          symbol={activeChartModal.symbol}
+          token={activeChartModal.token}
+          exchange={activeChartModal.exchange}
+          latestTick={ticks.get(activeChartModal.token) || ticks.get(activeChartModal.symbol)}
+          theme={theme}
+          onOpenOptionChain={onOpenOptionChain}
+          onOpenOrderModal={(side, price) => {
+            setActiveChartModal(null);
+            onSelectStock?.(activeChartModal.symbol, activeChartModal.symbol, price);
+          }}
+        />
+      )}
+
+      {/* ── 9. SECURE EXIT ALL MODAL ── */}
       {isExitAllModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 max-w-md w-full shadow-2xl space-y-3 font-mono">
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 max-w-md w-full shadow-2xl space-y-3 font-mono text-[var(--text-main)]">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
               <h3 className="text-sm font-extrabold text-[var(--text-main)] flex items-center gap-2">
                 <AlertTriangle className="text-rose-500 w-4 h-4" /> Exit All Open Positions?
@@ -839,10 +926,10 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         </div>
       )}
 
-      {/* ── 9. SINGLE SQUARE OFF MODAL ── */}
+      {/* ── 10. SINGLE SQUARE OFF MODAL ── */}
       {squareOffModalPos && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 max-w-md w-full shadow-2xl space-y-3 font-mono">
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 max-w-md w-full shadow-2xl space-y-3 font-mono text-[var(--text-main)]">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
               <h3 className="text-sm font-extrabold text-[var(--text-main)] flex items-center gap-2">
                 <AlertTriangle className="text-amber-500 w-4 h-4" /> Square Off Position?
@@ -859,11 +946,11 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">Current LTP:</span>
-                <strong className="text-emerald-500">₹{getLiveLtp(squareOffModalPos).toFixed(2)}</strong>
+                <strong className="text-emerald-600 dark:text-emerald-400">₹{getLiveLtp(squareOffModalPos).toFixed(2)}</strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">Order:</span>
-                <strong className="text-rose-500">MARKET EXIT</strong>
+                <strong className="text-rose-600 dark:text-rose-400">MARKET EXIT</strong>
               </div>
             </div>
 
@@ -888,10 +975,10 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
         </div>
       )}
 
-      {/* ── 10. SET TARGET MODAL ── */}
+      {/* ── 11. SET TARGET MODAL ── */}
       {targetModalPos && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 max-w-md w-full shadow-2xl space-y-3 font-mono">
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-3 bg-black/60 backdrop-blur-xs">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 max-w-md w-full shadow-2xl space-y-3 font-mono text-[var(--text-main)]">
             <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
               <h3 className="text-sm font-extrabold text-[var(--text-main)] flex items-center gap-2">
                 <Target className="text-indigo-500 w-4 h-4" />

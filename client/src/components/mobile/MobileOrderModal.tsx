@@ -100,31 +100,31 @@ export const MobileOrderModal: React.FC<MobileOrderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 touch-action-manipulation overscroll-y-contain font-body text-slate-100">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-200 pb-[env(safe-area-inset-bottom,20px)]">
+    <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200 touch-action-manipulation overscroll-y-contain font-body text-[var(--text-main)]">
+      <div className="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-200 pb-[env(safe-area-inset-bottom,20px)]">
         
         {/* Mobile Drag Handle Bar */}
-        <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden opacity-80" />
+        <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full mx-auto sm:hidden opacity-80" />
 
         {step === 'CONFIRM' ? (
           /* KITE / GROWW STYLE MOBILE ORDER SHEET */
           <>
             {/* Header: Contract & Live LTP */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--border-color)]">
               <button
                 type="button"
                 onClick={() => {
                   navigator.vibrate?.(20);
                   handleClose();
                 }}
-                className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition cursor-pointer min-h-[44px] min-w-[44px]"
+                className="w-10 h-10 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] active:scale-95 transition cursor-pointer min-h-[44px] min-w-[44px]"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
 
               <div className="text-center">
-                <h3 className="text-sm font-black text-white">{stockName}</h3>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                <h3 className="text-sm font-black text-[var(--text-main)]">{stockName}</h3>
+                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                   LTP: ₹{stockPrice.toFixed(2)}
                 </span>
               </div>
@@ -133,7 +133,7 @@ export const MobileOrderModal: React.FC<MobileOrderModalProps> = ({
             </div>
 
             {/* BUY / SELL Toggle Bar */}
-            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+            <div className="grid grid-cols-2 gap-2 p-1 bg-[var(--bg-surface-elevated)] rounded-xl border border-[var(--border-color)]">
               <button
                 type="button"
                 onClick={() => {
@@ -142,12 +142,13 @@ export const MobileOrderModal: React.FC<MobileOrderModalProps> = ({
                 }}
                 className={`py-3 rounded-lg text-xs font-black transition-all cursor-pointer min-h-[44px] ${
                   orderSide === 'BUY'
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/40'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/20'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                 }`}
               >
                 BUY
               </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -156,247 +157,205 @@ export const MobileOrderModal: React.FC<MobileOrderModalProps> = ({
                 }}
                 className={`py-3 rounded-lg text-xs font-black transition-all cursor-pointer min-h-[44px] ${
                   orderSide === 'SELL'
-                    ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-950/20'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                 }`}
               >
                 SELL
               </button>
             </div>
 
-            {/* Product Type Switcher (Intraday MIS 5x vs Delivery CNC vs Cover Order) */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">Product Code</label>
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
-                {[
-                  { id: 'MIS', label: 'Intraday (MIS 5x)' },
-                  { id: 'CNC', label: 'Delivery (CNC)' },
-                  { id: 'CO', label: 'Cover (CO)' }
-                ].map(p => (
+            {/* Product Type (MIS Intraday vs CNC Delivery) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[var(--text-muted)]">Product Type</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['MIS', 'CNC', 'CO'] as const).map((type) => (
                   <button
-                    key={p.id}
+                    key={type}
                     type="button"
                     onClick={() => {
-                      navigator.vibrate?.(20);
-                      setProductType(p.id as any);
+                      navigator.vibrate?.(15);
+                      setProductType(type);
                     }}
-                    className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer min-h-[40px] ${
-                      productType === p.id ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                    className={`py-2.5 rounded-xl border text-xs font-bold transition cursor-pointer min-h-[44px] ${
+                      productType === type
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : 'border-[var(--border-color)] bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
                   >
-                    {p.label}
+                    {type === 'MIS' ? 'Intraday (MIS)' : type === 'CNC' ? 'Delivery (CNC)' : 'Cover (CO)'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Order Type Switcher (Market vs Limit vs SL) */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">Order Type</label>
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
-                {(['MARKET', 'LIMIT', 'SL'] as const).map(t => (
+            {/* Order Type (MARKET vs LIMIT vs SL) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[var(--text-muted)]">Order Type</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['MARKET', 'LIMIT', 'SL'] as const).map((type) => (
                   <button
-                    key={t}
+                    key={type}
                     type="button"
                     onClick={() => {
-                      navigator.vibrate?.(20);
-                      setOrderType(t);
+                      navigator.vibrate?.(15);
+                      setOrderType(type);
                     }}
-                    className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer min-h-[40px] ${
-                      orderType === t ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                    className={`py-2.5 rounded-xl border text-xs font-bold transition cursor-pointer min-h-[44px] ${
+                      orderType === type
+                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                        : 'border-[var(--border-color)] bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}
                   >
-                    {t}
+                    {type}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Quantity Stepper & Quick Lot Multipliers (InputMode Numeric for Mobile Keypad) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-                <span>Quantity</span>
-                <span className="font-mono text-emerald-400">Lot Size: {lotSize} Qty</span>
+            {/* Quantity Stepper */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[var(--text-muted)]">Quantity ({lotSize > 1 ? `${lotSize}/Lot` : 'Shares'})</label>
+                <span className="text-[11px] font-mono text-[var(--text-muted)]">
+                  Total: {quantity * lotSize} Units
+                </span>
               </div>
 
-              <div className="flex items-center gap-3 p-2 rounded-xl border border-slate-800 bg-slate-950">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.vibrate?.(20);
-                    setQuantity(Math.max(1, quantity - 1));
+                    navigator.vibrate?.(15);
+                    setQuantity((prev) => Math.max(1, prev - 1));
                   }}
-                  className="min-w-[48px] min-h-[48px] rounded-xl bg-slate-800 border border-slate-700 text-white font-black text-lg flex items-center justify-center active:scale-95 transition cursor-pointer"
+                  className="w-12 h-12 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-main)] hover:border-emerald-500 active:scale-95 transition cursor-pointer"
                 >
                   <Minus className="w-5 h-5" />
                 </button>
-                
+
                 <input
                   type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  min={1}
+                  min="1"
                   value={quantity}
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="flex-1 text-center bg-transparent text-2xl font-black text-white num-font outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="flex-1 text-center font-mono font-black text-lg py-2.5 bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-xl text-[var(--text-main)] focus:outline-none focus:border-emerald-500"
                 />
 
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.vibrate?.(20);
-                    setQuantity(quantity + 1);
+                    navigator.vibrate?.(15);
+                    setQuantity((prev) => prev + 1);
                   }}
-                  className="min-w-[48px] min-h-[48px] rounded-xl bg-slate-800 border border-slate-700 text-white font-black text-lg flex items-center justify-center active:scale-95 transition cursor-pointer"
+                  className="w-12 h-12 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-main)] hover:border-emerald-500 active:scale-95 transition cursor-pointer"
                 >
                   <Plus className="w-5 h-5" />
                 </button>
               </div>
-
-              {/* Quick Lot Multipliers */}
-              <div className="grid grid-cols-4 gap-1.5 pt-0.5">
-                {[1, 5, 10, 25].map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      navigator.vibrate?.(20);
-                      setQuantity(m * lotSize);
-                    }}
-                    className="py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-mono font-bold text-slate-300 hover:border-emerald-500/50 hover:text-white cursor-pointer min-h-[36px]"
-                  >
-                    +{m} Lot{m > 1 ? 's' : ''}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {/* Live Margin & Charges Calculator Card (Top Broker Style) */}
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 font-mono text-xs">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="flex items-center gap-1">
-                  <Zap className="w-3.5 h-3.5 text-emerald-400" /> Required Margin:
-                </span>
-                <span className="font-bold text-emerald-400 text-sm">
-                  ₹{requiredMargin.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+            {/* Margin Calculation & Breakdown */}
+            <div className="bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] rounded-2xl p-4 space-y-2 font-mono text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Order Value:</span>
+                <span className="font-bold text-[var(--text-main)]">₹{totalValue.toFixed(2)}</span>
               </div>
-
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-850">
-                <button
-                  type="button"
-                  onClick={() => setShowCharges(!showCharges)}
-                  className="flex items-center gap-1 text-slate-400 hover:text-white cursor-pointer"
-                >
-                  <Info className="w-3 h-3 text-indigo-400" /> Brokerage & Taxes: <strong className="text-white">₹{totalCharges.toFixed(2)}</strong>
-                </button>
-                <span className="text-emerald-400 font-bold">₹0 Brokerage</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[var(--text-muted)]">Margin Required ({leverageMultiplier}x):</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">₹{requiredMargin.toFixed(2)}</span>
               </div>
 
               {showCharges && (
-                <div className="pt-2 text-[10px] text-slate-400 border-t border-slate-850 space-y-1 animate-in fade-in">
-                  <div className="flex justify-between"><span>Brokerage Fee</span><span className="text-emerald-400 font-bold">₹0.00 (Zero)</span></div>
-                  <div className="flex justify-between"><span>STT / CTT Tax</span><span>₹{sttTax.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>Exchange Transaction Charges</span><span>₹{exchangeChg.toFixed(2)}</span></div>
+                <div className="pt-2 border-t border-[var(--border-color)] space-y-1 text-[11px] text-[var(--text-muted)]">
+                  <div className="flex justify-between">
+                    <span>Brokerage:</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">₹0.00 (Zero)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>STT/CTT & Exchange Chg:</span>
+                    <span>₹{totalCharges.toFixed(2)}</span>
+                  </div>
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowCharges(!showCharges)}
+                className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1 cursor-pointer pt-1"
+              >
+                <Info className="w-3 h-3" /> {showCharges ? 'Hide Charges Breakdown' : 'Show Charges & Taxes'}
+              </button>
             </div>
 
-            {/* Swipeable / Instant Submit Button */}
-            <button
-              type="button"
-              onClick={handleConfirm}
-              className={`w-full py-3.5 rounded-xl font-black text-sm shadow-xl transition-all active:scale-95 cursor-pointer min-h-[48px] flex items-center justify-center gap-2 ${
-                orderSide === 'BUY'
-                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-950/40'
-                  : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/40'
-              }`}
-            >
-              <span>Confirm {orderSide} {quantity} Qty @ ₹{stockPrice.toFixed(2)}</span>
-            </button>
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="flex-1 py-3.5 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-xs font-bold text-[var(--text-main)] hover:bg-[var(--border-color)] active:scale-95 transition cursor-pointer min-h-[44px]"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirm}
+                className={`flex-[2] py-3.5 rounded-xl text-white font-black text-xs shadow-lg flex items-center justify-center gap-2 active:scale-95 transition cursor-pointer min-h-[44px] ${
+                  orderSide === 'BUY'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/20'
+                    : 'bg-rose-600 hover:bg-rose-500 shadow-rose-950/20'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>CONFIRM {orderSide}</span>
+              </button>
+            </div>
           </>
         ) : step === 'PLACING' ? (
-          /* STEP: PLACING ORDER */
-          <div className="text-center space-y-5 py-8">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto">
-              <Loader2 className="w-10 h-10 animate-spin" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white">Submitting Order to Exchange...</h3>
-              <p className="text-xs text-slate-400 font-medium mt-1">
-                Executing {orderSide} for {stockName}
-              </p>
-            </div>
+          /* PLACING STATE */
+          <div className="py-12 text-center space-y-4">
+            <Loader2 className="w-10 h-10 text-emerald-500 animate-spin mx-auto" />
+            <h3 className="text-base font-bold text-[var(--text-main)]">Executing simulated order...</h3>
+            <p className="text-xs text-[var(--text-muted)]">Routing to TradeGrow virtual matching engine</p>
           </div>
-        ) : step === 'REJECTED' ? (
-          /* STEP: REJECTED */
-          <div className="text-center space-y-5 py-3">
-            <div className="w-16 h-16 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto animate-in zoom-in duration-200">
-              <XCircle className="w-10 h-10" />
+        ) : step === 'SUCCESS' ? (
+          /* SUCCESS STATE */
+          <div className="py-8 text-center space-y-4 font-mono">
+            <div className="w-14 h-14 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-500 mx-auto">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
+            <h3 className="text-base font-black text-[var(--text-main)]">Order Placed Successfully!</h3>
+            <p className="text-xs text-[var(--text-muted)]">
+              {orderSide} {quantity * lotSize} Qty of {stockSymbol} executed @ ₹{stockPrice.toFixed(2)}
+            </p>
 
-            <div>
-              <h3 className="text-xl font-bold text-rose-400">Order Rejected</h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                Exchange rejected your {orderSide} order.
-              </p>
-            </div>
-
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3.5 text-left">
-              <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">Reason</div>
-              <p className="text-xs font-bold text-rose-300 leading-relaxed">
-                {rejectionMessage}
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.vibrate?.(20);
-                  setStep('CONFIRM');
-                  setRejectionMessage('');
-                }}
-                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md cursor-pointer min-h-[44px]"
-              >
-                Retry Order
-              </button>
-
-              <button
-                type="button"
-                onClick={handleClose}
-                className="w-full text-xs font-bold text-slate-400 hover:text-white py-1 cursor-pointer min-h-[44px]"
-              >
-                Close Drawer
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-950/20 cursor-pointer min-h-[44px]"
+            >
+              Back to Trading
+            </button>
           </div>
         ) : (
-          /* STEP: SUCCESS */
-          <div className="text-center space-y-5 py-3">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto animate-in zoom-in duration-200">
-              <CheckCircle2 className="w-10 h-10" />
+          /* REJECTED STATE */
+          <div className="py-8 text-center space-y-4 font-mono">
+            <div className="w-14 h-14 bg-rose-500/20 rounded-full flex items-center justify-center text-rose-500 mx-auto">
+              <XCircle className="w-8 h-8" />
             </div>
+            <h3 className="text-base font-black text-rose-600 dark:text-rose-400">Order Rejected</h3>
+            <p className="text-xs text-[var(--text-muted)]">{rejectionMessage}</p>
 
-            <div>
-              <h3 className="text-xl font-bold text-white">Order Executed!</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Placed {orderSide} for {quantity} Qty of {stockName} @ ₹{stockPrice.toFixed(2)}
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="w-full py-3 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs shadow-md cursor-pointer min-h-[44px]"
-              >
-                Done
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setStep('CONFIRM')}
+              className="w-full py-3.5 rounded-xl bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-950/20 cursor-pointer min-h-[44px]"
+            >
+              Try Again
+            </button>
           </div>
         )}
-
       </div>
     </div>
   );

@@ -24,7 +24,7 @@ export const MobileChartModal: React.FC<MobileChartModalProps> = ({
   token,
   exchange = 'NSE',
   latestTick,
-  theme = 'dark',
+  theme = 'light',
   onOpenOptionChain,
   onOpenOrderModal,
 }) => {
@@ -43,21 +43,21 @@ export const MobileChartModal: React.FC<MobileChartModalProps> = ({
     : 'NIFTY';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col h-full w-full overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[1000] bg-[var(--bg-body)] flex flex-col h-full w-full overflow-hidden animate-in fade-in duration-200 text-[var(--text-main)]">
       
       {/* 1. MOBILE CHART HEADER */}
-      <div className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0">
+      <div className="h-14 bg-[var(--bg-surface)] border-b border-[var(--border-color)] px-4 flex items-center justify-between shrink-0 shadow-xs">
         <div className="flex items-center gap-2.5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-headline font-black text-base text-white tracking-tight">{symbol}</span>
-              <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">{exchange}</span>
+              <span className="font-headline font-black text-base text-[var(--text-main)] tracking-tight">{symbol}</span>
+              <span className="text-[10px] bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] px-1.5 py-0.5 rounded font-mono font-bold">{exchange}</span>
               <PriceBadge state={freshness.state} timeSinceLastTick={freshness.timeSinceLastTick} size="sm" />
             </div>
             {activeTick && (
               <div className="flex items-center gap-2 font-mono text-xs mt-0.5">
-                <span className="font-bold text-white">₹{activeTick.ltp.toFixed(2)}</span>
-                <span className={`font-bold ${activeTick.change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <span className="font-bold text-[var(--text-main)]">₹{activeTick.ltp.toFixed(2)}</span>
+                <span className={`font-bold ${activeTick.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                   {activeTick.change >= 0 ? '+' : ''}{activeTick.change.toFixed(2)} ({activeTick.changePercent.toFixed(2)}%)
                 </span>
               </div>
@@ -73,7 +73,7 @@ export const MobileChartModal: React.FC<MobileChartModalProps> = ({
                 onClose();
                 onOpenOptionChain(indexSymbol);
               }}
-              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
             >
               <Layers size={14} /> Option Chain
             </button>
@@ -82,7 +82,7 @@ export const MobileChartModal: React.FC<MobileChartModalProps> = ({
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -90,7 +90,7 @@ export const MobileChartModal: React.FC<MobileChartModalProps> = ({
       </div>
 
       {/* 2. FULLSCREEN MOBILE CHART CANVAS */}
-      <div className="flex-1 relative overflow-hidden bg-slate-950 p-2">
+      <div className="flex-1 relative overflow-hidden bg-[var(--bg-body)] p-1">
         <TradingChart
           exchange={exchange}
           symbol={symbol}
@@ -103,17 +103,17 @@ export const MobileChartModal: React.FC<MobileChartModalProps> = ({
       </div>
 
       {/* 3. FOOTER BUY / SELL ACTION BUTTONS */}
-      <div className="p-3 bg-slate-900 border-t border-slate-800 grid grid-cols-2 gap-3 shrink-0">
+      <div className="p-3 bg-[var(--bg-surface)] border-t border-[var(--border-color)] grid grid-cols-2 gap-3 shrink-0 pb-[env(safe-area-inset-bottom,12px)]">
         <button
           onClick={() => onOpenOrderModal?.('BUY', activeTick?.ltp || 100)}
-          className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+          className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
         >
           <ShoppingCart size={14} /> BUY {symbol}
         </button>
 
         <button
           onClick={() => onOpenOrderModal?.('SELL', activeTick?.ltp || 100)}
-          className="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/40 flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+          className="py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
         >
           <ShoppingCart size={14} /> SELL {symbol}
         </button>

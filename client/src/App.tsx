@@ -261,6 +261,7 @@ export function App() {
                 ticks={ticks}
                 token={token}
                 wallet={wallet}
+                theme={theme}
                 onBack={() => setActiveMobileTab('HOME')}
                 onSelectStock={(symbol, name, price) => {
                   setSelectedMobileStock({ symbol, name, price });
