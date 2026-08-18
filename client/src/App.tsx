@@ -23,6 +23,7 @@ import { ClientProfileView } from './components/ClientProfileView';
 import { MobileBottomNav } from './components/mobile/MobileBottomNav';
 import { MobileHomeView } from './components/mobile/MobileHomeView';
 import { MobilePortfolioView } from './components/mobile/MobilePortfolioView';
+import { MobileWatchlistView } from './components/mobile/MobileWatchlistView';
 import { MobileProfileView } from './components/mobile/MobileProfileView';
 import { MobileOrderModal } from './components/mobile/MobileOrderModal';
 
@@ -56,9 +57,9 @@ export function App() {
   const [isLinkPeModalOpen, setIsLinkPeModalOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
-      return (localStorage.getItem('user_theme') as 'light' | 'dark') || 'dark';
+      return (localStorage.getItem('user_theme') as 'light' | 'dark') || 'light';
     } catch (_) {
-      return 'dark';
+      return 'light';
     }
   });
 
@@ -213,9 +214,9 @@ export function App() {
   if (isMobileScreen) {
     return (
       <MarketSocketProvider userToken={token}>
-        <div className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] font-sans flex flex-col">
+        <div className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] font-sans flex flex-col w-full max-w-full overflow-x-hidden">
           {/* Mobile View Container */}
-          <div className="flex-1 max-w-md mx-auto w-full">
+          <div className="flex-1 max-w-lg mx-auto w-full">
             {activeMobileTab === 'HOME' && (
               <MobileHomeView
                 user={user}
@@ -262,8 +263,17 @@ export function App() {
             )}
 
             {activeMobileTab === 'WATCHLIST' && (
-              <div className="p-2 sm:p-4 pb-24">
-                <GrowwWatchlistView token={token || ''} onRefreshWallet={fetchWallet} />
+              <div className="p-3 pb-24">
+                <MobileWatchlistView
+                  token={token || ''}
+                  ticks={ticks}
+                  theme={theme}
+                  onOpenQuickOrder={(stock) => {
+                    setSelectedMobileStock({ symbol: stock.symbol, name: stock.name, price: stock.price });
+                    setIsMobileOrderModalOpen(true);
+                  }}
+                  onOpenOptionChain={() => setActiveMobileTab('OPTION_CHAIN')}
+                />
               </div>
             )}
 

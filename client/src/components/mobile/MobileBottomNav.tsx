@@ -15,21 +15,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <nav 
       aria-label="Mobile Navigation Bar"
-      className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-2xl border-t border-slate-800/80 px-2 h-16 flex items-center justify-around shadow-2xl pb-[env(safe-area-inset-bottom,8px)]"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--bg-surface)]/95 backdrop-blur-2xl border-t border-[var(--border-color)] px-1.5 h-15 flex items-center justify-around shadow-lg pb-[env(safe-area-inset-bottom,4px)]"
     >
       
       {/* Home Tab */}
       <button
         type="button"
-        onClick={() => onSelectTab('HOME')}
-        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+        onClick={() => {
+          navigator.vibrate?.(15);
+          onSelectTab('HOME');
+        }}
+        className={`flex flex-col items-center justify-center gap-0.5 transition-all min-h-[44px] min-w-[44px] px-2 rounded-xl active:scale-95 cursor-pointer ${
           activeTab === 'HOME' 
-            ? 'text-emerald-400 font-extrabold shadow-sm' 
-            : 'text-slate-400 font-semibold hover:text-white'
+            ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
+            : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg ${activeTab === 'HOME' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
-          <Home className="w-5 h-5" />
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'HOME' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+          <Home className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Home</span>
       </button>
@@ -37,15 +40,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {/* Watchlist Tab */}
       <button
         type="button"
-        onClick={() => onSelectTab('WATCHLIST')}
-        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+        onClick={() => {
+          navigator.vibrate?.(15);
+          onSelectTab('WATCHLIST');
+        }}
+        className={`flex flex-col items-center justify-center gap-0.5 transition-all min-h-[44px] min-w-[44px] px-2 rounded-xl active:scale-95 cursor-pointer ${
           activeTab === 'WATCHLIST' 
-            ? 'text-emerald-400 font-extrabold shadow-sm' 
-            : 'text-slate-400 font-semibold hover:text-white'
+            ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
+            : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg ${activeTab === 'WATCHLIST' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
-          <Bookmark className="w-5 h-5" />
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'WATCHLIST' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+          <Bookmark className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Watchlist</span>
       </button>
@@ -53,15 +59,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {/* Option Chain Tab */}
       <button
         type="button"
-        onClick={() => onSelectTab('OPTION_CHAIN')}
-        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+        onClick={() => {
+          navigator.vibrate?.(15);
+          onSelectTab('OPTION_CHAIN');
+        }}
+        className={`flex flex-col items-center justify-center gap-0.5 transition-all min-h-[44px] min-w-[44px] px-2 rounded-xl active:scale-95 cursor-pointer ${
           activeTab === 'OPTION_CHAIN' 
-            ? 'text-emerald-400 font-extrabold shadow-sm' 
-            : 'text-slate-400 font-semibold hover:text-white'
+            ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
+            : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg ${activeTab === 'OPTION_CHAIN' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
-          <Layers className="w-5 h-5" />
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'OPTION_CHAIN' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+          <Layers className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Options</span>
       </button>
@@ -69,15 +78,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {/* Positions Tab */}
       <button
         type="button"
-        onClick={() => onSelectTab('POSITIONS')}
-        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+        onClick={() => {
+          navigator.vibrate?.(15);
+          onSelectTab('POSITIONS');
+        }}
+        className={`flex flex-col items-center justify-center gap-0.5 transition-all min-h-[44px] min-w-[44px] px-2 rounded-xl active:scale-95 cursor-pointer ${
           activeTab === 'POSITIONS' 
-            ? 'text-emerald-400 font-extrabold shadow-sm' 
-            : 'text-slate-400 font-semibold hover:text-white'
+            ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
+            : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg ${activeTab === 'POSITIONS' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
-          <Briefcase className="w-5 h-5" />
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'POSITIONS' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+          <Briefcase className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Positions</span>
       </button>
@@ -86,15 +98,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {isAdmin && (
         <button
           type="button"
-          onClick={() => onSelectTab('ADMIN')}
-          className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+          onClick={() => {
+            navigator.vibrate?.(15);
+            onSelectTab('ADMIN');
+          }}
+          className={`flex flex-col items-center justify-center gap-0.5 transition-all min-h-[44px] min-w-[44px] px-2 rounded-xl active:scale-95 cursor-pointer ${
             activeTab === 'ADMIN' 
-              ? 'text-rose-400 font-extrabold shadow-sm' 
-              : 'text-slate-400 font-semibold hover:text-white'
+              ? 'text-rose-600 dark:text-rose-400 font-extrabold' 
+              : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
           }`}
         >
-          <div className={`p-1 rounded-lg ${activeTab === 'ADMIN' ? 'bg-rose-500/20 text-rose-400' : ''}`}>
-            <ShieldCheck className="w-5 h-5" />
+          <div className={`p-1 rounded-lg transition-colors ${activeTab === 'ADMIN' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400' : ''}`}>
+            <ShieldCheck className="w-4.5 h-4.5" />
           </div>
           <span className="text-[10px] tracking-tight">Admin</span>
         </button>
@@ -103,15 +118,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       {/* Profile Tab */}
       <button
         type="button"
-        onClick={() => onSelectTab('PROFILE')}
-        className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] min-w-[48px] px-2 rounded-xl active:scale-95 cursor-pointer ${
+        onClick={() => {
+          navigator.vibrate?.(15);
+          onSelectTab('PROFILE');
+        }}
+        className={`flex flex-col items-center justify-center gap-0.5 transition-all min-h-[44px] min-w-[44px] px-2 rounded-xl active:scale-95 cursor-pointer ${
           activeTab === 'PROFILE' 
-            ? 'text-emerald-400 font-extrabold shadow-sm' 
-            : 'text-slate-400 font-semibold hover:text-white'
+            ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' 
+            : 'text-[var(--text-muted)] font-semibold hover:text-[var(--text-main)]'
         }`}
       >
-        <div className={`p-1 rounded-lg ${activeTab === 'PROFILE' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}>
-          <User className="w-5 h-5" />
+        <div className={`p-1 rounded-lg transition-colors ${activeTab === 'PROFILE' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : ''}`}>
+          <User className="w-4.5 h-4.5" />
         </div>
         <span className="text-[10px] tracking-tight">Profile</span>
       </button>
@@ -119,3 +137,4 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     </nav>
   );
 };
+

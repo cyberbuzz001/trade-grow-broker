@@ -115,151 +115,151 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
       </div>
 
       {/* 2. REAL-TIME MARGIN & CAPITAL CARD (Kite/Groww Style) */}
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4.5 relative overflow-hidden shadow-sm backdrop-blur-xl group">
-        <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all pointer-events-none"></div>
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 relative overflow-hidden shadow-xs backdrop-blur-xl group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all pointer-events-none"></div>
         
         <div className="relative z-10 space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-wider font-mono">Available Trading Margin</span>
-            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[10px] font-bold font-mono">
+            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono">
               ₹0 BROKERAGE
             </span>
           </div>
 
-          <div className="flex items-baseline justify-between pt-1">
-            <h2 className="font-mono text-3xl font-black tracking-tight tabular-nums text-[var(--text-main)]">
+          <div className="flex items-baseline justify-between pt-0.5">
+            <h2 className="font-mono text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-[var(--text-main)]">
               ₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h2>
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-[var(--text-muted)] pt-2 border-t border-[var(--border-color)] font-mono">
-            <span className="text-emerald-500 flex items-center gap-1">
-              <Zap className="w-3.5 h-3.5" /> 5.0x Intraday Leverage (MIS)
+          <div className="flex items-center justify-between text-[11px] font-bold text-[var(--text-muted)] pt-1.5 border-t border-[var(--border-color)] font-mono">
+            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <Zap className="w-3 h-3" /> 5.0x Intraday Leverage
             </span>
             <span className="text-[var(--text-main)]">Ready</span>
           </div>
         </div>
 
-        {/* Sparkline Graphic */}
-        <div className="mt-2 h-8 w-full relative opacity-90">
+        {/* Compact Sparkline Graphic */}
+        <div className="mt-1.5 h-6 w-full relative opacity-85">
           <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 30">
             <defs>
               <linearGradient id="mobileChartGradient" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="#22C55E" stopOpacity="0.4"></stop>
-                <stop offset="100%" stopColor="#22C55E" stopOpacity="0"></stop>
+                <stop offset="0%" stopColor="#16A34A" stopOpacity="0.35"></stop>
+                <stop offset="100%" stopColor="#16A34A" stopOpacity="0"></stop>
               </linearGradient>
             </defs>
             <path d="M0 30 L0 15 Q 10 10, 20 20 T 40 10 T 60 15 T 80 5 T 100 10 L100 30 Z" fill="url(#mobileChartGradient)"></path>
-            <path d="M0 15 Q 10 10, 20 20 T 40 10 T 60 15 T 80 5 T 100 10" fill="none" stroke="#22C55E" strokeWidth="2"></path>
+            <path d="M0 15 Q 10 10, 20 20 T 40 10 T 60 15 T 80 5 T 100 10" fill="none" stroke="#16A34A" strokeWidth="2"></path>
           </svg>
         </div>
       </div>
 
-      {/* 3. LIVE MARKET INDEX CHIPS (Kite / Groww Mobile Ticker Bar) */}
+      {/* 3. LIVE MARKET INDEX GRID (Fits 360px-430px Screen Widths Without Horizontal Scroll) */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Market Indices (Tap for Chart/Option Chain)</span>
-          <span className="text-[10px] font-mono text-emerald-500 font-bold">REAL-TIME TIX</span>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono">Market Indices</span>
+          <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">REAL-TIME TIX</span>
         </div>
 
-        <div className="flex gap-2.5 overflow-x-auto scrollbar-none pb-1">
-          {/* NIFTY 50 CHIP */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {/* NIFTY 50 */}
           <div
             onClick={() => {
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'NIFTY 50', token: 'NSE_NIFTY50', exchange: 'NSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-[var(--text-main)]">NIFTY 50</span>
-              <span className="text-emerald-500 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.42%</span>
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">NIFTY 50</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-bold bg-emerald-500/10 px-1 py-0.2 rounded">+0.42%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
+            <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getNifty(), 24856.15)}
             </div>
-            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-emerald-500 h-full w-[65%]"></div>
             </div>
           </div>
 
-          {/* SENSEX CHIP */}
+          {/* SENSEX */}
           <div
             onClick={() => {
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'SENSEX', token: 'BSE_SENSEX', exchange: 'BSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-[var(--text-main)]">SENSEX</span>
-              <span className="text-emerald-500 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.38%</span>
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">SENSEX</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-bold bg-emerald-500/10 px-1 py-0.2 rounded">+0.38%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
+            <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getSensex(), 81254.30)}
             </div>
-            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-emerald-500 h-full w-[58%]"></div>
             </div>
           </div>
 
-          {/* BANK NIFTY CHIP */}
+          {/* BANK NIFTY */}
           <div
             onClick={() => {
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'BANKNIFTY', token: 'NSE_BANKNIFTY', exchange: 'NSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-rose-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-rose-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-[var(--text-main)]">BANK NIFTY</span>
-              <span className="text-rose-500 font-mono text-[10px] font-bold bg-rose-500/10 px-1.5 py-0.2 rounded">-0.15%</span>
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">BANK NIFTY</span>
+              <span className="text-rose-600 dark:text-rose-400 font-mono text-[9px] font-bold bg-rose-500/10 px-1 py-0.2 rounded">-0.15%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
+            <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getBankNifty(), 52150.75)}
             </div>
-            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-rose-500 h-full w-[42%]"></div>
             </div>
           </div>
 
-          {/* FIN NIFTY CHIP */}
+          {/* FIN NIFTY */}
           <div
             onClick={() => {
               navigator.vibrate?.(20);
               setSelectedIndexModal({ symbol: 'FINNIFTY', token: 'NSE_FINNIFTY', exchange: 'NSE' });
             }}
-            className="bg-[var(--bg-surface)] rounded-xl p-3 min-w-[135px] flex-shrink-0 border border-[var(--border-color)] hover:border-emerald-500/50 backdrop-blur-xl cursor-pointer active:scale-95 transition-all shadow-xs"
+            className="bg-[var(--bg-surface)] rounded-xl p-2.5 border border-[var(--border-color)] hover:border-emerald-500/50 cursor-pointer active:scale-95 transition-all shadow-xs"
           >
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[11px] font-bold text-[var(--text-main)]">FIN NIFTY</span>
-              <span className="text-emerald-500 font-mono text-[10px] font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded">+0.22%</span>
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="text-[11px] font-extrabold text-[var(--text-main)] truncate">FIN NIFTY</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-bold bg-emerald-500/10 px-1 py-0.2 rounded">+0.22%</span>
             </div>
-            <div className="font-mono text-sm font-black tabular-nums text-[var(--text-main)]">
+            <div className="font-mono text-xs font-black tabular-nums text-[var(--text-main)]">
               {formatLtp(getFinNifty(), 23890.40)}
             </div>
-            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-2 overflow-hidden">
+            <div className="w-full bg-[var(--bg-surface-elevated)] rounded-full h-1 mt-1.5 overflow-hidden">
               <div className="bg-emerald-500 h-full w-[50%]"></div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. TOP BROKER QUICK ACTION GRID (Groww / Kite Shortcuts) */}
+      {/* 4. TOP BROKER QUICK ACTION GRID */}
       <div>
-        <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono block mb-2">Shortcuts & Tools</span>
-        <div className="grid grid-cols-3 gap-2">
+        <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider font-mono block mb-1.5">Shortcuts & Tools</span>
+        <div className="grid grid-cols-4 gap-1.5">
           <div 
             onClick={() => {
               navigator.vibrate?.(20);
-              onSelectStock('NIFTY 24850 CE', 'Nifty Option Chain', 125.0);
+              onOpenOptionChain?.('NIFTY 50');
             }}
-            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95 shadow-xs"
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-2 rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[58px] active:scale-95 shadow-xs"
           >
-            <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-500">
-              <Layers className="w-4 h-4" />
+            <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <Layers className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[11px] font-bold text-[var(--text-main)] text-center leading-tight">Option Chain</span>
+            <span className="text-[10px] font-bold text-[var(--text-main)] text-center leading-tight">Options</span>
           </div>
 
           <div 
@@ -267,12 +267,12 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               onSelectStock('MARKET_SCANNER', 'Market Scanner', 0);
             }}
-            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95 shadow-xs"
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-2 rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[58px] active:scale-95 shadow-xs"
           >
-            <div className="p-2 rounded-lg bg-indigo-500/15 text-indigo-500">
-              <Zap className="w-4 h-4" />
+            <div className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+              <Zap className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[11px] font-bold text-[var(--text-main)] text-center leading-tight">AI Screener</span>
+            <span className="text-[10px] font-bold text-[var(--text-main)] text-center leading-tight">AI Scan</span>
           </div>
 
           <div 
@@ -280,12 +280,25 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
               navigator.vibrate?.(20);
               onSelectStock('RELIANCE', 'Reliance Industries', 3014.20);
             }}
-            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[64px] active:scale-95 shadow-xs"
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-2 rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[58px] active:scale-95 shadow-xs"
           >
-            <div className="p-2 rounded-lg bg-amber-500/15 text-amber-500">
-              <Award className="w-4 h-4" />
+            <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <Award className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[11px] font-bold text-[var(--text-main)] text-center leading-tight">IPO (8 Open)</span>
+            <span className="text-[10px] font-bold text-[var(--text-main)] text-center leading-tight">IPO</span>
+          </div>
+
+          <div 
+            onClick={() => {
+              navigator.vibrate?.(20);
+              onOpenSearch();
+            }}
+            className="bg-[var(--bg-surface)] border border-[var(--border-color)] p-2 rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-emerald-500/50 transition-all min-h-[58px] active:scale-95 shadow-xs"
+          >
+            <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400">
+              <Search className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-[10px] font-bold text-[var(--text-main)] text-center leading-tight">Search</span>
           </div>
         </div>
       </div>
