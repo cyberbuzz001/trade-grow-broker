@@ -25,9 +25,11 @@ export class DhanAdapter implements IMarketDataProvider {
 
   // Common Dhan Security IDs mapping
   private static DHAN_SECURITY_MAP: Record<string, { segment: string; securityId: string }> = {
-    'NSE_NIFTY50': { segment: 'NSE_INDEX', securityId: '13' },
-    'NSE_BANKNIFTY': { segment: 'NSE_INDEX', securityId: '25' },
+    'NSE_NIFTY50': { segment: 'IDX_I', securityId: '13' },
+    'NSE_BANKNIFTY': { segment: 'IDX_I', securityId: '25' },
     'BSE_SENSEX': { segment: 'IDX_I', securityId: '51' },
+    'NSE_FINNIFTY': { segment: 'IDX_I', securityId: '27' },
+    'NSE_MIDCPNIFTY': { segment: 'IDX_I', securityId: '33' },
     'NSE_RELIANCE': { segment: 'NSE_EQ', securityId: '2885' },
     'NSE_TCS': { segment: 'NSE_EQ', securityId: '11536' },
     'NSE_INFY': { segment: 'NSE_EQ', securityId: '1594' },
@@ -299,8 +301,8 @@ export class DhanAdapter implements IMarketDataProvider {
 
     const tick: MarketTick = {
       instrumentToken: token,
-      exchange: token.startsWith('BSE_') ? 'BSE' : 'NSE',
-      symbol: token.replace(/^(NSE_|BSE_|NFO_)/, ''),
+      exchange: (token.startsWith('BSE_') || token.startsWith('BFO_')) ? 'BSE' : 'NSE',
+      symbol: token.replace(/^(NSE_|BSE_|NFO_|BFO_)/, ''),
       ltp: Number(ltp.toFixed(2)),
       open,
       high,
@@ -350,8 +352,8 @@ export class DhanAdapter implements IMarketDataProvider {
 
             const tick: MarketTick = {
               instrumentToken: token,
-              exchange: token.startsWith('BSE_') ? 'BSE' : 'NSE',
-              symbol: token.replace(/^(NSE_|BSE_|NFO_)/, ''),
+              exchange: (token.startsWith('BSE_') || token.startsWith('BFO_')) ? 'BSE' : 'NSE',
+              symbol: token.replace(/^(NSE_|BSE_|NFO_|BFO_)/, ''),
               ltp,
               open,
               high,
@@ -386,11 +388,11 @@ export class DhanAdapter implements IMarketDataProvider {
     }
 
     // Explicit index spot security ID mappings
-    if (cleanToken === 'NSE_NIFTY50' || cleanToken === 'NSE_NIFTY') return { segment: 'NSE_INDEX', securityId: '13' };
-    if (cleanToken === 'NSE_BANKNIFTY') return { segment: 'NSE_INDEX', securityId: '25' };
-    if (cleanToken === 'BSE_SENSEX') return { segment: 'IDX_I', securityId: '51' };
-    if (cleanToken === 'NSE_FINNIFTY') return { segment: 'NSE_INDEX', securityId: '27' };
-    if (cleanToken === 'NSE_MIDCPNIFTY') return { segment: 'NSE_INDEX', securityId: '33' };
+    if (cleanToken === 'NSE_NIFTY50' || cleanToken === 'NSE_NIFTY') return { segment: 'IDX_I', securityId: '13' };
+    if (cleanToken === 'NSE_BANKNIFTY') return { segment: 'IDX_I', securityId: '25' };
+    if (cleanToken === 'BSE_SENSEX' || cleanToken === 'SENSEX') return { segment: 'IDX_I', securityId: '51' };
+    if (cleanToken === 'NSE_FINNIFTY') return { segment: 'IDX_I', securityId: '27' };
+    if (cleanToken === 'NSE_MIDCPNIFTY') return { segment: 'IDX_I', securityId: '33' };
 
     // Query InstrumentMasterService loaded Dhan Scrip Master
     try {
@@ -666,7 +668,7 @@ export class DhanAdapter implements IMarketDataProvider {
     const cacheKey = `${cleanSym}_${targetExpiry}`;
 
     const cached = DhanAdapter.optionChainCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 2000) {
+    if (cached && Date.now() - cached.timestamp < 10000) {
       return cached.rows;
     }
 

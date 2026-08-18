@@ -57,55 +57,7 @@ export class OptionChainEngine {
     const rangeCount = params.strikeRange === '5' ? 5 : params.strikeRange === '20' ? 20 : params.strikeRange === 'ALL' ? 50 : 10;
     const isAll = params.strikeRange === 'ALL';
 
-    // Tier 1: Try Dhan HQ official live option chain first
-    try {
-      const { DhanAdapter } = await import('./DhanAdapter');
-      const dhanAdapter = new DhanAdapter();
-      const dhanChain = await dhanAdapter.getOptionChain(underlying, params.expiry);
-      if (dhanChain && dhanChain.length > 0) {
-        const spotToken = isSensex ? 'BSE_SENSEX' : isBanknifty ? 'NSE_BANKNIFTY' : isFinnifty ? 'NSE_FINNIFTY' : isMidcp ? 'NSE_MIDCPNIFTY' : 'NSE_NIFTY50';
-        const engine = MarketDataEngine.getInstance();
-        const liveSpotTick = engine.getCachedTick(spotToken) || engine.getCachedTick(`NSE_${underlying}`) || engine.getCachedTick(underlying);
-        const defaultSpot = isSensex ? 78250.00 : isBanknifty ? 57600 : isFinnifty ? 25800 : 24250.00;
-        const liveSpot = (liveSpotTick && liveSpotTick.ltp > 0) ? liveSpotTick.ltp : (params.spotPrice || OptionChainEngine.lastKnownSpotPrices.get(spotToken) || defaultSpot);
-        const liveAtmStrike = Math.round(liveSpot / step) * step;
-        const liveExpiry = dhanChain[0]?.expiry || params.expiry || '2026-08-18';
-        const futuresPrice = liveSpot + (isBanknifty ? 140 : isSensex ? 210 : 65);
 
-        let filtered = dhanChain;
-        if (!isAll) {
-          const minStrike = liveAtmStrike - (rangeCount * step);
-          const maxStrike = liveAtmStrike + (rangeCount * step);
-          filtered = dhanChain.filter(item => item.strikePrice >= minStrike && item.strikePrice <= maxStrike);
-          if (filtered.length === 0) filtered = dhanChain;
-        }
-        filtered.sort((a, b) => a.strikePrice - b.strikePrice);
-
-        let totalCallOI = 0;
-        let totalPutOI = 0;
-        filtered.forEach(item => {
-          totalCallOI += item.ce?.openInterest || 0;
-          totalPutOI += item.pe?.openInterest || 0;
-        });
-        const pcrRatio = totalCallOI > 0 ? Number((totalPutOI / totalCallOI).toFixed(2)) : 1.0;
-
-        return {
-          underlying,
-          exchange,
-          spotPrice: liveSpot,
-          futuresPrice,
-          atmStrike: liveAtmStrike,
-          expiry: liveExpiry,
-          lotSize,
-          spotSource: 'dhan',
-          pcrRatio,
-          maxPainStrike: liveAtmStrike,
-          chain: filtered
-        };
-      }
-    } catch (err: any) {
-      console.warn('[OptionChainEngine] Dhan live option chain fetch failed:', err.message);
-    }
 
     // Fetch live spot price from MarketDataEngine
     const spotToken = isSensex ? 'BSE_SENSEX' : isBanknifty ? 'NSE_BANKNIFTY' : isFinnifty ? 'NSE_FINNIFTY' : isMidcp ? 'NSE_MIDCPNIFTY' : 'NSE_NIFTY50';
@@ -263,7 +215,26 @@ export class OptionChainEngine {
       const dhanChain = await dhanAdapter.getOptionChain(underlying, expiry);
       if (dhanChain && dhanChain.length > 0) {
         const filteredDhanChain = filterAndSanitizeChain(dhanChain);
-        return { underlying, exchange, spotPrice, futuresPrice, atmStrike, expiry, lotSize, spotSource, chain: filteredDhanChain };
+        let totalCallOI = 0;
+        let totalPutOI = 0;
+        filteredDhanChain.forEach(item => {
+          totalCallOI += item.ce?.openInterest || 0;
+          totalPutOI += item.pe?.openInterest || 0;
+        });
+        const pcrRatio = totalCallOI > 0 ? Number((totalPutOI / totalCallOI).toFixed(2)) : 1.0;
+        return {
+          underlying,
+          exchange,
+          spotPrice,
+          futuresPrice,
+          atmStrike,
+          expiry,
+          lotSize,
+          spotSource: spotSource || 'dhan',
+          pcrRatio,
+          maxPainStrike: atmStrike,
+          chain: filteredDhanChain
+        };
       }
     } catch (err: any) {
       console.warn('[OptionChainEngine] Dhan option chain fetch failed:', err.message);

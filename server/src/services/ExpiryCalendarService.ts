@@ -101,10 +101,17 @@ export class ExpiryCalendarService {
       const d = new Date(r.expiry);
       return isNaN(d.getTime()) ? '' : this.formatYYYYMMDD(d);
     }).filter(Boolean);
+    let dhanExpiries: string[] = [];
+    try {
+      const { DhanAdapter } = await import('../marketData/DhanAdapter');
+      const dhan = new DhanAdapter();
+      dhanExpiries = await dhan.getExpiryList(cleanSym);
+    } catch (_) {}
+
     const calculatedExpiries = await this.generateCalculatedExpiries(cleanSym);
 
-    // Combine DB expiries with calculated calendar expiries
-    const allExpiriesCombined = Array.from(new Set([...dbExpiries, ...calculatedExpiries])).filter(e => e >= todayStr).sort();
+    // Combine Dhan expiries, DB expiries, and calculated calendar expiries
+    const allExpiriesCombined = Array.from(new Set([...dhanExpiries, ...dbExpiries, ...calculatedExpiries])).filter(e => e >= todayStr).sort();
 
     const nearestExpiry = allExpiriesCombined[0] || null;
     const nextExpiry = allExpiriesCombined[1] || null;
