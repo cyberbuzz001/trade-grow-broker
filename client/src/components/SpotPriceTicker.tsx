@@ -102,18 +102,16 @@ export const SpotPriceTicker: React.FC<SpotPriceTickerProps> = ({
             ₹{ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
 
-          {change !== 0 && (
-            <span
-              className={`text-xs font-extrabold flex items-center gap-0.5 ${
-                isPositive ? 'text-emerald-500' : 'text-rose-500'
-              }`}
-            >
-              {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-              {isPositive ? '+' : ''}
-              {change.toFixed(2)} ({isPositive ? '+' : ''}
-              {changePercent.toFixed(2)}%)
-            </span>
-          )}
+          <span
+            className={`text-xs font-extrabold flex items-center gap-0.5 ${
+              isPositive ? 'text-emerald-500' : 'text-rose-500'
+            }`}
+          >
+            {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+            {isPositive ? '+' : ''}
+            {change.toFixed(2)} ({isPositive ? '+' : ''}
+            {changePercent.toFixed(2)}%)
+          </span>
         </div>
       </div>
     </div>

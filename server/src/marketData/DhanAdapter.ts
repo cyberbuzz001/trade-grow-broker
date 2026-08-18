@@ -279,51 +279,94 @@ export class DhanAdapter implements IMarketDataProvider {
     const token = this.findTokenBySecurityId(securityId);
     if (!token) return;
 
-    let ltp = 0;
-    let volume = 0;
-
-    if (buf.length >= 16) {
-      ltp = buf.readFloatLE(8);
+    if (responseCode === 6) {
+      // Packet Code 6: Previous Close Price and Open Interest
+      if (buf.length >= 12) {
+        const prevClose = buf.readFloatLE(8);
+        if (prevClose > 0) {
+          const existing = this.tickCache.get(token);
+          if (existing) {
+            existing.close = Number(prevClose.toFixed(2));
+            existing.change = Number((existing.ltp - prevClose).toFixed(2));
+            existing.changePercent = Number(((existing.change / prevClose) * 100).toFixed(2));
+            this.tickCache.set(token, existing);
+            this.callbacks.forEach(cb => cb(existing));
+          } else {
+            const preTick: MarketTick = {
+              instrumentToken: token,
+              exchange: (token.startsWith('BSE_') || token.startsWith('BFO_')) ? 'BSE' : 'NSE',
+              symbol: token.replace(/^(NSE_|BSE_|NFO_|BFO_)/, ''),
+              ltp: Number(prevClose.toFixed(2)),
+              open: Number(prevClose.toFixed(2)),
+              high: Number(prevClose.toFixed(2)),
+              low: Number(prevClose.toFixed(2)),
+              close: Number(prevClose.toFixed(2)),
+              volume: 0,
+              change: 0,
+              changePercent: 0,
+              bid: Number(prevClose.toFixed(2)),
+              ask: Number(prevClose.toFixed(2)),
+              bidQty: 100,
+              askQty: 100,
+              source: 'dhan',
+              isSynthetic: false,
+              timestamp: Date.now()
+            };
+            this.tickCache.set(token, preTick);
+          }
+        }
+      }
+      return;
     }
-    if (buf.length >= 24) {
-      volume = buf.readInt32LE(20);
+
+    if (responseCode === 2 || responseCode === 4) {
+      // Packet Code 2 (Ticker / LTP) & Packet Code 4 (Quote)
+      let ltp = 0;
+      let volume = 0;
+
+      if (buf.length >= 12) {
+        ltp = buf.readFloatLE(8);
+      }
+      if (buf.length >= 20) {
+        volume = buf.readInt32LE(16);
+      }
+
+      if (ltp <= 0) return;
+
+      const existing = this.tickCache.get(token);
+      const close = existing && existing.close > 0 ? existing.close : ltp;
+      const open = existing ? existing.open : ltp;
+      const high = existing ? Math.max(existing.high, ltp) : ltp;
+      const low = existing ? Math.min(existing.low, ltp) : ltp;
+      const change = Number((ltp - close).toFixed(2));
+      const changePercent = close > 0 ? Number(((change / close) * 100).toFixed(2)) : 0;
+
+      const tick: MarketTick = {
+        instrumentToken: token,
+        exchange: (token.startsWith('BSE_') || token.startsWith('BFO_')) ? 'BSE' : 'NSE',
+        symbol: token.replace(/^(NSE_|BSE_|NFO_|BFO_)/, ''),
+        ltp: Number(ltp.toFixed(2)),
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        volume: volume > 0 ? volume : (existing ? existing.volume : 50000),
+        change,
+        changePercent,
+        bid: Number((ltp - 0.05).toFixed(2)),
+        ask: Number((ltp + 0.05).toFixed(2)),
+        bidQty: 100,
+        askQty: 100,
+        source: 'dhan',
+        isSynthetic: false,
+        timestamp: Date.now()
+      };
+
+      this.lastTickTime = Date.now();
+      this.healthy = true;
+      this.tickCache.set(token, tick);
+      this.callbacks.forEach(cb => cb(tick));
     }
-
-    if (ltp <= 0) return;
-
-    const existing = this.tickCache.get(token);
-    const open = existing ? existing.open : ltp;
-    const high = existing ? Math.max(existing.high, ltp) : ltp;
-    const low = existing ? Math.min(existing.low, ltp) : ltp;
-    const close = existing ? existing.close : ltp;
-    const change = Number((ltp - close).toFixed(2));
-    const changePercent = close > 0 ? Number(((change / close) * 100).toFixed(2)) : 0;
-
-    const tick: MarketTick = {
-      instrumentToken: token,
-      exchange: (token.startsWith('BSE_') || token.startsWith('BFO_')) ? 'BSE' : 'NSE',
-      symbol: token.replace(/^(NSE_|BSE_|NFO_|BFO_)/, ''),
-      ltp: Number(ltp.toFixed(2)),
-      open,
-      high,
-      low,
-      close,
-      volume,
-      change,
-      changePercent,
-      bid: Number((ltp - 0.05).toFixed(2)),
-      ask: Number((ltp + 0.05).toFixed(2)),
-      bidQty: 100,
-      askQty: 100,
-      source: 'dhan',
-      isSynthetic: false,
-      timestamp: Date.now()
-    };
-
-    this.lastTickTime = Date.now();
-    this.healthy = true;
-    this.tickCache.set(token, tick);
-    this.callbacks.forEach(cb => cb(tick));
   }
 
   private handleJsonMessage(str: string): void {

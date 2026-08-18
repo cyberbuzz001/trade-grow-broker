@@ -51,8 +51,13 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
   const ceLtp = ceTick?.ltp && ceTick.ltp > 0 ? ceTick.ltp : row.ce.ltp;
   const peLtp = peTick?.ltp && peTick.ltp > 0 ? peTick.ltp : row.pe.ltp;
 
-  const ceChangePct = ceTick?.changePercent !== undefined ? ceTick.changePercent : (row.ce.change ? (row.ce.change / (ceLtp - row.ce.change || 1)) * 100 : 0);
-  const peChangePct = peTick?.changePercent !== undefined ? peTick.changePercent : (row.pe.change ? (row.pe.change / (peLtp - row.pe.change || 1)) * 100 : 0);
+  const ceChangePct = (ceTick?.changePercent !== undefined && !isNaN(ceTick.changePercent)) 
+    ? ceTick.changePercent 
+    : (row.ce.change ? (row.ce.change / (ceLtp - row.ce.change || 1)) * 100 : 0);
+
+  const peChangePct = (peTick?.changePercent !== undefined && !isNaN(peTick.changePercent)) 
+    ? peTick.changePercent 
+    : (row.pe.change ? (row.pe.change / (peLtp - row.pe.change || 1)) * 100 : 0);
 
   const prevCeLtpRef = useRef<number>(ceLtp);
   const prevPeLtpRef = useRef<number>(peLtp);
