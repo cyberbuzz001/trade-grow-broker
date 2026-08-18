@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, AlertTriangle, ShieldCheck, Plus, Minus, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { X, Send, AlertTriangle, ShieldCheck, Plus, Minus, CheckCircle2, XCircle, Loader2, Wallet, Calculator } from 'lucide-react';
 
 export interface OrderPreviewDetails {
   token: string;
@@ -39,12 +39,30 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
   const [productType, setProductType] = useState<'MIS' | 'NRML'>('MIS');
 
   const [marginQuote, setMarginQuote] = useState<any>(null);
+  const [userWalletBalance, setUserWalletBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Order submission state — shown INSIDE the modal
   const [orderStep, setOrderStep] = useState<'FORM' | 'PLACING' | 'SUCCESS' | 'REJECTED'>('FORM');
   const [rejectionMessage, setRejectionMessage] = useState('');
   const [confirmedOrderId, setConfirmedOrderId] = useState('');
+
+  // Fetch live wallet balance when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const authToken = userToken || localStorage.getItem('token') || localStorage.getItem('stocksharp_token') || '';
+    if (!authToken) return;
+    fetch('/api/v1/auth/me', {
+      headers: { Authorization: `Bearer ${authToken}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.wallet) {
+          setUserWalletBalance(data.wallet.buyingPower ?? data.wallet.cashBalance ?? 0);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, userToken]);
 
   // Initialize editable state when modal opens or details change
   useEffect(() => {
@@ -95,7 +113,7 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
           setMarginQuote({
             canPlaceOrder: true,
             requiredMargin: currentPrice * currentQty / (productType === 'MIS' ? 5 : 1),
-            availableFunds: 1000000,
+            availableFunds: userWalletBalance ?? 1000000,
             statutoryCharges: { total: 12.50 }
           });
         }
@@ -105,12 +123,12 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
         setMarginQuote({
           canPlaceOrder: true,
           requiredMargin: currentPrice * currentQty / (productType === 'MIS' ? 5 : 1),
-          availableFunds: 1000000,
+          availableFunds: userWalletBalance ?? 1000000,
           statutoryCharges: { total: 12.50 }
         });
         setLoading(false);
       });
-  }, [isOpen, details, userToken, lots, orderType, price, productType]);
+  }, [isOpen, details, userToken, lots, orderType, price, productType, userWalletBalance]);
 
   if (!isOpen || !details) return null;
 
@@ -488,8 +506,7 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
                 </div>
               ) : marginQuote ? (
                 <div className="space-y-2">
-                  
-                  <div className="bg-[#161B22] p-3 rounded-xl border border-[#30363D] space-y-1.5 text-[11px] tabular-nums">
+                  <div className="bg-[#161B22] p-3 rounded-xl border border-[#30363D] space-y-2 text-[11px] tabular-nums">
                     <div className="flex justify-between items-center text-[#8B949E]">
                       <span>Gross Order Premium ({totalQty} Qty):</span>
                       <span className="font-bold text-white">₹{orderValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
@@ -502,14 +519,73 @@ export const OrderPreviewModal: React.FC<OrderPreviewModalProps> = ({
                       <span className="text-xs font-black">₹0.00 (FREE)</span>
                     </div>
 
-                    <div className="border-t border-[#30363D] pt-1.5 flex justify-between items-center font-bold text-xs">
-                      <span className="text-white">Total Required Capital:</span>
-                      <span className="text-[#00E676] text-xs font-black">
-                        ₹{(marginQuote.requiredMargin || orderValue / 5).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
+                    {/* DUAL MARGIN DISPLAY: AVAILABLE MARGIN & REQUIRED MARGIN */}
+                    {(() => {
+                      const avail = marginQuote.availableFunds ?? userWalletBalance ?? 0;
+                      const reqMargin = marginQuote.requiredMargin ?? (orderValue / (productType === 'MIS' ? 5 : 1));
+                      const isSufficient = avail >= reqMargin;
+                      const diff = Math.abs(avail - reqMargin);
 
+                      return (
+                        <>
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#30363D]">
+                            {/* Available Margin */}
+                            <div className="bg-[#0D1117] p-2 rounded-xl border border-cyan-500/30 flex flex-col justify-between shadow-sm">
+                              <span className="text-[9px] text-cyan-300 font-bold uppercase tracking-tight flex items-center gap-1">
+                                <Wallet size={12} className="text-cyan-400" /> Available Margin
+                              </span>
+                              <span className="text-xs font-extrabold text-cyan-400 mt-1">
+                                ₹{avail.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+
+                            {/* Required Margin */}
+                            <div className={`bg-[#0D1117] p-2 rounded-xl border flex flex-col justify-between shadow-sm ${
+                              isSufficient ? 'border-emerald-500/30' : 'border-rose-500/40'
+                            }`}>
+                              <span className={`text-[9px] font-bold uppercase tracking-tight flex items-center gap-1 ${
+                                isSufficient ? 'text-emerald-400' : 'text-rose-400'
+                              }`}>
+                                <Calculator size={12} /> Required Margin
+                              </span>
+                              <span className={`text-xs font-extrabold mt-1 ${
+                                isSufficient ? 'text-[#00E676]' : 'text-rose-400'
+                              }`}>
+                                ₹{reqMargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Margin Sufficiency / Shortfall Indicator */}
+                          <div className={`py-1.5 px-2 rounded-lg flex items-center justify-between text-[10px] font-bold border ${
+                            isSufficient
+                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                          }`}>
+                            <span className="flex items-center gap-1">
+                              {isSufficient ? (
+                                <>
+                                  <CheckCircle2 size={12} className="text-emerald-400" />
+                                  <span>Margin Status:</span>
+                                </>
+                              ) : (
+                                <>
+                                  <AlertTriangle size={12} className="text-rose-400" />
+                                  <span>Shortfall Alert:</span>
+                                </>
+                              )}
+                            </span>
+                            <span className="font-mono">
+                              {isSufficient
+                                ? `✓ Sufficient (₹${diff.toLocaleString('en-IN', { minimumFractionDigits: 2 })} left)`
+                                : `⚠️ Need ₹${diff.toLocaleString('en-IN', { minimumFractionDigits: 2 })} more`}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
+
+                  </div>
                 </div>
               ) : null}
 
