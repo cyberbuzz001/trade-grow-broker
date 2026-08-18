@@ -6,26 +6,83 @@ import { SymbologyNormalizer } from '../marketData/SymbologyNormalizer';
 import { getJwtSecret } from '../middleware/auth';
 import { adminEventBus, AdminEvent } from '../utils/adminEventBus';
 
-interface ExtendedWebSocket extends WebSocket {
+export interface ExtendedWebSocket extends WebSocket {
   isAlive?: boolean;
   userId?: string;
   userRole?: string;
   subscriptions?: Set<string>;
-  adminWatchedUsers?: Set<string>;  // set of userId strings this admin is watching
+  adminWatchedUsers?: Set<string>;
+}
+
+// Inverted Subscription Index for O(1) tick dispatch
+class TokenSubscriptionIndex {
+  private index = new Map<string, Set<ExtendedWebSocket>>();
+
+  public add(token: string, ws: ExtendedWebSocket): void {
+    if (!this.index.has(token)) {
+      this.index.set(token, new Set());
+    }
+    this.index.get(token)!.add(ws);
+  }
+
+  public remove(token: string, ws: ExtendedWebSocket): void {
+    const set = this.index.get(token);
+    if (set) {
+      set.delete(ws);
+      if (set.size === 0) {
+        this.index.delete(token);
+      }
+    }
+  }
+
+  public removeAll(ws: ExtendedWebSocket): void {
+    if (ws.subscriptions) {
+      ws.subscriptions.forEach(token => {
+        this.remove(token, ws);
+      });
+    }
+  }
+
+  public getSubscribers(token: string): Set<ExtendedWebSocket> | undefined {
+    return this.index.get(token);
+  }
+}
+
+const subscriptionIndex = new TokenSubscriptionIndex();
+let totalMessagesBroadcast = 0;
+let totalDroppedFrames = 0;
+
+export function getWebSocketMetrics() {
+  return {
+    totalMessagesBroadcast,
+    totalDroppedFrames
+  };
 }
 
 export function setupWebSocketServer(httpServer: Server): WebSocketServer {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  console.log('[WebSocket] Gateway running on /ws');
+  console.log('[WebSocket] High-Performance Gateway running on /ws');
+
+  const defaultTokens = ['NSE_NIFTY50', 'NSE_BANKNIFTY', 'NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK'];
 
   wss.on('connection', (ws: ExtendedWebSocket, req) => {
     ws.isAlive = true;
-    ws.subscriptions = new Set(['NSE_NIFTY50', 'NSE_BANKNIFTY', 'NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK']);
+    ws.subscriptions = new Set();
     ws.adminWatchedUsers = new Set();
 
+    // Register default subscriptions in index
+    defaultTokens.forEach(t => {
+      ws.subscriptions!.add(t);
+      subscriptionIndex.add(t, ws);
+      const aliases = SymbologyNormalizer.normalizeToken(t);
+      aliases.forEach(a => {
+        ws.subscriptions!.add(a);
+        subscriptionIndex.add(a, ws);
+      });
+    });
+
     // Authenticate token via query string (?token=xyz)
-    // P0-3 FIX: Uses getJwtSecret() — no hardcoded fallback
     const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
     const token = urlParams.get('token');
     if (token) {
@@ -45,7 +102,6 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
         const data = JSON.parse(message.toString());
 
         if (data.action === 'SUBSCRIBE' && Array.isArray(data.tokens)) {
-          // Limit subscription size to prevent abuse (1000 max for active option chains & watchlists)
           const MAX_SUBS = 1000;
           const currentSize = ws.subscriptions?.size ?? 0;
           const allowedAdds = Math.max(0, MAX_SUBS - currentSize);
@@ -55,8 +111,12 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
             if (!t) return;
             const clean = t.trim();
             ws.subscriptions?.add(clean);
+            subscriptionIndex.add(clean, ws);
             const aliases = SymbologyNormalizer.normalizeToken(clean);
-            aliases.forEach(alias => ws.subscriptions?.add(alias));
+            aliases.forEach(alias => {
+              ws.subscriptions?.add(alias);
+              subscriptionIndex.add(alias, ws);
+            });
           });
 
           // Forward token subscriptions to MarketDataEngine so market provider emits live ticks
@@ -68,8 +128,12 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
             if (!t) return;
             const clean = t.trim();
             ws.subscriptions?.delete(clean);
+            subscriptionIndex.remove(clean, ws);
             const aliases = SymbologyNormalizer.normalizeToken(clean);
-            aliases.forEach(alias => ws.subscriptions?.delete(alias));
+            aliases.forEach(alias => {
+              ws.subscriptions?.delete(alias);
+              subscriptionIndex.remove(alias, ws);
+            });
           });
 
         // ── ADMIN-ONLY: Subscribe to a customer's real-time events ──────────
@@ -96,7 +160,8 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     });
 
     ws.on('close', () => {
-      // Clean up subscriptions to free memory
+      // Clean up subscriptions from inverted index to prevent memory leak
+      subscriptionIndex.removeAll(ws);
       ws.subscriptions?.clear();
       ws.adminWatchedUsers?.clear();
     });
@@ -108,38 +173,45 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     }
   });
 
-  // Immediate Fan-Out: Broadcast market ticks to subscribed WebSocket clients with zero batching/interval delay
+  // High-Speed O(1) Fan-Out: Broadcast market ticks to matching subscribers only
   MarketDataEngine.getInstance().onTick((tick) => {
     const payload = JSON.stringify({ type: 'MARKET_TICK', data: tick });
+    const targetClients = new Set<ExtendedWebSocket>();
+
+    // Collect subscribers for token and all aliases
+    const directSubs = subscriptionIndex.getSubscribers(tick.instrumentToken);
+    if (directSubs) directSubs.forEach(c => targetClients.add(c));
+
     const tickAliases = SymbologyNormalizer.normalizeToken(tick.instrumentToken);
     if (tick.symbol) {
       const symAliases = SymbologyNormalizer.normalizeToken(tick.symbol);
       symAliases.forEach(a => tickAliases.push(a));
     }
 
-    wss.clients.forEach((client: ExtendedWebSocket) => {
-      if (client.readyState === WebSocket.OPEN && client.subscriptions) {
-        const subs = client.subscriptions;
-        const isSubscribed = subs.has(tick.instrumentToken) || tickAliases.some(alias => subs.has(alias));
+    for (const alias of tickAliases) {
+      const aliasSubs = subscriptionIndex.getSubscribers(alias);
+      if (aliasSubs) aliasSubs.forEach(c => targetClients.add(c));
+    }
 
-        if (isSubscribed) {
-          try {
-            // Backpressure check: Skip frame if client write buffer is backlogged (>1MB)
-            if (client.bufferedAmount > 1024 * 1024) {
-              return;
-            }
-            client.send(payload);
-          } catch (err: any) {
-            // Suppress send errors for dead connections
+    // Broadcast to targeted subscriber clients with backpressure guard
+    targetClients.forEach((client: ExtendedWebSocket) => {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          // Backpressure check: Skip frame if client write buffer is backlogged (>512KB)
+          if (client.bufferedAmount > 512 * 1024) {
+            totalDroppedFrames++;
+            return;
           }
+          client.send(payload);
+          totalMessagesBroadcast++;
+        } catch (err: any) {
+          // Suppress send errors for dead connections
         }
       }
     });
   });
 
   // ── Admin Event Bus → WebSocket Fan-Out ─────────────────────────────────
-  // When any backend operation emits a user event, push it to all admin
-  // WebSocket clients that are currently watching that user.
   adminEventBus.onAllEvents((event: AdminEvent) => {
     const payload = JSON.stringify({
       type: event.type,
@@ -154,7 +226,7 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
         client.adminWatchedUsers?.has(event.userId)
       ) {
         try {
-          if (client.bufferedAmount <= 1024 * 1024) {
+          if (client.bufferedAmount <= 512 * 1024) {
             client.send(payload);
           }
         } catch (err: any) {
@@ -180,3 +252,4 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
 
   return wss;
 }
+

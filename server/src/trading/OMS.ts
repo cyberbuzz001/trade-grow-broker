@@ -4,6 +4,7 @@ import { VirtualWalletLedger } from './VirtualWalletLedger';
 import { ExecutionEngine } from './ExecutionEngine';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
+import { redis } from '../db/redis';
 
 export interface SubmitOrderDTO {
   userId: string;
@@ -35,20 +36,41 @@ export class OMS {
       }
     }
 
-    // Idempotency: if we've seen this key before, return the existing order
-    if (dto.idempotencyKey) {
+    // 1. Distributed Atomic Idempotency Lock (Multi-Node Race Condition Guard)
+    let lockAcquired = false;
+    const lockKey = dto.idempotencyKey ? `lock:order:${dto.idempotencyKey}` : null;
+
+    if (lockKey) {
+      lockAcquired = await redis.acquireLock(lockKey, 10, dto.userId);
+      if (!lockAcquired) {
+        // Another concurrent request with the same idempotency key is in-flight.
+        // Wait briefly (100ms) and check for the completed order in DB.
+        await new Promise(r => setTimeout(r, 100));
+        const existing = await queryOne<any>(
+          'SELECT order_id, status FROM orders WHERE idempotency_key = $1 AND user_id = $2',
+          [dto.idempotencyKey, dto.userId]
+        );
+        if (existing) {
+          return { success: true, orderId: existing.order_id };
+        }
+        return { success: false, error: 'ORDER_REJECTED: Duplicate in-flight order request detected. Please retry.' };
+      }
+
+      // Check if this idempotency key was already completed in DB
       const existing = await queryOne<any>(
         'SELECT order_id, status FROM orders WHERE idempotency_key = $1 AND user_id = $2',
         [dto.idempotencyKey, dto.userId]
       );
       if (existing) {
+        await redis.releaseLock(lockKey);
         return { success: true, orderId: existing.order_id };
       }
     }
 
-    // P0-9 FIX: crypto.randomUUID() instead of Date.now()
-    const dbOrderId     = 'ord_' + generateUUID();
-    const publicOrderId = 'ORD' + generateUUID().slice(0, 8).toUpperCase();
+    try {
+      // P0-9 FIX: crypto.randomUUID() instead of Date.now()
+      const dbOrderId     = 'ord_' + generateUUID();
+      const publicOrderId = 'ORD' + generateUUID().slice(0, 8).toUpperCase();
 
     // 1. Pre-trade RMS validation
     const rmsResult = await RMS.validateOrder({
@@ -112,7 +134,15 @@ export class OMS {
     }
 
     return { success: true, orderId: publicOrderId };
+  } catch (err: any) {
+    console.error('[OMS.submitOrder] Exception:', err.message);
+    return { success: false, error: err.message || 'ORDER_SUBMISSION_ERROR' };
+  } finally {
+    if (lockKey && lockAcquired) {
+      await redis.releaseLock(lockKey).catch(() => {});
+    }
   }
+}
 
   public static async cancelOrder(orderId: string, userId: string): Promise<{ success: boolean; error?: string }> {
     const order = await queryOne<any>(

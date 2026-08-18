@@ -159,6 +159,84 @@ class RedisService {
       }
     }
   }
+
+  /**
+   * Set key with TTL only if key does NOT already exist (Atomic SET ... NX EX).
+   * Returns true if key was set, false if key already exists.
+   */
+  public async setNx(key: string, value: string, ttlSeconds = 10): Promise<boolean> {
+    if (this.isAvailable()) {
+      try {
+        const res = await this.client!.set(key, value, 'EX', ttlSeconds, 'NX');
+        return res === 'OK';
+      } catch (err: any) {
+        console.warn(`[Redis] setNx failed for ${key}, falling back to memory:`, err.message);
+      }
+    }
+    // In-memory fallback
+    const now = Date.now();
+    const existing = this.inMemoryCache.get(key);
+    if (existing && now < existing.expiresAt) {
+      return false; // Already locked
+    }
+    this.inMemoryCache.set(key, { value, expiresAt: now + (ttlSeconds * 1000) });
+    return true;
+  }
+
+  /**
+   * Acquire a distributed lock.
+   */
+  public async acquireLock(lockKey: string, ttlSeconds = 10, identifier = '1'): Promise<boolean> {
+    return this.setNx(lockKey, identifier, ttlSeconds);
+  }
+
+  /**
+   * Release a distributed lock.
+   */
+  public async releaseLock(lockKey: string): Promise<void> {
+    await this.del(lockKey);
+  }
+
+  /**
+   * Get Redis operational health & metrics.
+   */
+  public async getHealthMetrics(): Promise<{
+    connected: boolean;
+    mode: 'REDIS_SERVER' | 'IN_MEMORY_FALLBACK';
+    inMemoryKeysCount: number;
+    redisInfo?: Record<string, string>;
+  }> {
+    const connected = this.isAvailable();
+    if (!connected) {
+      return {
+        connected: false,
+        mode: 'IN_MEMORY_FALLBACK',
+        inMemoryKeysCount: this.inMemoryCache.size
+      };
+    }
+
+    try {
+      const info = await this.client!.info('memory');
+      const memoryUsedMatch = info.match(/used_memory_human:([^\r\n]+)/);
+      const peakMemoryMatch = info.match(/used_memory_peak_human:([^\r\n]+)/);
+
+      return {
+        connected: true,
+        mode: 'REDIS_SERVER',
+        inMemoryKeysCount: this.inMemoryCache.size,
+        redisInfo: {
+          usedMemory: memoryUsedMatch ? memoryUsedMatch[1] : 'unknown',
+          peakMemory: peakMemoryMatch ? peakMemoryMatch[1] : 'unknown'
+        }
+      };
+    } catch (_) {
+      return {
+        connected: true,
+        mode: 'REDIS_SERVER',
+        inMemoryKeysCount: this.inMemoryCache.size
+      };
+    }
+  }
 }
 
 export const redis = RedisService.getInstance();

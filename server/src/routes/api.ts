@@ -81,21 +81,61 @@ router.get('/health', async (req: Request, res: Response) => {
     uptimeSeconds: Math.floor(process.uptime()),
     realMoneyTradingAllowed: SafetyLock.REAL_MONEY_TRADING_ALLOWED,
     marketDataProvider: mdProvider,
-    database: { healthy: dbHealth.healthy, latencyMs: dbHealth.latencyMs, error: dbHealth.error }
+    database: { healthy: dbHealth.healthy, latencyMs: dbHealth.latencyMs, pool: dbHealth.pool, error: dbHealth.error }
   });
 });
 
-router.get('/health/live',  (req, res) => res.status(200).send('OK'));
-router.get('/health/ready', async (req, res) => {
+router.get('/health/live', (req: Request, res: Response) => {
+  res.status(200).json({ status: 'ALIVE', timestamp: Date.now() });
+});
+
+router.get('/health/ready', async (req: Request, res: Response) => {
   const db = await checkDatabaseHealth();
-  if (!db.healthy) return res.status(503).json({ ready: false, reason: 'Database not ready' });
-  res.status(200).json({ ready: true });
+  if (!db.healthy) {
+    return res.status(503).json({ ready: false, reason: 'Database connection failed', error: db.error });
+  }
+  res.status(200).json({ ready: true, pool: db.pool });
+});
+
+router.get('/health/dependencies', async (req: Request, res: Response) => {
+  const { redis } = await import('../db/redis');
+  const { getWebSocketMetrics } = await import('../websocket/server');
+  const dbHealth = await checkDatabaseHealth();
+  const redisHealth = await redis.getHealthMetrics();
+  const wsMetrics = getWebSocketMetrics();
+  const memory = process.memoryUsage();
+
+  const dependenciesHealthy = dbHealth.healthy && (redisHealth.connected || redisHealth.mode === 'IN_MEMORY_FALLBACK');
+
+  res.status(dependenciesHealthy ? 200 : 503).json({
+    status: dependenciesHealthy ? 'HEALTHY' : 'DEGRADED',
+    timestamp: new Date().toISOString(),
+    process: {
+      uptimeSeconds: Math.floor(process.uptime()),
+      memoryRssMB: (memory.rss / 1024 / 1024).toFixed(2),
+      heapUsedMB: (memory.heapUsed / 1024 / 1024).toFixed(2),
+      heapTotalMB: (memory.heapTotal / 1024 / 1024).toFixed(2)
+    },
+    database: {
+      healthy: dbHealth.healthy,
+      latencyMs: dbHealth.latencyMs,
+      pool: dbHealth.pool,
+      error: dbHealth.error
+    },
+    redis: redisHealth,
+    marketData: {
+      activeProvider: MarketDataEngine.getInstance().getActiveProviderName(),
+      cachedTicksCount: MarketDataEngine.getInstance().getAllCachedTicks().length
+    },
+    websocket: wsMetrics
+  });
 });
 
 router.get('/health/instruments', (req, res) => {
   const status = InstrumentMasterService.getInstance().getHealthStatus();
   res.status(status.isReady ? 200 : 503).json({ success: true, ...status });
 });
+
 
 // ============================================================
 // 2. AUTHENTICATION API

@@ -14,14 +14,20 @@ import { Pool, PoolClient, QueryResultRow } from 'pg';
 function createPool(): Pool {
   const databaseUrl = process.env.DATABASE_URL;
 
+  const poolConfig = {
+    max: parseInt(process.env.PG_POOL_MAX || '20', 10),
+    min: parseInt(process.env.PG_POOL_MIN || '2', 10),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+    statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || '5000', 10)
+  };
+
   if (databaseUrl) {
     return new Pool({
       connectionString: databaseUrl,
-      max: parseInt(process.env.PG_POOL_MAX || '20'),
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,
+      ...poolConfig,
       ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false
     });
   }
@@ -29,15 +35,11 @@ function createPool(): Pool {
   // Individual env vars (local development)
   return new Pool({
     host: process.env.PG_HOST || 'localhost',
-    port: parseInt(process.env.PG_PORT || '5432'),
+    port: parseInt(process.env.PG_PORT || '5432', 10),
     database: process.env.PG_DATABASE || 'stocksharp',
     user: process.env.PG_USER || 'postgres',
     password: process.env.PG_PASSWORD || 'postgres',
-    max: parseInt(process.env.PG_POOL_MAX || '20'),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
+    ...poolConfig,
     ssl: false
   });
 }
@@ -52,9 +54,23 @@ pool.on('error', (err) => {
   console.error('[PostgreSQL] Pool error:', err.message);
 });
 
-pool.on('connect', () => {
-  // Connection acquired
+pool.on('connect', (client) => {
+  // Set statement timeout for every client session
+  const timeoutMs = parseInt(process.env.PG_STATEMENT_TIMEOUT || '5000', 10);
+  client.query(`SET statement_timeout = ${timeoutMs}`).catch(() => {});
 });
+
+/**
+ * Get real-time connection pool metrics.
+ */
+export function getPoolMetrics() {
+  return {
+    totalConnections: pool.totalCount,
+    idleConnections: pool.idleCount,
+    waitingRequests: pool.waitingCount,
+    maxLimit: parseInt(process.env.PG_POOL_MAX || '20', 10)
+  };
+}
 
 /**
  * Execute a query and return all rows.
@@ -126,12 +142,18 @@ export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>)
 /**
  * Check if the database is reachable.
  */
-export async function checkDatabaseHealth(): Promise<{ healthy: boolean; latencyMs: number; error?: string }> {
+export async function checkDatabaseHealth(): Promise<{
+  healthy: boolean;
+  latencyMs: number;
+  pool: ReturnType<typeof getPoolMetrics>;
+  error?: string;
+}> {
   const start = Date.now();
+  const poolMetrics = getPoolMetrics();
   try {
     await pool.query('SELECT 1');
-    return { healthy: true, latencyMs: Date.now() - start };
+    return { healthy: true, latencyMs: Date.now() - start, pool: poolMetrics };
   } catch (err: any) {
-    return { healthy: false, latencyMs: Date.now() - start, error: err.message };
+    return { healthy: false, latencyMs: Date.now() - start, pool: poolMetrics, error: err.message };
   }
 }
