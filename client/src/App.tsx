@@ -257,9 +257,17 @@ export function App() {
             )}
 
             {activeMobileTab === 'POSITIONS' && (
-              <div className="p-2 sm:p-4 pb-24">
-                <OrdersPositionsView token={token} initialTab="POSITIONS" onRefreshWallet={fetchWallet} />
-              </div>
+              <MobilePortfolioView
+                ticks={ticks}
+                token={token}
+                wallet={wallet}
+                onBack={() => setActiveMobileTab('HOME')}
+                onSelectStock={(symbol, name, price) => {
+                  setSelectedMobileStock({ symbol, name, price });
+                  setIsMobileOrderModalOpen(true);
+                }}
+                onOpenOptionChain={() => setActiveMobileTab('OPTION_CHAIN')}
+              />
             )}
 
             {activeMobileTab === 'WATCHLIST' && (
