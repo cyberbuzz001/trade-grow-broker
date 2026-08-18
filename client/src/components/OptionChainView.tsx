@@ -15,7 +15,7 @@ interface OptionChainProps {
 }
 
 export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWallet }) => {
-  const [symbol, setSymbol] = useState<string>('NIFTY');
+  const [symbol, setSymbol] = useState<string>('SENSEX');
   const [expiries, setExpiries] = useState<string[]>([]);
   const [expiry, setExpiry] = useState<string>('');
   const [expiryType, setExpiryType] = useState<'NEAREST' | 'NEXT' | 'MONTHLY' | 'ALL'>('NEAREST');
@@ -28,11 +28,11 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
   const [activeLtpKey, setActiveLtpKey] = useState<string | null>(null);
 
   const [chain, setChain] = useState<OptionChainItem[]>([]);
-  const [spotPrice, setSpotPrice] = useState<number>(24331.70);
-  const [spotChange, setSpotChange] = useState<number>(-64.15);
-  const [spotChangePct, setSpotChangePct] = useState<number>(-0.26);
-  const [atmStrike, setAtmStrike] = useState<number>(24300);
-  const [lotSize, setLotSize] = useState<number>(65);
+  const [spotPrice, setSpotPrice] = useState<number>(77350.00);
+  const [spotChange, setSpotChange] = useState<number>(-392.36);
+  const [spotChangePct, setSpotChangePct] = useState<number>(-0.50);
+  const [atmStrike, setAtmStrike] = useState<number>(77300);
+  const [lotSize, setLotSize] = useState<number>(20);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Order Preview Modal State
@@ -198,10 +198,8 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
           {/* Index Tabs */}
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: 'NIFTY', name: 'NIFTY', ex: 'NSE', price: 24331.70, chg: -64.15, chgPct: -0.26 },
               { id: 'SENSEX', name: 'BSE SENSEX', ex: 'BSE', price: 77787.60, chg: -292.36, chgPct: -0.37 },
               { id: 'BANKNIFTY', name: 'BANKNIFTY', ex: 'NSE', price: 57600.00, chg: +120.40, chgPct: +0.21 },
-              { id: 'FINNIFTY', name: 'FINNIFTY', ex: 'NSE', price: 25800.00, chg: +45.10, chgPct: +0.18 },
             ].map(item => {
               const isActive = symbol === item.id;
               const isPos = item.chg >= 0;
