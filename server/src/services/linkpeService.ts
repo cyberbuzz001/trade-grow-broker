@@ -1,6 +1,6 @@
 /**
- * LinkPe & UPI-PG (Centre for IT India) Payment Service
- * Integrates LinkPe, UPI-PG (CIT India), and direct NPCI UPI deep links
+ * LinkPe UPI Payment Service
+ * Integrates LinkPe URL schema, NPCI UPI deep links, and dedicated app schemes (GPay, PhonePe, Paytm, BHIM)
  */
 import QRCode from 'qrcode';
 import { queryOne } from '../db/schema';
@@ -11,15 +11,17 @@ export interface LinkPePayload {
   amount: number;
   note: string;
   linkpeUrl: string;
-  upipgUrl: string;
-  upipgEmbedUrl: string;
   upiDeepLink: string;
+  gpayDeepLink: string;
+  phonepeDeepLink: string;
+  paytmDeepLink: string;
+  bhimDeepLink: string;
   qrCodeUrl: string;
 }
 
 export class LinkPeService {
   /**
-   * Get LinkPe & UPI-PG payment links and QR code for a requested deposit amount
+   * Get LinkPe payment links, app-specific deep links, and local Base64 QR code
    */
   public static async generatePaymentLink(
     amount: number,
@@ -43,14 +45,14 @@ export class LinkPeService {
     // LinkPe Web Payment Link
     const linkpeUrl = `https://ptprashanttripathi.github.io/linkpe/?pa=${pa}&pn=${pn}&amt=${safeAmount}&tn=${tn}`;
 
-    // UPI-PG (Centre for Information Technology India) Gateway Link & Embed Widget
-    const upipgUrl = `https://upipg.cit.org.in/pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}`;
-    const upipgEmbedUrl = `https://upipg.cit.org.in/embed?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}`;
-
-    // Direct UPI Mobile Deep Link (GPay, PhonePe, Paytm, BHIM)
+    // Generic & Dedicated Mobile UPI App Schemes (prevents iOS Chrome from auto-opening WhatsApp)
     const upiDeepLink = `upi://pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
+    const gpayDeepLink = `tez://upi/pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
+    const phonepeDeepLink = `phonepe://pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
+    const paytmDeepLink = `paytmmp://pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
+    const bhimDeepLink = `bhim://pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
 
-    // Dynamic Local Base64 QR Code Image Data URL (Zero external API dependencies)
+    // Dynamic Local Base64 QR Code Image Data URL (Zero external API dependencies, 100% reliable)
     let qrCodeUrl = '';
     try {
       qrCodeUrl = await QRCode.toDataURL(upiDeepLink, {
@@ -68,9 +70,11 @@ export class LinkPeService {
       amount: safeAmount,
       note,
       linkpeUrl,
-      upipgUrl,
-      upipgEmbedUrl,
       upiDeepLink,
+      gpayDeepLink,
+      phonepeDeepLink,
+      paytmDeepLink,
+      bhimDeepLink,
       qrCodeUrl
     };
   }

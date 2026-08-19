@@ -940,7 +940,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       {linkpeData ? (
                         <div className="flex flex-col sm:flex-row items-center gap-3 bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                           <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&cu=INR`)}`}
+                            src={linkpeData.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&cu=INR`)}`}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.dataset.fallbackTried) {
+                                target.dataset.fallbackTried = 'true';
+                                target.src = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&cu=INR`)}`;
+                              }
+                            }}
                             alt="LinkPe UPI QR Code"
                             className="w-28 h-28 rounded-lg border border-emerald-300 dark:border-emerald-500/30 p-1 bg-white shrink-0 shadow-md"
                           />
@@ -949,34 +956,52 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                               Pay <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">₹{fundAmount.toLocaleString('en-IN')}</span> to <span className="text-slate-900 dark:text-white font-bold">{linkpeData.merchantName}</span>
                             </span>
                             
-                            <div className="flex flex-col gap-1.5">
-                              <a
-                                href={`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&cu=INR`}
-                                className="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-xs"
-                              >
-                                <Smartphone className="w-3.5 h-3.5" />
-                                <span>Open UPI App (GPay / PhonePe / Paytm)</span>
-                              </a>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            <div className="space-y-1.5">
+                              {/* Dedicated App Launches */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
                                 <a
-                                  href={`https://upipg.cit.org.in/pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition shadow-xs"
+                                  href={`tez://upi/pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&cu=INR`}
+                                  className="py-1.5 px-1.5 rounded-lg bg-slate-900 hover:bg-black text-white text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                                  title="Pay with GPay"
                                 >
-                                  <ExternalLink className="w-3 h-3" />
-                                  <span>UPI-PG (CIT India)</span>
+                                  <Smartphone className="w-3 h-3 text-sky-400" />
+                                  <span>GPay</span>
                                 </a>
                                 <a
-                                  href={`https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-full py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-[11px] flex items-center justify-center gap-1 transition border border-slate-300 dark:border-slate-700"
+                                  href={`phonepe://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&cu=INR`}
+                                  className="py-1.5 px-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                                  title="Pay with PhonePe"
                                 >
-                                  <ExternalLink className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                  <span>LinkPe Page</span>
+                                  <Smartphone className="w-3 h-3 text-purple-200" />
+                                  <span>PhonePe</span>
+                                </a>
+                                <a
+                                  href={`paytmmp://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&cu=INR`}
+                                  className="py-1.5 px-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                                  title="Pay with Paytm"
+                                >
+                                  <Smartphone className="w-3 h-3 text-sky-100" />
+                                  <span>Paytm</span>
+                                </a>
+                                <a
+                                  href={`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&cu=INR`}
+                                  className="py-1.5 px-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center justify-center gap-1 transition"
+                                  title="Pay with any default UPI app"
+                                >
+                                  <Smartphone className="w-3 h-3 text-emerald-100" />
+                                  <span>Any UPI</span>
                                 </a>
                               </div>
+
+                              <a
+                                href={`https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full py-1.5 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-[11px] flex items-center justify-center gap-1.5 transition border border-slate-300 dark:border-slate-700"
+                              >
+                                <ExternalLink className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                <span>Open LinkPe Payment Page</span>
+                              </a>
                             </div>
                           </div>
                         </div>

@@ -52,14 +52,14 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
 
-  const [showWidget, setShowWidget] = useState<boolean>(false);
-
-  // LinkPe & UPI-PG Payment Payload
+  // LinkPe Payment Payload
   const [paymentDetails, setPaymentDetails] = useState<{
     linkpeUrl: string;
-    upipgUrl?: string;
-    upipgEmbedUrl?: string;
     upiDeepLink: string;
+    gpayDeepLink?: string;
+    phonepeDeepLink?: string;
+    paytmDeepLink?: string;
+    bhimDeepLink?: string;
     qrCodeUrl: string;
     upiId: string;
     merchantName: string;
@@ -215,11 +215,14 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
 
   const activeUpiId = customUpiId.trim() || paymentDetails?.upiId || 'expertstokks@axl';
   const activeMerchant = paymentDetails?.merchantName || 'Trade Grow Broker';
-  const activeUpiDeepLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&amt=${depositAmount}&cu=INR`;
-  const activeQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(activeUpiDeepLink)}`;
+  const activeUpiDeepLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&am=${depositAmount}&cu=INR`;
+  const activeGPayLink = paymentDetails?.gpayDeepLink || `tez://upi/pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&am=${depositAmount}&cu=INR`;
+  const activePhonePeLink = paymentDetails?.phonepeDeepLink || `phonepe://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&am=${depositAmount}&cu=INR`;
+  const activePaytmLink = paymentDetails?.paytmDeepLink || `paytmmp://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&am=${depositAmount}&cu=INR`;
+  
+  // Prioritize server Base64 data URL for 100% reliable local QR code rendering
+  const activeQrCodeUrl = paymentDetails?.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(activeUpiDeepLink)}`;
   const activeLinkPeUrl = `https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&amt=${depositAmount}&tn=Trade%20Grow%20Margin%20Deposit`;
-  const activeUpiPgUrl = `https://upipg.cit.org.in/pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&am=${depositAmount}&tn=Trade%20Grow%20Margin%20Deposit`;
-  const activeUpiPgEmbedUrl = `https://upipg.cit.org.in/embed?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&am=${depositAmount}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
@@ -243,12 +246,12 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                     ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
                     : 'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/20'
                 }`}>
-                  {activeTab === 'DEPOSIT' ? 'Instant UPI QR & UPI-PG' : 'Bank Payout'}
+                  {activeTab === 'DEPOSIT' ? 'Instant LinkPe UPI' : 'Bank Payout'}
                 </span>
               </h2>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {activeTab === 'DEPOSIT' 
-                  ? 'Deposit margin via LinkPe / UPI-PG (CIT India) QR or UPI and submit transaction reference for instant review.' 
+                  ? 'Deposit margin via LinkPe QR or direct UPI apps and submit transaction reference for instant review.' 
                   : 'Withdraw trading proceeds directly to your linked bank account or UPI ID.'}
               </p>
             </div>
@@ -274,7 +277,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
             }`}
           >
             <ArrowDownLeft className="w-4 h-4" />
-            <span>Deposit Funds (LinkPe & UPI-PG)</span>
+            <span>Deposit Funds (LinkPe UPI)</span>
           </button>
 
           <button
@@ -333,11 +336,11 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                 </div>
               </div>
 
-              {/* LinkPe & UPI-PG Payment Box */}
+              {/* LinkPe Merchant Payment Gateway Box */}
               <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/50 dark:bg-slate-900/90 border border-emerald-200/80 dark:border-emerald-500/30 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-slate-800 pb-3">
                   <span className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> LinkPe & UPI-PG (CIT India) Gateway
+                    <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> LinkPe Merchant Payment Gateway
                   </span>
 
                   {/* EDITABLE ACCOUNT FIELD */}
@@ -365,82 +368,85 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                 {loadingPayment ? (
                   <div className="text-center py-6 text-slate-500 dark:text-slate-400 text-xs flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
-                    <span>Generating LinkPe & UPI-PG Payment Links...</span>
+                    <span>Generating LinkPe Payment Links & QR Code...</span>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                      <div className="relative group shrink-0">
-                        <img
-                          src={activeQrCodeUrl}
-                          alt="LinkPe UPI QR"
-                          className="w-32 h-32 rounded-2xl border border-emerald-300 dark:border-emerald-500/40 p-1.5 bg-white shadow-md transition-transform duration-300 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 rounded-2xl border-2 border-emerald-400/0 group-hover:border-emerald-400/40 pointer-events-none transition-all duration-300" />
-                      </div>
-
-                      <div className="flex-1 w-full space-y-2.5">
-                        <div className="text-center sm:text-left">
-                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                            Pay Deposit Amount: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono text-sm">₹{depositAmount.toLocaleString('en-IN')}</span>
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Merchant: <strong className="text-slate-900 dark:text-white font-bold">{activeMerchant}</strong></span>
-                        </div>
-
-                        <div className="space-y-2">
-                          <a
-                            href={activeUpiDeepLink}
-                            className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-500/20 cursor-pointer"
-                          >
-                            <Smartphone className="w-4 h-4" />
-                            <span>Open in Mobile UPI App (GPay / PhonePe / Paytm)</span>
-                          </a>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <a
-                              href={activeUpiPgUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>UPI-PG Gateway (CIT India)</span>
-                            </a>
-                            <a
-                              href={activeLinkPeUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>LinkPe Web Checkout</span>
-                            </a>
-                          </div>
-                        </div>
-                      </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {/* Reliable QR Code Image with Multi-fallback */}
+                    <div className="relative group shrink-0">
+                      <img
+                        src={activeQrCodeUrl}
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (!target.dataset.fallbackTried) {
+                            target.dataset.fallbackTried = 'true';
+                            target.src = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(activeUpiDeepLink)}`;
+                          }
+                        }}
+                        alt="LinkPe UPI QR Code"
+                        className="w-32 h-32 rounded-2xl border border-emerald-300 dark:border-emerald-500/40 p-1.5 bg-white shadow-md transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 rounded-2xl border-2 border-emerald-400/0 group-hover:border-emerald-400/40 pointer-events-none transition-all duration-300" />
                     </div>
 
-                    {/* Optional Embedded UPI-PG Widget Toggle */}
-                    <div className="pt-2 border-t border-emerald-200/50 dark:border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => setShowWidget(!showWidget)}
-                        className="w-full py-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <span>{showWidget ? '▲ Hide Embedded UPI-PG Widget' : '▼ View Live Embedded UPI-PG Widget (Centre for IT India)'}</span>
-                      </button>
-                      {showWidget && (
-                        <div className="mt-2 w-full rounded-2xl overflow-hidden border border-indigo-200 dark:border-indigo-900/60 shadow-md">
-                          <iframe
-                            src={activeUpiPgEmbedUrl}
-                            width="100%"
-                            height="450px"
-                            frameBorder="0"
-                            title="UPI-PG Live Embedded Checkout Widget"
-                            className="w-full bg-white"
-                          />
+                    <div className="flex-1 w-full space-y-3">
+                      <div className="text-center sm:text-left">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                          Pay Deposit Amount: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono text-sm">₹{depositAmount.toLocaleString('en-IN')}</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Merchant: <strong className="text-slate-900 dark:text-white font-bold">{activeMerchant}</strong></span>
+                      </div>
+
+                      {/* Direct Dedicated App Launches (prevents iOS Chrome from auto-opening WhatsApp) */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Pay Directly via Selected App:
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                          <a
+                            href={activeGPayLink}
+                            className="py-2 px-2 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-extrabold flex items-center justify-center gap-1 transition border border-slate-700 shadow-2xs cursor-pointer"
+                            title="Pay with Google Pay"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+                            <span>GPay</span>
+                          </a>
+                          <a
+                            href={activePhonePeLink}
+                            className="py-2 px-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-[11px] font-extrabold flex items-center justify-center gap-1 transition shadow-2xs cursor-pointer"
+                            title="Pay with PhonePe"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-purple-200" />
+                            <span>PhonePe</span>
+                          </a>
+                          <a
+                            href={activePaytmLink}
+                            className="py-2 px-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-extrabold flex items-center justify-center gap-1 transition shadow-2xs cursor-pointer"
+                            title="Pay with Paytm"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-sky-100" />
+                            <span>Paytm</span>
+                          </a>
+                          <a
+                            href={activeUpiDeepLink}
+                            className="py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold flex items-center justify-center gap-1 transition shadow-2xs cursor-pointer"
+                            title="Pay with any default UPI App"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-emerald-100" />
+                            <span>Any UPI</span>
+                          </a>
                         </div>
-                      )}
+                      </div>
+
+                      <a
+                        href={activeLinkPeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2 px-4 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Open LinkPe Web Checkout Page</span>
+                      </a>
                     </div>
                   </div>
                 )}
