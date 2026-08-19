@@ -60,6 +60,9 @@ router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), as
       queryOne<any>("SELECT COUNT(*) as c FROM users WHERE status = 'FROZEN'"),
     ]);
 
+    const dbHealth = await checkDatabaseHealth();
+    const mdProvider = MarketDataEngine.getInstance().getActiveProviderName();
+
     const totalTurnover = parseFloat(buyValueRow?.s || '0') + parseFloat(sellValueRow?.s || '0');
     const totalFunds = parseFloat(totalFundsRow?.s || '0');
     const marginUtilized = parseFloat(marginRow?.s || '0');
