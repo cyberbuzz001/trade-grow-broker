@@ -22,7 +22,21 @@ function getClientIp(req: Request): string {
 }
 
 const router = Router();
-const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RISK_MANAGER', 'FINANCE_MANAGER', 'KYC_OFFICER', 'READ_ONLY_AUDITOR'];
+const ADMIN_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MANAGER',
+  'OPERATIONS_MANAGER',
+  'FINANCE_MANAGER',
+  'KYC_OFFICER',
+  'COMPLIANCE_OFFICER',
+  'RISK_MANAGER',
+  'RISK_OFFICER',
+  'DEALER',
+  'ANALYST',
+  'SUPPORT_AGENT',
+  'READ_ONLY_AUDITOR'
+];
 
 // ============================================================
 // 1. EXECUTIVE DASHBOARD
@@ -206,7 +220,7 @@ router.get('/customers/check-duplicate', authenticateToken, checkRole(ADMIN_ROLE
 });
 
 // Admin Add Customer / Create Client API
-router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { username, email, password, role, clientId, fullName, phoneNumber, initialCapital, city, address } = req.body;
 
@@ -243,7 +257,7 @@ router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'A
 });
 
 // Scan Database for Duplicate Identities (Email, Phone, PAN)
-router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     // 1. Find users with identical normalized emails (if any)
     const emailDups = await query<any>(
@@ -349,7 +363,7 @@ router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (r
   });
 });
 
-router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
   await execute("UPDATE users SET status = 'FROZEN', updated_at = NOW() WHERE id = $1", [targetId]);
@@ -357,7 +371,7 @@ router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN'
   res.json({ success: true, message: 'Account frozen' });
 });
 
-router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
   await execute("UPDATE users SET status = 'ACTIVE', updated_at = NOW() WHERE id = $1", [targetId]);
@@ -365,7 +379,7 @@ router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMI
   res.json({ success: true, message: 'Account unfrozen' });
 });
 
-router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const targetUserId = req.params.id as string;
     const { newPassword } = req.body;
@@ -415,7 +429,7 @@ router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPE
 // ============================================================
 // 3. KYC MANAGEMENT
 // ============================================================
-router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const status = req.query.status as string || '';
   let where = '';
   const params: any[] = [];
@@ -431,7 +445,7 @@ router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', '
   res.json({ success: true, records });
 });
 
-router.post('/kyc/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/kyc/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const { notes } = req.body;
   const kycId = req.params.id as string;
   await execute(
@@ -442,7 +456,7 @@ router.post('/kyc/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'AD
   res.json({ success: true, message: 'KYC approved' });
 });
 
-router.post('/kyc/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/kyc/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const kycId = req.params.id as string;
   await execute(
