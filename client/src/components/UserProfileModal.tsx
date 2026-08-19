@@ -303,6 +303,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [myFundRequests, setMyFundRequests] = useState<any[]>([]);
   const [submittingFundReq, setSubmittingFundReq] = useState(false);
 
+  const [customModalUpiId, setCustomModalUpiId] = useState<string>('expertstokks@axl');
   const [linkpeData, setLinkpeData] = useState<{
     linkpeUrl: string;
     upiDeepLink: string;
@@ -318,7 +319,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       fetchWithAuth(`/api/v1/funds/upi-link?amount=${fundAmount}`)
         .then(r => r.json())
         .then(d => {
-          if (d.success) setLinkpeData(d.payment);
+          if (d.success && d.payment) {
+            setLinkpeData(d.payment);
+            if (!customModalUpiId || customModalUpiId === 'expertstokks@axl') {
+              setCustomModalUpiId(d.payment.upiId || 'expertstokks@axl');
+            }
+          }
         })
         .catch(() => {})
         .finally(() => setLoadingLinkpe(false));
@@ -906,59 +912,66 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                   {/* LinkPe UPI Payment Box */}
                   {requestType === 'DEPOSIT' && paymentMethod === 'UPI' && (
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-slate-900/90 border border-emerald-500/30 space-y-3">
-                      <div className="flex items-center justify-between">
+                    <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-slate-900/90 border border-emerald-300 dark:border-emerald-500/30 space-y-3 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                             <QrCode className="w-4 h-4" />
                           </span>
                           <div>
-                            <span className="text-xs font-bold text-white block">LinkPe Instant UPI Payment</span>
-                            <span className="text-[10px] text-slate-400 block">Scan QR or Tap to open UPI App</span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white block">LinkPe Instant UPI Payment</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Scan QR or Tap to open UPI App</span>
                           </div>
                         </div>
-                        {linkpeData && (
-                          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                            {linkpeData.upiId}
-                          </span>
-                        )}
+
+                        {/* EDITABLE ACCOUNT FIELD */}
+                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 px-2 py-0.5 rounded-xl border border-emerald-400/50">
+                          <span className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400">UPI/Account:</span>
+                          <input
+                            type="text"
+                            value={customModalUpiId}
+                            onChange={(e) => setCustomModalUpiId(e.target.value)}
+                            className="bg-transparent text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 focus:outline-none w-32 border-b border-dashed border-emerald-400"
+                            title="Edit Account / UPI VPA"
+                          />
+                        </div>
                       </div>
 
                       {linkpeData ? (
-                        <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+                        <div className="flex flex-col sm:flex-row items-center gap-3 bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                           <img
-                            src={linkpeData.qrCodeUrl}
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&cu=INR`)}`}
                             alt="LinkPe UPI QR Code"
-                            className="w-28 h-28 rounded-lg border border-emerald-500/30 p-1 bg-white shrink-0 shadow-md"
+                            className="w-28 h-28 rounded-lg border border-emerald-300 dark:border-emerald-500/30 p-1 bg-white shrink-0 shadow-md"
                           />
                           <div className="flex-1 w-full space-y-2 text-center sm:text-left">
-                            <span className="text-[11px] font-semibold text-slate-300 block">
-                              Pay <span className="font-bold font-mono text-emerald-400">₹{fundAmount.toLocaleString('en-IN')}</span> to <span className="text-white font-bold">{linkpeData.merchantName}</span>
+                            <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block">
+                              Pay <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">₹{fundAmount.toLocaleString('en-IN')}</span> to <span className="text-slate-900 dark:text-white font-bold">{linkpeData.merchantName}</span>
                             </span>
                             
                             <div className="flex flex-col gap-1.5">
                               <a
-                                href={linkpeData.upiDeepLink}
-                                className="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                                href={`upi://pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&cu=INR`}
+                                className="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-xs"
                               >
                                 <Smartphone className="w-3.5 h-3.5" />
                                 <span>Open UPI App (GPay / PhonePe / Paytm)</span>
                               </a>
                               <a
-                                href={linkpeData.linkpeUrl}
+                                href={`https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-[11px] flex items-center justify-center gap-1.5 transition border border-slate-700"
+                                className="w-full py-1.5 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-[11px] flex items-center justify-center gap-1.5 transition border border-slate-300 dark:border-slate-700"
                               >
-                                <ExternalLink className="w-3 h-3 text-emerald-400" />
+                                <ExternalLink className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                                 <span>Open LinkPe Payment Page</span>
                               </a>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center py-4 text-slate-400 text-xs flex items-center justify-center gap-2">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                        <div className="text-center py-4 text-slate-500 dark:text-slate-400 text-xs flex items-center justify-center gap-2">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-500" />
                           <span>Generating LinkPe UPI Payment details...</span>
                         </div>
                       )}

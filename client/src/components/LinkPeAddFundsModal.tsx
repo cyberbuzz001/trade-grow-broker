@@ -41,6 +41,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
   // Deposit States
   const [depositAmount, setDepositAmount] = useState<number>(5000);
   const [utrNumber, setUtrNumber] = useState<string>('');
+  const [customUpiId, setCustomUpiId] = useState<string>('expertstokks@axl');
   
   // Withdrawal States
   const [withdrawAmount, setWithdrawAmount] = useState<number>(5000);
@@ -82,6 +83,9 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
       .then(d => {
         if (d.success && d.payment) {
           setPaymentDetails(d.payment);
+          if (!customUpiId || customUpiId === 'expertstokks@axl') {
+            setCustomUpiId(d.payment.upiId || 'expertstokks@axl');
+          }
         }
       })
       .catch(() => {})
@@ -116,11 +120,10 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
   }, [depositAmount, activeTab]);
 
   const handleCopyUpi = () => {
-    if (paymentDetails?.upiId) {
-      navigator.clipboard.writeText(paymentDetails.upiId);
-      setCopiedUpi(true);
-      setTimeout(() => setCopiedUpi(false), 2000);
-    }
+    const targetUpi = customUpiId.trim() || paymentDetails?.upiId || 'expertstokks@axl';
+    navigator.clipboard.writeText(targetUpi);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
   };
 
   const handleSubmitDeposit = async (e: React.FormEvent) => {
@@ -206,32 +209,38 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
 
   if (!isOpen) return null;
 
+  const activeUpiId = customUpiId.trim() || paymentDetails?.upiId || 'expertstokks@axl';
+  const activeMerchant = paymentDetails?.merchantName || 'Trade Grow Broker';
+  const activeUpiDeepLink = `upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&amt=${depositAmount}&cu=INR`;
+  const activeQrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(activeUpiDeepLink)}`;
+  const activeLinkPeUrl = `https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(activeUpiId)}&pn=${encodeURIComponent(activeMerchant)}&amt=${depositAmount}&tn=Trade%20Grow%20Margin%20Deposit`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-white">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border-b border-slate-800/80">
+        <div className="flex items-center justify-between p-4 sm:p-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-2xl border shadow-lg ${
+            <div className={`p-2.5 rounded-2xl border shadow-sm ${
               activeTab === 'DEPOSIT' 
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
+                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
             }`}>
               {activeTab === 'DEPOSIT' ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-sm font-black text-white tracking-tight flex items-center gap-2">
+              <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                 {activeTab === 'DEPOSIT' ? 'ADD FUNDS (DEPOSIT)' : 'REQUEST WITHDRAWAL'}
                 <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
                   activeTab === 'DEPOSIT'
-                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                    : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                    ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                    : 'text-rose-700 dark:text-rose-400 bg-rose-500/10 border-rose-500/20'
                 }`}>
                   {activeTab === 'DEPOSIT' ? 'Instant UPI QR' : 'Bank Payout'}
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-400 font-medium">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {activeTab === 'DEPOSIT' 
                   ? 'Deposit margin via LinkPe QR or UPI and submit transaction reference for instant review.' 
                   : 'Withdraw trading proceeds directly to your linked bank account or UPI ID.'}
@@ -241,21 +250,21 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-white transition border border-slate-700/60 cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition border border-slate-200 dark:border-slate-700/60 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Tab Switcher: Deposit vs Withdrawal */}
-        <div className="px-5 pt-4 pb-2 grid grid-cols-2 gap-2 bg-slate-950/40 border-b border-slate-800/60">
+        <div className="px-5 pt-4 pb-2 grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800/60">
           <button
             type="button"
             onClick={() => { setActiveTab('DEPOSIT'); setMsg(null); }}
             className={`py-2.5 px-4 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 border cursor-pointer ${
               activeTab === 'DEPOSIT'
-                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
-                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-emerald-500 text-white border-emerald-400 shadow-md shadow-emerald-500/20'
+                : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <ArrowDownLeft className="w-4 h-4" />
@@ -268,7 +277,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
             className={`py-2.5 px-4 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 border cursor-pointer ${
               activeTab === 'WITHDRAWAL'
                 ? 'bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-500/20'
-                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'bg-white dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             <ArrowUpRight className="w-4 h-4" />
@@ -277,7 +286,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="p-5 space-y-6 overflow-y-auto custom-scrollbar">
+        <div className="p-4 sm:p-5 space-y-6 overflow-y-auto custom-scrollbar">
 
           {/* ============================================================
               TAB 1: DEPOSIT FUNDS
@@ -286,7 +295,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
             <>
               {/* Preset Deposit Amounts */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Select Deposit Amount (₹)</label>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Select Deposit Amount (₹)</label>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {[500, 1000, 5000, 10000, 25000, 50000].map(preset => (
                     <button
@@ -295,8 +304,8 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                       onClick={() => setDepositAmount(preset)}
                       className={`py-2 rounded-xl text-xs font-mono font-bold transition border cursor-pointer ${
                         depositAmount === preset
-                          ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-[0_0_15px_rgba(34,197,94,0.4)]'
-                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800/80'
+                          ? 'bg-emerald-500 text-white border-emerald-400 shadow-md shadow-emerald-500/20 font-black'
+                          : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
                       ₹{preset >= 1000 ? `${preset / 1000}k` : preset}
@@ -306,92 +315,102 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
 
                 {/* Custom Amount Input */}
                 <div className="relative mt-2">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-bold text-sm">₹</span>
                   <input
                     type="number"
                     min="100"
                     step="100"
                     value={depositAmount}
                     onChange={e => setDepositAmount(Math.max(100, parseFloat(e.target.value) || 0))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-8 pr-4 py-3 text-white font-mono font-extrabold text-base focus:outline-none focus:border-emerald-500 shadow-inner"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl pl-8 pr-4 py-3 text-slate-900 dark:text-white font-mono font-extrabold text-base focus:outline-none focus:border-emerald-500 shadow-xs"
                   />
                 </div>
               </div>
 
-              {/* LinkPe UPI Payment Box */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-xl space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                  <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-emerald-400" /> LinkPe Merchant Payment Gateway
+              {/* LinkPe UPI Payment Box (Light/White Theme + Editable Account Field) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/50 dark:bg-slate-900/90 border border-emerald-200/80 dark:border-emerald-500/30 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-slate-800 pb-3">
+                  <span className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> LinkPe Merchant Payment Gateway
                   </span>
 
-                  {paymentDetails && (
+                  {/* EDITABLE ACCOUNT FIELD */}
+                  <div className="flex items-center gap-1.5 bg-white dark:bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-300 dark:border-emerald-500/30 shadow-2xs">
+                    <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider hidden sm:inline">UPI / Account:</span>
+                    <input
+                      type="text"
+                      value={customUpiId}
+                      onChange={(e) => setCustomUpiId(e.target.value)}
+                      className="bg-emerald-50/60 dark:bg-slate-950 text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-400/50 rounded-lg px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-w-[140px] max-w-[200px]"
+                      placeholder="Account VPA / UPI ID"
+                      title="Click to edit Account / UPI ID VPA"
+                    />
                     <button
                       type="button"
                       onClick={handleCopyUpi}
-                      className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 hover:bg-emerald-500/20 transition cursor-pointer"
+                      className="p-1 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition cursor-pointer"
+                      title="Copy Account ID"
                     >
-                      {copiedUpi ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{paymentDetails.upiId}</span>
+                      {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
-                  )}
+                  </div>
                 </div>
 
-                {paymentDetails ? (
+                {loadingPayment ? (
+                  <div className="text-center py-6 text-slate-500 dark:text-slate-400 text-xs flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
+                    <span>Generating LinkPe Payment Links & QR Code...</span>
+                  </div>
+                ) : (
                   <div className="flex flex-col sm:flex-row items-center gap-4">
                     <div className="relative group shrink-0">
                       <img
-                        src={paymentDetails.qrCodeUrl}
+                        src={activeQrCodeUrl}
                         alt="LinkPe UPI QR"
-                        className="w-32 h-32 rounded-2xl border border-emerald-500/40 p-1.5 bg-white shadow-xl transition-transform duration-300 group-hover:scale-105"
+                        className="w-32 h-32 rounded-2xl border border-emerald-300 dark:border-emerald-500/40 p-1.5 bg-white shadow-md transition-transform duration-300 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 rounded-2xl border-2 border-emerald-400/0 group-hover:border-emerald-400/40 pointer-events-none transition-all duration-300" />
                     </div>
 
                     <div className="flex-1 w-full space-y-2.5">
                       <div className="text-center sm:text-left">
-                        <span className="text-xs font-semibold text-slate-300 block">
-                          Pay Deposit Amount: <span className="text-emerald-400 font-extrabold font-mono text-sm">₹{depositAmount.toLocaleString('en-IN')}</span>
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                          Pay Deposit Amount: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono text-sm">₹{depositAmount.toLocaleString('en-IN')}</span>
                         </span>
-                        <span className="text-[10px] text-slate-400 block">Merchant: <strong className="text-white">{paymentDetails.merchantName}</strong></span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Merchant: <strong className="text-slate-900 dark:text-white font-bold">{activeMerchant}</strong></span>
                       </div>
 
                       <div className="grid grid-cols-1 gap-2">
                         <a
-                          href={paymentDetails.upiDeepLink}
-                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-lg hover:shadow-emerald-500/20 cursor-pointer"
+                          href={activeUpiDeepLink}
+                          className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-500/20 cursor-pointer"
                         >
                           <Smartphone className="w-4 h-4" />
                           <span>Open in Mobile UPI App (GPay / PhonePe / Paytm)</span>
                         </a>
                         <a
-                          href={paymentDetails.linkpeUrl}
+                          href={activeLinkPeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="w-full py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-2 transition border border-slate-700/80 cursor-pointer"
+                          className="w-full py-2 px-4 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition border border-slate-300 dark:border-slate-700 cursor-pointer shadow-2xs"
                         >
-                          <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                          <ExternalLink className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>Open LinkPe Web Checkout Page</span>
                         </a>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="text-center py-6 text-slate-400 text-xs flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                    <span>Generating LinkPe Payment Links & QR Code...</span>
-                  </div>
                 )}
               </div>
 
               {/* Submit UTR / Payment Proof Form */}
-              <form onSubmit={handleSubmitDeposit} className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-amber-400" /> Submit UTR / Reference ID for Admin Approval
+              <form onSubmit={handleSubmitDeposit} className="space-y-3 bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-500" /> Submit UTR / Reference ID for Admin Approval
                 </h3>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                     12-Digit UPI UTR / Transaction Reference Number
                   </label>
                   <input
@@ -400,13 +419,13 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                     onChange={e => setUtrNumber(e.target.value)}
                     placeholder="e.g. 423589102451 or Bank UTR Ref Number"
                     required
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-emerald-500 shadow-inner"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-emerald-500 shadow-2xs"
                   />
                 </div>
 
                 {msg && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${
-                    msg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    msg.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                   }`}>
                     {msg.text}
                   </div>
@@ -415,7 +434,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-lg disabled:opacity-50 cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-500/20 disabled:opacity-50 cursor-pointer"
                 >
                   {submitting ? (
                     <span>Submitting Request...</span>
@@ -434,14 +453,14 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
             <div className="space-y-4">
               
               {/* Available Margin Banner */}
-              <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                     <WalletIcon className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Available Margin for Withdrawal</span>
-                    <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block">Available Margin for Withdrawal</span>
+                    <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">
                       ₹{availableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -451,17 +470,17 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                   type="button"
                   onClick={() => setWithdrawAmount(Math.floor(availableBalance))}
                   disabled={availableBalance <= 0}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold transition border border-slate-700 cursor-pointer disabled:opacity-40"
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold transition border border-slate-200 dark:border-slate-700 cursor-pointer disabled:opacity-40"
                 >
                   Withdraw Max
                 </button>
               </div>
 
               {/* Withdrawal Form */}
-              <form onSubmit={handleSubmitWithdrawal} className="space-y-4 bg-slate-950/60 p-5 rounded-2xl border border-slate-800">
+              <form onSubmit={handleSubmitWithdrawal} className="space-y-4 bg-slate-50 dark:bg-slate-950/60 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
                 {/* Preset Withdrawal Amounts */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Select Withdrawal Amount (₹)</label>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Select Withdrawal Amount (₹)</label>
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {[500, 1000, 5000, 10000, 25000].map(preset => (
                       <button
@@ -471,7 +490,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                         className={`py-2 rounded-xl text-xs font-mono font-bold transition border cursor-pointer ${
                           withdrawAmount === preset
                             ? 'bg-rose-500 text-white border-rose-400 shadow-md shadow-rose-500/20'
-                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800/80'
+                            : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
                         ₹{preset >= 1000 ? `${preset / 1000}k` : preset}
@@ -481,21 +500,21 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
 
                   {/* Custom Withdrawal Input */}
                   <div className="relative mt-2">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-bold text-sm">₹</span>
                     <input
                       type="number"
                       min="100"
                       step="100"
                       value={withdrawAmount}
                       onChange={e => setWithdrawAmount(Math.max(100, parseFloat(e.target.value) || 0))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-8 pr-4 py-3 text-white font-mono font-extrabold text-base focus:outline-none focus:border-rose-500 shadow-inner"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-2xl pl-8 pr-4 py-3 text-slate-900 dark:text-white font-mono font-extrabold text-base focus:outline-none focus:border-rose-500 shadow-2xs"
                     />
                   </div>
                 </div>
 
                 {/* Payout Method */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payout Channel</label>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Payout Channel</label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
                       { id: 'BANK_TRANSFER', label: 'Bank IMPS / NEFT' },
@@ -508,8 +527,8 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                         onClick={() => setPayoutMethod(method.id)}
                         className={`py-2.5 px-3 rounded-xl text-xs font-bold transition border cursor-pointer ${
                           payoutMethod === method.id
-                            ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                            ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40'
+                            : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                         }`}
                       >
                         {method.label}
@@ -520,7 +539,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
 
                 {/* Account / UPI Reference */}
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                     Bank Account / UPI ID / Payout Instructions
                   </label>
                   <input
@@ -528,16 +547,16 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                     value={payoutDetails}
                     onChange={e => setPayoutDetails(e.target.value)}
                     placeholder="e.g. Account Number & IFSC, or your_upi_id@okhdfcbank"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-rose-500"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-rose-500"
                   />
-                  <span className="text-[10px] text-slate-500 mt-1 block">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
                     Verified bank details from your KYC profile will be prioritized by the finance team.
                   </span>
                 </div>
 
                 {msg && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${
-                    msg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    msg.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                   }`}>
                     {msg.text}
                   </div>
@@ -546,7 +565,7 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                 <button
                   type="submit"
                   disabled={submitting || withdrawAmount <= 0 || withdrawAmount > availableBalance}
-                  className="w-full py-3 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-rose-500/20 cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-40 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-rose-500/20 cursor-pointer"
                 >
                   {submitting ? (
                     <span>Processing Withdrawal...</span>
@@ -561,17 +580,17 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
           {/* ============================================================
               LIVE REQUEST HISTORY & TRACKER (Both Deposits & Withdrawals)
               ============================================================ */}
-          <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+          <div className="space-y-3 bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Clock className="w-4 h-4 text-indigo-400" /> Funds & Payout Activity Tracker
+              <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-500" /> Funds & Payout Activity Tracker
               </h3>
-              <span className="text-[10px] font-mono text-slate-400">Total: {myRequests.length}</span>
+              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">Total: {myRequests.length}</span>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-bold">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-xs text-left text-slate-700 dark:text-slate-300">
+                <thead className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 uppercase text-[10px] font-bold">
                   <tr>
                     <th className="py-2 px-3">Req ID</th>
                     <th className="py-2 px-3">Type</th>
@@ -581,30 +600,30 @@ export const LinkPeAddFundsModal: React.FC<LinkPeAddFundsModalProps> = ({
                     <th className="py-2 px-3">Time</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/80 bg-slate-950">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80 bg-white dark:bg-slate-950">
                   {myRequests.map((r: any) => {
                     const isDeposit = (r.request_type || 'DEPOSIT').toUpperCase() === 'DEPOSIT';
                     return (
-                      <tr key={r.id} className="hover:bg-slate-900/60 transition">
-                        <td className="py-2 px-3 font-mono font-bold text-white">{r.request_id}</td>
+                      <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/60 transition">
+                        <td className="py-2 px-3 font-mono font-bold text-slate-900 dark:text-white">{r.request_id}</td>
                         <td className="py-2 px-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                            isDeposit ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'
+                            isDeposit ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
                           }`}>
                             {isDeposit ? '+ Deposit' : '- Withdrawal'}
                           </span>
                         </td>
                         <td className={`py-2 px-3 text-right font-mono font-bold ${
-                          isDeposit ? 'text-emerald-400' : 'text-rose-400'
+                          isDeposit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                         }`}>
                           {isDeposit ? '+' : '-'}₹{parseFloat(r.amount).toLocaleString('en-IN')}
                         </td>
-                        <td className="py-2 px-3 text-[11px] font-semibold text-slate-400">{r.payment_method}</td>
+                        <td className="py-2 px-3 text-[11px] font-semibold text-slate-600 dark:text-slate-400">{r.payment_method}</td>
                         <td className="py-2 px-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 w-fit ${
-                            r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                            r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
-                            'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
+                            r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' :
+                            r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/30' :
+                            'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 animate-pulse'
                           }`}>
                             {r.status === 'APPROVED' ? 'APPROVED' : r.status === 'REJECTED' ? 'REJECTED' : 'PENDING APPROVAL'}
                           </span>
