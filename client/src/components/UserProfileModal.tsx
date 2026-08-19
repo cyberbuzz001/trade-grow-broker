@@ -296,7 +296,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   // 4. FUNDS & LINKPE UPI STATE
   // ============================================================
   const [requestType, setRequestType] = useState<'DEPOSIT' | 'WITHDRAWAL'>('DEPOSIT');
-  const [fundAmount, setFundAmount] = useState<number>(50000);
+  const [fundAmountInput, setFundAmountInput] = useState<string>('50000');
+  const fundAmount = parseFloat(fundAmountInput) || 0;
   const [paymentMethod, setPaymentMethod] = useState<string>('UPI');
   const [referenceNote, setReferenceNote] = useState<string>('');
   const [fundMessage, setFundMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -350,6 +351,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleSubmitFundRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setFundMessage(null);
+    if (fundAmount <= 0) {
+      setFundMessage({ type: 'error', text: 'Please enter a valid amount greater than ₹0' });
+      return;
+    }
     setSubmittingFundReq(true);
 
     try {
@@ -366,7 +371,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       const data = await res.json();
       if (data.success) {
         setFundMessage({ type: 'success', text: data.message });
-        setFundAmount(50000);
+        setFundAmountInput('50000');
         setReferenceNote('');
         fetchMyFundRequests();
         onRefreshWallet();
@@ -460,60 +465,60 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const isVerified = kycStatus === 'APPROVED' || user?.isKycCompleted;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 animate-in fade-in touch-action-manipulation">
-      <div className="bg-[#0D1117] border border-[#30363D] rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-md p-3 animate-in fade-in touch-action-manipulation">
+      <div className="bg-white dark:bg-[#0D1117] border border-slate-200 dark:border-[#30363D] text-slate-900 dark:text-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
         {/* Modal Header */}
-        <div className="bg-[#161B22] p-5 border-b border-[#30363D] flex items-center justify-between font-headline">
+        <div className="bg-slate-50 dark:bg-[#161B22] p-5 border-b border-slate-200 dark:border-[#30363D] flex items-center justify-between font-headline">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-[#0D1117] flex items-center justify-center text-lg font-black shadow-lg shadow-emerald-500/20 border border-emerald-400/30">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center text-lg font-black shadow-lg shadow-emerald-500/20 border border-emerald-400/30">
               {getInitials(user.username)}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-white tracking-tight capitalize">{user.username}</h2>
-                <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded uppercase">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight capitalize">{user.username}</h2>
+                <span className="bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded uppercase">
                   {user.role}
                 </span>
                 {isVerified ? (
-                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
+                  <span className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> VERIFIED
                   </span>
                 ) : (
-                  <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
+                  <span className="bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" /> KYC PENDING
                   </span>
                 )}
               </div>
-              <p className="text-xs text-[#8B949E] mt-0.5 font-mono">{user.email} · Client ID: {user.id?.slice(0, 10) || '1113019677'}</p>
+              <p className="text-xs text-slate-500 dark:text-[#8B949E] mt-0.5 font-mono">{user.email} · Client ID: {user.id?.slice(0, 10) || '1113019677'}</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-[#8B949E] hover:text-white rounded-xl hover:bg-[#30363D] transition"
+            className="p-1.5 text-slate-500 dark:text-[#8B949E] hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-200 dark:hover:bg-[#30363D] transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex bg-[#0D1117] border-b border-[#30363D] px-4 pt-3 gap-1.5 text-xs font-bold font-headline overflow-x-auto scrollbar-none">
+        <div className="flex bg-slate-100 dark:bg-[#0D1117] border-b border-slate-200 dark:border-[#30363D] px-4 pt-3 gap-1.5 text-xs font-bold font-headline overflow-x-auto scrollbar-none">
           {[
             { key: 'PROFILE', label: 'Personal & Profile', icon: <UserIcon className="w-3.5 h-3.5" /> },
-            { key: 'KYC', label: 'KYC Verification', icon: <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> },
-            { key: 'FUNDS', label: 'Wallet & Ledger', icon: <WalletIcon className="w-3.5 h-3.5 text-blue-400" /> },
-            { key: 'SECURITY', label: 'Security & Auth', icon: <Lock className="w-3.5 h-3.5 text-purple-400" /> },
-            { key: 'SUPPORT', label: '24/7 Support', icon: <HelpCircle className="w-3.5 h-3.5 text-amber-400" /> },
-            { key: 'APPEARANCE', label: 'Lite Mode & Theme', icon: <Sun className="w-3.5 h-3.5 text-amber-400" /> },
+            { key: 'KYC', label: 'KYC Verification', icon: <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> },
+            { key: 'FUNDS', label: 'Wallet & Ledger', icon: <WalletIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> },
+            { key: 'SECURITY', label: 'Security & Auth', icon: <Lock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> },
+            { key: 'SUPPORT', label: '24/7 Support', icon: <HelpCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> },
+            { key: 'APPEARANCE', label: 'Lite Mode & Theme', icon: <Sun className="w-3.5 h-3.5 text-amber-500" /> },
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`pb-2.5 px-3 rounded-t-xl transition-all flex items-center gap-1.5 border-b-2 font-black shrink-0 ${
+              className={`pb-2.5 px-3 rounded-t-xl transition-all flex items-center gap-1.5 border-b-2 font-black shrink-0 cursor-pointer ${
                 activeTab === tab.key
-                  ? 'border-emerald-400 text-emerald-400 bg-[#161B22]'
-                  : 'border-transparent text-[#8B949E] hover:text-white'
+                  ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-white dark:bg-[#161B22]'
+                  : 'border-transparent text-slate-500 dark:text-[#8B949E] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               {tab.icon} {tab.label}
@@ -522,119 +527,119 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Tab Body Content */}
-        <div className="p-5 overflow-y-auto flex-1 font-label text-xs space-y-4">
+        <div className="p-5 overflow-y-auto flex-1 font-label text-xs space-y-4 bg-white dark:bg-[#0D1117] text-slate-900 dark:text-white">
           
           {/* ============================================================ */}
           {/* 1. PERSONAL & PROFILE DETAILS TAB */}
           {/* ============================================================ */}
           {activeTab === 'PROFILE' && (
             <form onSubmit={handleSaveProfile} className="space-y-4 font-headline">
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <UserIcon className="w-4 h-4 text-indigo-400" /> PERSONAL & ACCOUNT DETAILS
+              <div className="bg-slate-50 dark:bg-[#161B22] p-4 rounded-2xl border border-slate-200 dark:border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <UserIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /> PERSONAL & ACCOUNT DETAILS
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Client / Account ID</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Client / Account ID</label>
                     <input
                       type="text"
                       disabled
                       value={user.id || ''}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-200 dark:border-[#30363D] rounded-xl p-2.5 text-slate-500 dark:text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Username</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Username</label>
                     <input
                       type="text"
                       disabled
                       value={user.username || ''}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-200 dark:border-[#30363D] rounded-xl p-2.5 text-slate-500 dark:text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Registered Email</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Registered Email</label>
                     <div className="relative">
                       <input
                         type="email"
                         disabled
                         value={user.email || ''}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
+                        className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-200 dark:border-[#30363D] rounded-xl p-2.5 pl-8 text-slate-500 dark:text-[#8B949E] font-mono text-xs cursor-not-allowed opacity-80"
                       />
-                      <Mail className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                      <Mail className="w-3.5 h-3.5 text-slate-400 dark:text-[#8B949E] absolute left-2.5 top-3" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Full Name</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Full Name</label>
                     <input
                       type="text"
                       placeholder="Enter Full Name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Mobile Number</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Mobile Number</label>
                     <div className="relative">
                       <input
                         type="tel"
                         placeholder="+91 9876543210"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                        className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 pl-8 text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
                       />
-                      <Phone className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                      <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-[#8B949E] absolute left-2.5 top-3" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Date of Birth</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Date of Birth</label>
                     <div className="relative">
                       <input
                         type="date"
                         value={dateOfBirth}
                         onChange={(e) => setDateOfBirth(e.target.value)}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                        className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 pl-8 text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
                       />
-                      <Calendar className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                      <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-[#8B949E] absolute left-2.5 top-3" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">City</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">City</label>
                     <input
                       type="text"
                       placeholder="e.g. Mumbai"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Full Residential Address</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Full Residential Address</label>
                     <div className="relative">
                       <input
                         type="text"
                         placeholder="Flat / Building, Street, Area"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 pl-8 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                        className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 pl-8 text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
                       />
-                      <MapPin className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-3" />
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-[#8B949E] absolute left-2.5 top-3" />
                     </div>
                   </div>
                 </div>
 
                 {profileMsg && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${
-                    profileMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    profileMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                   }`}>
                     {profileMsg.text}
                   </div>
@@ -654,12 +659,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   type="button"
                   onClick={handleResetCapital}
                   disabled={isResetting}
-                  className="w-full py-2.5 rounded-xl bg-[#1C2128] border border-[#30363D] hover:bg-[#30363D] font-bold text-xs text-white transition flex items-center justify-center gap-2"
+                  className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-[#1C2128] border border-slate-300 dark:border-[#30363D] hover:bg-slate-200 dark:hover:bg-[#30363D] font-bold text-xs text-slate-900 dark:text-white transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <RefreshCw size={14} className={isResetting ? 'animate-spin' : ''} /> Refresh Account Balance
                 </button>
                 {resetMessage && (
-                  <p className="text-center text-xs text-emerald-400 font-bold mt-2">{resetMessage}</p>
+                  <p className="text-center text-xs text-emerald-600 dark:text-emerald-400 font-bold mt-2">{resetMessage}</p>
                 )}
               </div>
             </form>
@@ -674,20 +679,20 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               {/* KYC Status Header Card */}
               <div className={`p-4 rounded-2xl border flex items-center justify-between ${
                 isVerified 
-                  ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' 
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300' 
                   : kycStatus === 'SUBMITTED' 
-                  ? 'bg-blue-950/40 border-blue-500/30 text-blue-300' 
-                  : 'bg-amber-950/40 border-amber-500/30 text-amber-300'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-500/30 text-blue-800 dark:text-blue-300' 
+                  : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-500/30 text-amber-800 dark:text-amber-300'
               }`}>
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
-                    isVerified ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                    isVerified ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
                   }`}>
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-white">KYC Verification Status</h4>
-                    <p className="text-xs text-[#8B949E]">
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">KYC Verification Status</h4>
+                    <p className="text-xs text-slate-500 dark:text-[#8B949E]">
                       {isVerified 
                         ? 'Your account is fully verified. Trading enabled.' 
                         : kycStatus === 'SUBMITTED' 
@@ -698,87 +703,87 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
 
                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                  isVerified ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  isVerified ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/40'
                 }`}>
                   {isVerified ? 'VERIFIED' : kycStatus}
                 </span>
               </div>
 
               {/* Form Fields */}
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">IDENTITY & BANK DETAILS</h4>
+              <div className="bg-slate-50 dark:bg-[#161B22] p-4 rounded-2xl border border-slate-200 dark:border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">IDENTITY & BANK DETAILS</h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">PAN Card Number</label>
+                    <label className="text-[10px] text-slate-600 dark:text-[#8B949E] font-bold block mb-1 uppercase">PAN Card Number</label>
                     <input
                       type="text"
                       placeholder="ABCDE1234F"
                       value={panNumber}
                       onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono uppercase font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono uppercase font-bold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-[#0D1117] transition"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Aadhaar Number</label>
+                    <label className="text-[10px] text-slate-600 dark:text-[#8B949E] font-bold block mb-1 uppercase">Aadhaar Number</label>
                     <input
                       type="text"
                       placeholder="1234 5678 9012"
                       value={aadhaarNumber}
                       onChange={(e) => setAadhaarNumber(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono font-bold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-[#0D1117] transition"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Bank Account Holder Name</label>
+                    <label className="text-[10px] text-slate-600 dark:text-[#8B949E] font-bold block mb-1 uppercase">Bank Account Holder Name</label>
                     <input
                       type="text"
                       placeholder="Name as in Bank Account"
                       value={bankAccountName}
                       onChange={(e) => setBankAccountName(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-bold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-[#0D1117] transition"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Bank Account Number</label>
+                    <label className="text-[10px] text-slate-600 dark:text-[#8B949E] font-bold block mb-1 uppercase">Bank Account Number</label>
                     <input
                       type="text"
                       placeholder="e.g. 9182736450"
                       value={bankAccountNumber}
                       onChange={(e) => setBankAccountNumber(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono font-bold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-[#0D1117] transition"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">IFSC Code</label>
+                    <label className="text-[10px] text-slate-600 dark:text-[#8B949E] font-bold block mb-1 uppercase">IFSC Code</label>
                     <input
                       type="text"
                       placeholder="SBIN0001234"
                       value={bankIfsc}
                       onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono uppercase font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-mono uppercase font-bold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-[#0D1117] transition"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Bank Name</label>
+                    <label className="text-[10px] text-slate-600 dark:text-[#8B949E] font-bold block mb-1 uppercase">Bank Name</label>
                     <input
                       type="text"
                       placeholder="e.g. State Bank of India"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-slate-100 dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-bold text-xs focus:outline-none focus:border-emerald-500 focus:bg-white dark:focus:bg-[#0D1117] transition"
                     />
                   </div>
                 </div>
 
                 {kycMessage && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${
-                    kycMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    kycMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                   }`}>
                     {kycMessage.text}
                   </div>
@@ -803,60 +808,60 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               
               {/* Account Balance Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 font-label">
-                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
-                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">TOTAL FUND</span>
-                  <span className="font-extrabold font-mono text-white text-base mt-0.5 block tabular-nums">
+                <div className="bg-slate-50 dark:bg-[#161B22] p-3 rounded-2xl border border-slate-200 dark:border-[#30363D]">
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] font-bold block uppercase font-headline">TOTAL FUND</span>
+                  <span className="font-extrabold font-mono text-slate-900 dark:text-white text-base mt-0.5 block tabular-nums">
                     ₹{(wallet?.cashBalance ?? 50000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Account Net Cash Balance</span>
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] block mt-0.5">Account Net Cash Balance</span>
                 </div>
 
-                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
-                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">AVAILABLE BALANCE</span>
-                  <span className="font-extrabold font-mono text-emerald-400 text-base mt-0.5 block tabular-nums">
+                <div className="bg-slate-50 dark:bg-[#161B22] p-3 rounded-2xl border border-slate-200 dark:border-[#30363D]">
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] font-bold block uppercase font-headline">AVAILABLE BALANCE</span>
+                  <span className="font-extrabold font-mono text-emerald-600 dark:text-emerald-400 text-base mt-0.5 block tabular-nums">
                     ₹{(wallet?.buyingPower ?? wallet?.cashBalance ?? 50000).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5 font-bold text-emerald-400/80">Available for new trades</span>
+                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400/80 block mt-0.5 font-bold">Available for new trades</span>
                 </div>
 
-                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
-                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">USED FUNDS</span>
-                  <span className="font-extrabold font-mono text-amber-400 text-base mt-0.5 block tabular-nums">
+                <div className="bg-slate-50 dark:bg-[#161B22] p-3 rounded-2xl border border-slate-200 dark:border-[#30363D]">
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] font-bold block uppercase font-headline">USED FUNDS</span>
+                  <span className="font-extrabold font-mono text-amber-600 dark:text-amber-400 text-base mt-0.5 block tabular-nums">
                     ₹{(wallet?.usedMargin ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Blocked in open positions</span>
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] block mt-0.5">Blocked in open positions</span>
                 </div>
 
-                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
-                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">REALIZED P&L</span>
-                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.realizedPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <div className="bg-slate-50 dark:bg-[#161B22] p-3 rounded-2xl border border-slate-200 dark:border-[#30363D]">
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] font-bold block uppercase font-headline">REALIZED P&L</span>
+                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.realizedPnl ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {(wallet?.realizedPnl ?? 0) >= 0 ? '+' : ''}₹{(wallet?.realizedPnl ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Closed position profits</span>
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] block mt-0.5">Closed position profits</span>
                 </div>
 
-                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
-                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">UNREALIZED P&L</span>
-                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.unrealizedPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <div className="bg-slate-50 dark:bg-[#161B22] p-3 rounded-2xl border border-slate-200 dark:border-[#30363D]">
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] font-bold block uppercase font-headline">UNREALIZED P&L</span>
+                  <span className={`font-extrabold font-mono text-base mt-0.5 block tabular-nums ${(wallet?.unrealizedPnl ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {(wallet?.unrealizedPnl ?? 0) >= 0 ? '+' : ''}₹{(wallet?.unrealizedPnl ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Live open position P&L</span>
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] block mt-0.5">Live open position P&L</span>
                 </div>
 
-                <div className="bg-[#161B22] p-3 rounded-2xl border border-[#30363D]">
-                  <span className="text-[9px] text-[#8B949E] font-bold block uppercase font-headline">ACCOUNT EQUITY</span>
-                  <span className="font-extrabold font-mono text-cyan-400 text-base mt-0.5 block tabular-nums">
+                <div className="bg-slate-50 dark:bg-[#161B22] p-3 rounded-2xl border border-slate-200 dark:border-[#30363D]">
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] font-bold block uppercase font-headline">ACCOUNT EQUITY</span>
+                  <span className="font-extrabold font-mono text-cyan-600 dark:text-cyan-400 text-base mt-0.5 block tabular-nums">
                     ₹{((wallet?.cashBalance ?? 50000) + (wallet?.unrealizedPnl ?? 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="text-[9px] text-[#8B949E] block mt-0.5">Cash + Live Open P&L</span>
+                  <span className="text-[9px] text-slate-500 dark:text-[#8B949E] block mt-0.5">Cash + Live Open P&L</span>
                 </div>
               </div>
 
               {/* Deposit / Withdraw Form */}
-              <div className="bg-[#161B22] border border-[#30363D] p-4 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between border-b border-[#30363D] pb-2 font-headline">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">FUND DEPOSIT & WITHDRAWAL REQUEST</h4>
-                  <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded font-mono">
+              <div className="bg-slate-50 dark:bg-[#161B22] border border-slate-200 dark:border-[#30363D] p-4 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#30363D] pb-2 font-headline">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">FUND DEPOSIT & WITHDRAWAL REQUEST</h4>
+                  <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded font-mono font-bold">
                     Requires Admin Approval
                   </span>
                 </div>
@@ -867,7 +872,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       type="button"
                       onClick={() => setRequestType('DEPOSIT')}
                       className={`py-2 rounded-xl font-black text-xs transition border cursor-pointer ${
-                        requestType === 'DEPOSIT' ? 'bg-emerald-500 border-emerald-500 text-slate-950 shadow-sm' : 'bg-[#0D1117] border-[#30363D] text-[#8B949E]'
+                        requestType === 'DEPOSIT' ? 'bg-emerald-500 border-emerald-500 text-slate-950 shadow-sm' : 'bg-white dark:bg-[#0D1117] border-slate-300 dark:border-[#30363D] text-slate-600 dark:text-[#8B949E]'
                       }`}
                     >
                       + Request Deposit
@@ -876,7 +881,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       type="button"
                       onClick={() => setRequestType('WITHDRAWAL')}
                       className={`py-2 rounded-xl font-black text-xs transition border cursor-pointer ${
-                        requestType === 'WITHDRAWAL' ? 'bg-rose-500 border-rose-500 text-white shadow-sm' : 'bg-[#0D1117] border-[#30363D] text-[#8B949E]'
+                        requestType === 'WITHDRAWAL' ? 'bg-rose-500 border-rose-500 text-white shadow-sm' : 'bg-white dark:bg-[#0D1117] border-slate-300 dark:border-[#30363D] text-slate-600 dark:text-[#8B949E]'
                       }`}
                     >
                       - Request Withdrawal
@@ -885,22 +890,23 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase font-headline">Amount (₹)</label>
+                      <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase font-headline">Amount (₹)</label>
                       <input
                         type="number"
-                        min="100"
-                        step="100"
-                        value={fundAmount}
-                        onChange={(e) => setFundAmount(Math.max(100, parseFloat(e.target.value) || 0))}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-400 tabular-nums"
+                        min="1"
+                        step="any"
+                        value={fundAmountInput}
+                        onChange={(e) => setFundAmountInput(e.target.value)}
+                        className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-500 tabular-nums"
+                        placeholder="Enter custom deposit amount"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase font-headline">Payment Method</label>
+                      <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase font-headline">Payment Method</label>
                       <select
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs font-bold"
+                        className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:border-emerald-500"
                       >
                         <option value="UPI">UPI Transfer</option>
                         <option value="IMPS_NEFT">IMPS / NEFT</option>
@@ -910,9 +916,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Preset Quick Select Amount Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Presets:</span>
+                    {[500, 1000, 5000, 10000, 25000, 50000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setFundAmountInput(preset.toString())}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition border cursor-pointer ${
+                          fundAmount === preset
+                            ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black'
+                            : 'bg-white dark:bg-[#0D1117] border-slate-300 dark:border-[#30363D] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#1C2128]'
+                        }`}
+                      >
+                        ₹{preset >= 1000 ? `${preset / 1000}k` : preset}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* LinkPe UPI Payment Box */}
                   {requestType === 'DEPOSIT' && paymentMethod === 'UPI' && (
-                    <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-slate-900/90 border border-emerald-300 dark:border-emerald-500/30 space-y-3 shadow-xs">
+                    <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-slate-900/90 border border-emerald-300 dark:border-emerald-500/30 space-y-3 shadow-xs">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -926,12 +951,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
                         {/* EDITABLE ACCOUNT FIELD */}
                         <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 px-2 py-0.5 rounded-xl border border-emerald-400/50">
-                          <span className="text-[10px] font-mono font-extrabold text-emerald-600 dark:text-emerald-400">UPI/Account:</span>
+                          <span className="text-[10px] font-mono font-extrabold text-emerald-700 dark:text-emerald-400">UPI/Account:</span>
                           <input
                             type="text"
                             value={customModalUpiId}
                             onChange={(e) => setCustomModalUpiId(e.target.value)}
-                            className="bg-transparent text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300 focus:outline-none w-32 border-b border-dashed border-emerald-400"
+                            className="bg-transparent text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 focus:outline-none w-32 border-b border-dashed border-emerald-400"
                             title="Edit Account / UPI VPA"
                           />
                         </div>
@@ -1015,19 +1040,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   )}
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase font-headline">Reference / Transaction Note (Optional)</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase font-headline">Reference / Transaction Note (Optional)</label>
                     <input
                       type="text"
                       placeholder="e.g. UTR Number / Reference ID"
                       value={referenceNote}
                       onChange={(e) => setReferenceNote(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-emerald-400"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500"
                     />
                   </div>
 
                   {fundMessage && (
                     <div className={`p-3 rounded-xl text-xs font-bold ${
-                      fundMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                      fundMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                     }`}>
                       {fundMessage.text}
                     </div>
@@ -1036,8 +1061,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <button
                     type="submit"
                     disabled={submittingFundReq}
-                    className={`w-full py-3 rounded-xl font-headline font-black text-xs text-white transition flex items-center justify-center gap-2 shadow-md cursor-pointer ${
-                      requestType === 'DEPOSIT' ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-rose-500 hover:bg-rose-600'
+                    className={`w-full py-3 rounded-xl font-headline font-black text-xs transition flex items-center justify-center gap-2 shadow-md cursor-pointer ${
+                      requestType === 'DEPOSIT' ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-rose-500 hover:bg-rose-600 text-white'
                     }`}
                   >
                     {submittingFundReq ? (
@@ -1050,33 +1075,33 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* Fund Request History */}
-              <div className="bg-[#161B22] border border-[#30363D] p-4 rounded-2xl space-y-2 font-headline">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">MY FUND REQUEST HISTORY</h4>
+              <div className="bg-slate-50 dark:bg-[#161B22] border border-slate-200 dark:border-[#30363D] p-4 rounded-2xl space-y-2 font-headline">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">MY FUND REQUEST HISTORY</h4>
                 <div className="overflow-x-auto max-h-[160px]">
-                  <table className="w-full text-xs text-left text-[#8B949E] font-label">
+                  <table className="w-full text-xs text-left text-slate-600 dark:text-[#8B949E] font-label">
                     <thead>
-                      <tr className="border-b border-[#30363D] text-[10px] text-[#8B949E] uppercase font-bold">
+                      <tr className="border-b border-slate-200 dark:border-[#30363D] text-[10px] text-slate-500 dark:text-[#8B949E] uppercase font-bold">
                         <th className="py-2">Date</th>
                         <th className="py-2">Type</th>
                         <th className="py-2 text-right">Amount</th>
                         <th className="py-2 text-right">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#30363D] tabular-nums">
+                    <tbody className="divide-y divide-slate-200 dark:divide-[#30363D] tabular-nums">
                       {myFundRequests.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="py-4 text-center text-[#8B949E]">No fund request history recorded.</td>
+                          <td colSpan={4} className="py-4 text-center text-slate-500 dark:text-[#8B949E]">No fund request history recorded.</td>
                         </tr>
                       ) : (
                         myFundRequests.map((r: any) => (
                           <tr key={r.id}>
-                            <td className="py-2 text-[#8B949E]">{new Date(r.created_at || Date.now()).toLocaleDateString()}</td>
-                            <td className="py-2 font-bold text-white">{r.request_type}</td>
-                            <td className="py-2 text-right font-bold text-white">₹{parseFloat(r.amount).toLocaleString('en-IN')}</td>
+                            <td className="py-2 text-slate-500 dark:text-[#8B949E]">{new Date(r.created_at || Date.now()).toLocaleDateString()}</td>
+                            <td className="py-2 font-bold text-slate-900 dark:text-white">{r.request_type}</td>
+                            <td className="py-2 text-right font-bold text-slate-900 dark:text-white">₹{parseFloat(r.amount).toLocaleString('en-IN')}</td>
                             <td className="py-2 text-right font-bold">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400' :
-                                r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'
+                                r.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' :
+                                r.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-700 dark:text-rose-400' : 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
                               }`}>
                                 {r.status}
                               </span>
@@ -1097,52 +1122,52 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {/* ============================================================ */}
           {activeTab === 'SECURITY' && (
             <form onSubmit={handleChangePassword} className="space-y-4 font-headline">
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-purple-400" /> CHANGE ACCOUNT PASSWORD
+              <div className="bg-slate-50 dark:bg-[#161B22] p-4 rounded-2xl border border-slate-200 dark:border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-purple-500 dark:text-purple-400" /> CHANGE ACCOUNT PASSWORD
                 </h4>
 
                 <div className="space-y-3 pt-1">
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Current Password</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Current Password</label>
                     <input
                       type="password"
                       required
                       placeholder="••••••••"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">New Password</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">New Password</label>
                     <input
                       type="password"
                       required
                       placeholder="Minimum 6 characters"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Confirm New Password</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Confirm New Password</label>
                     <input
                       type="password"
                       required
                       placeholder="Re-enter new password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-purple-500"
                     />
                   </div>
                 </div>
 
                 {passwordMsg && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${
-                    passwordMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    passwordMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                   }`}>
                     {passwordMsg.text}
                   </div>
@@ -1158,9 +1183,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               {/* 2FA Info Card */}
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-2">
-                <h4 className="font-bold text-white text-xs">Two-Factor Authentication & Session Security</h4>
-                <p className="text-[#8B949E] text-xs">
+              <div className="bg-slate-50 dark:bg-[#161B22] p-4 rounded-2xl border border-slate-200 dark:border-[#30363D] space-y-2">
+                <h4 className="font-bold text-slate-900 dark:text-white text-xs">Two-Factor Authentication & Session Security</h4>
+                <p className="text-slate-500 dark:text-[#8B949E] text-xs">
                   Your session is secured using 256-bit JWT encrypted tokens and IP-anchored rate limit protection.
                 </p>
               </div>
@@ -1172,18 +1197,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {/* ============================================================ */}
           {activeTab === 'SUPPORT' && (
             <div className="space-y-4 font-headline">
-              <form onSubmit={handleSubmitSupportTicket} className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-3">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <HelpCircle className="w-4 h-4 text-amber-400" /> CREATE SUPPORT HELP TICKET
+              <form onSubmit={handleSubmitSupportTicket} className="bg-slate-50 dark:bg-[#161B22] p-4 rounded-2xl border border-slate-200 dark:border-[#30363D] space-y-3">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-amber-500 dark:text-amber-400" /> CREATE SUPPORT HELP TICKET
                 </h4>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Category</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Category</label>
                     <select
                       value={supportCategory}
                       onChange={(e) => setSupportCategory(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs font-bold"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:border-amber-500"
                     >
                       <option value="TRADING">Trading & Execution</option>
                       <option value="KYC">KYC & Account Verification</option>
@@ -1194,11 +1219,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Priority</label>
+                    <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Priority</label>
                     <select
                       value={supportPriority}
                       onChange={(e) => setSupportPriority(e.target.value)}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs font-bold"
+                      className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:border-amber-500"
                     >
                       <option value="LOW">Low</option>
                       <option value="MEDIUM">Medium</option>
@@ -1209,32 +1234,32 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Subject</label>
+                  <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Subject</label>
                   <input
                     type="text"
                     required
                     placeholder="Brief summary of your request"
                     value={supportSubject}
                     onChange={(e) => setSupportSubject(e.target.value)}
-                    className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white font-bold text-xs focus:outline-none focus:border-amber-400"
+                    className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-[#8B949E] font-bold block mb-1 uppercase">Detailed Description</label>
+                  <label className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold block mb-1 uppercase">Detailed Description</label>
                   <textarea
                     required
                     rows={3}
                     placeholder="Explain your issue in detail..."
                     value={supportDesc}
                     onChange={(e) => setSupportDesc(e.target.value)}
-                    className="w-full bg-[#0D1117] border border-[#30363D] rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                    className="w-full bg-white dark:bg-[#0D1117] border border-slate-300 dark:border-[#30363D] rounded-xl p-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
                 {supportMsg && (
                   <div className={`p-3 rounded-xl text-xs font-bold ${
-                    supportMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                    supportMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
                   }`}>
                     {supportMsg.text}
                   </div>
@@ -1250,27 +1275,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </form>
 
               {/* Tickets History List */}
-              <div className="bg-[#161B22] border border-[#30363D] p-4 rounded-2xl space-y-2">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">MY SUPPORT TICKETS</h4>
+              <div className="bg-slate-50 dark:bg-[#161B22] border border-slate-200 dark:border-[#30363D] p-4 rounded-2xl space-y-2">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">MY SUPPORT TICKETS</h4>
                 <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                   {supportTickets.length === 0 ? (
-                    <p className="text-center py-4 text-[#8B949E] text-xs">No support tickets submitted yet.</p>
+                    <p className="text-center py-4 text-slate-500 dark:text-[#8B949E] text-xs">No support tickets submitted yet.</p>
                   ) : (
                     supportTickets.map((t: any) => (
-                      <div key={t.id} className="p-3 bg-[#0D1117] border border-[#30363D] rounded-xl flex items-center justify-between text-xs">
+                      <div key={t.id} className="p-3 bg-white dark:bg-[#0D1117] border border-slate-200 dark:border-[#30363D] rounded-xl flex items-center justify-between text-xs">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white">{t.subject}</span>
-                            <span className="text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.2 rounded uppercase">
+                            <span className="font-bold text-slate-900 dark:text-white">{t.subject}</span>
+                            <span className="text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-1.5 py-0.2 rounded uppercase">
                               {t.category}
                             </span>
                           </div>
-                          <span className="text-[10px] text-[#8B949E] block mt-0.5">
+                          <span className="text-[10px] text-slate-500 dark:text-[#8B949E] block mt-0.5">
                             {new Date(t.created_at || Date.now()).toLocaleString()}
                           </span>
                         </div>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                          t.status === 'RESOLVED' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'
+                          t.status === 'RESOLVED' ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400' : 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
                         }`}>
                           {t.status}
                         </span>
@@ -1287,21 +1312,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {/* ============================================================ */}
           {activeTab === 'APPEARANCE' && (
             <div className="space-y-4 font-headline">
-              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-4">
+              <div className="bg-slate-50 dark:bg-[#161B22] p-4 rounded-2xl border border-slate-200 dark:border-[#30363D] space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Sun className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Sun className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                       Appearance & Interface Theme
                     </h3>
-                    <p className="text-xs text-[#8B949E] mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-[#8B949E] mt-0.5">
                       Switch between Lite Mode (Light Theme) and Dark Mode for high readability or sleek dark trading.
                     </p>
                   </div>
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
                     theme === 'light' 
-                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' 
-                      : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40'
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/40' 
+                      : 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border-indigo-500/40'
                   }`}>
                     {theme === 'light' ? 'LITE MODE ACTIVE' : 'DARK MODE ACTIVE'}
                   </span>
@@ -1315,25 +1340,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     }}
                     className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                       theme === 'light'
-                        ? 'bg-amber-500/10 border-amber-500/50 shadow-lg shadow-amber-500/10 ring-2 ring-amber-500/30'
-                        : 'bg-[#0D1117] border-[#30363D] hover:border-amber-500/40'
+                        ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-500/50 shadow-lg shadow-amber-500/10 ring-2 ring-amber-500/30'
+                        : 'bg-white dark:bg-[#0D1117] border-slate-200 dark:border-[#30363D] hover:border-amber-500/40'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
                           <Sun className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-sm text-white">Lite Mode</h4>
-                          <span className="text-[10px] text-[#8B949E]">High contrast light background</span>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">Lite Mode</h4>
+                          <span className="text-[10px] text-slate-500 dark:text-[#8B949E]">High contrast light background</span>
                         </div>
                       </div>
                       {theme === 'light' && (
-                        <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                        <CheckCircle2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
                       )}
                     </div>
-                    <p className="text-xs text-[#8B949E]">
+                    <p className="text-xs text-slate-600 dark:text-[#8B949E]">
                       Optimized for bright environments and daylight trading. Clean white & slate interfaces.
                     </p>
                     <button
@@ -1344,8 +1369,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       }}
                       className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
                         theme === 'light'
-                          ? 'bg-amber-500 text-[#0D1117] font-black'
-                          : 'bg-[#1C2128] text-white hover:bg-amber-500 hover:text-[#0D1117]'
+                          ? 'bg-amber-500 text-slate-950 font-black'
+                          : 'bg-slate-100 dark:bg-[#1C2128] text-slate-900 dark:text-white hover:bg-amber-500 hover:text-slate-950'
                       }`}
                     >
                       {theme === 'light' ? 'Selected (Active)' : 'Switch to Lite Mode'}
@@ -1360,24 +1385,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
                       theme === 'dark'
                         ? 'bg-indigo-500/10 border-indigo-500/50 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/30'
-                        : 'bg-[#0D1117] border-[#30363D] hover:border-indigo-500/40'
+                        : 'bg-white dark:bg-[#0D1117] border-slate-200 dark:border-[#30363D] hover:border-indigo-500/40'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
                           <Moon className="w-5 h-5" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-sm text-white">Dark Mode</h4>
-                          <span className="text-[10px] text-[#8B949E]">Sleek financial terminal dark</span>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white">Dark Mode</h4>
+                          <span className="text-[10px] text-slate-500 dark:text-[#8B949E]">Sleek financial terminal dark</span>
                         </div>
                       </div>
                       {theme === 'dark' && (
                         <CheckCircle2 className="w-5 h-5 text-indigo-400" />
                       )}
                     </div>
-                    <p className="text-xs text-[#8B949E]">
+                    <p className="text-xs text-slate-600 dark:text-[#8B949E]">
                       Pro financial terminal design. Reduced eye strain with dark background and vibrant charts.
                     </p>
                     <button
@@ -1389,7 +1414,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
                         theme === 'dark'
                           ? 'bg-indigo-500 text-white font-black'
-                          : 'bg-[#1C2128] text-white hover:bg-indigo-500'
+                          : 'bg-slate-100 dark:bg-[#1C2128] text-slate-900 dark:text-white hover:bg-indigo-500'
                       }`}
                     >
                       {theme === 'dark' ? 'Selected (Active)' : 'Switch to Dark Mode'}
@@ -1403,19 +1428,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-[#161B22] border-t border-[#30363D] flex items-center justify-between shrink-0 font-headline">
-          <span className="text-[10px] text-[#8B949E] font-bold">Trade Grow — Smart Trading Platform</span>
+        <div className="p-4 bg-slate-50 dark:bg-[#161B22] border-t border-slate-200 dark:border-[#30363D] flex items-center justify-between shrink-0 font-headline">
+          <span className="text-[10px] text-slate-500 dark:text-[#8B949E] font-bold">Trade Grow — Smart Trading Platform</span>
           
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-[#8B949E] border border-[#30363D] hover:text-white hover:bg-[#1C2128] cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-[#8B949E] border border-slate-300 dark:border-[#30363D] hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-[#1C2128] cursor-pointer transition"
             >
               Close
             </button>
             <button
               onClick={onLogout}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 shadow-md cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 shadow-md cursor-pointer transition"
             >
               Log Out
             </button>

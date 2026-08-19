@@ -1,3 +1,32 @@
+export const STAFF_ROLES = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MANAGER',
+  'OPERATIONS_MANAGER',
+  'FINANCE_MANAGER',
+  'KYC_OFFICER',
+  'COMPLIANCE_OFFICER',
+  'RISK_MANAGER',
+  'RISK_OFFICER',
+  'DEALER',
+  'ANALYST',
+  'SUPPORT_AGENT'
+];
+
+export function isStaffUser(role?: string): boolean {
+  if (!role) return false;
+  const upper = role.toUpperCase().trim();
+  if (upper === 'USER' || upper === 'CLIENT') return false;
+  return (
+    STAFF_ROLES.includes(upper) ||
+    upper.endsWith('_ADMIN') ||
+    upper.endsWith('_MANAGER') ||
+    upper.endsWith('_OFFICER') ||
+    upper.endsWith('_DEALER') ||
+    upper.endsWith('_AGENT')
+  );
+}
+
 export interface User {
   id: string;
   username: string;

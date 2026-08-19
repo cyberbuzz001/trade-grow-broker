@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Sun, Moon, LogOut, ChevronRight, Wallet, Receipt, Building2, Headset, FileText, Settings, ShieldCheck, Activity, Plus } from 'lucide-react';
-import { User } from '../types';
+import { User, isStaffUser } from '../types';
 import { SubView } from './GrowwSubNav';
 
 interface GrowwHeaderProps {
@@ -165,7 +165,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
         </button>
 
         {/* Admin Control Center Button (for Staff/Admin accounts) */}
-        {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user?.role || '') && (
+        {isStaffUser(user?.role) && (
           <button
             onClick={() => onNavigateView('ADMIN')}
             className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 flex items-center gap-1.5 text-xs font-bold transition shadow-xs cursor-pointer"
@@ -352,7 +352,7 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
                   </span>
                 </button>
 
-                {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(user?.role || '') && (
+                {isStaffUser(user?.role) && (
                   <button
                     onClick={() => { setIsProfileOpen(false); onNavigateView('ADMIN'); }}
                     className="w-full flex items-center justify-between p-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors font-bold cursor-pointer"

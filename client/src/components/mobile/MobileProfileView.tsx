@@ -1,19 +1,19 @@
 import React from 'react';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  User as UserIcon, 
-  ShieldCheck, 
-  Wallet, 
-  Lock, 
-  HelpCircle, 
-  LogOut, 
-  Sun, 
-  Moon, 
-  CheckCircle2, 
-  Zap, 
-  RefreshCw, 
-  PlusCircle, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  User as UserIcon,
+  ShieldCheck,
+  Wallet,
+  Lock,
+  HelpCircle,
+  LogOut,
+  Sun,
+  Moon,
+  CheckCircle2,
+  Zap,
+  RefreshCw,
+  PlusCircle,
   AlertTriangle
 } from 'lucide-react';
 import { User, Wallet as WalletType } from '../../types';
@@ -56,7 +56,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
 
   return (
     <div className="pb-24 pt-4 px-4 space-y-4 bg-[var(--bg-body)] min-h-screen text-[var(--text-main)] font-sans touch-action-manipulation">
-      
+
       {/* 1. TOP HEADER */}
       <div className="flex items-center justify-between">
         <button
@@ -129,9 +129,9 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             <Wallet className="w-4 h-4 text-emerald-500" /> AVAILABLE BALANCE
           </span>
           {onRefreshWallet && (
-            <button 
+            <button
               type="button"
-              onClick={onRefreshWallet} 
+              onClick={onRefreshWallet}
               className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 active:scale-95 cursor-pointer min-h-[36px]"
             >
               <RefreshCw className="w-3 h-3" /> Refresh
@@ -162,7 +162,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
 
       {/* 4. ADMIN QUICK ACTION BANNER */}
       {isAdminStaff && (
-        <button 
+        <button
           type="button"
           onClick={onOpenAdmin}
           className="w-full text-left bg-gradient-to-r from-rose-500/15 via-rose-500/10 to-transparent border border-rose-500/30 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer active:scale-95 transition-all min-h-[48px]"
@@ -182,7 +182,7 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
 
       {/* 5. ACCOUNT & SETTINGS MENU ROWS (Exact 5 Cards from uploaded image) */}
       <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-2 shadow-xs space-y-1 backdrop-blur-xl">
-        
+
         {/* Card 1: Personal & Profile Details */}
         <button
           type="button"
@@ -303,11 +303,10 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-              theme === 'light' 
-                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40' 
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${theme === 'light'
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40'
                 : 'bg-indigo-500/20 text-indigo-500 border-indigo-500/40'
-            }`}>
+              }`}>
               {theme === 'light' ? 'LITE MODE' : 'DARK MODE'}
             </span>
             <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />

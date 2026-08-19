@@ -751,12 +751,37 @@
 }
 
 /* ── @supports fallback for backdrop-filter ──────────────── */
-@supports not (backdrop-filter: blur(1px)) {
-  .mobile-nav-glass {
-    background: rgba(255,255,255,0.98) !important;
-    box-shadow: 0 -4px 20px rgba(15,23,42,0.10) !important;
-  }
-  .dark .mobile-nav-glass {
-    background: rgba(15,23,42,0.99) !important;
-  }
+/* ── Mobile Input Autofill & High Contrast Text Rules ────────────── */
+input, select, textarea {
+  color: var(--text-main);
+  background-color: var(--bg-surface);
 }
+
+/* Chrome & Mobile Safari Autofill Fix */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-main) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--bg-surface) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input,
+[data-theme="dark"] input,
+.dark select,
+[data-theme="dark"] select,
+.dark textarea,
+[data-theme="dark"] textarea {
+  color: #f8fafc !important;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+[data-theme="dark"] input:-webkit-autofill {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0px 1000px #0d1117 inset !important;
+}
+

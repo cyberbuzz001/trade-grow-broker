@@ -429,13 +429,13 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
                   value={panNumber}
                   onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                   maxLength={10}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white uppercase font-mono tracking-wider"
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white uppercase font-mono tracking-wider"
                 />
               </div>
 
               {/* Aadhaar Number */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Aadhaar Card Number (12 Digits) *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Aadhaar Card Number (12 Digits) *</label>
                 <input
                   type="text"
                   required
@@ -443,52 +443,52 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
                   value={aadhaarNumber}
                   onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ''))}
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white font-mono tracking-wider"
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono tracking-wider"
                 />
               </div>
 
               {/* Bank Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Bank Name *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank Name *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. HDFC Bank Ltd"
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white"
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
               {/* Bank Account Number */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Bank Account Number *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank Account Number *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. 50100234567890"
                   value={bankAccountNumber}
                   onChange={(e) => setBankAccountNumber(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white font-mono"
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-mono"
                 />
               </div>
 
               {/* Bank Account Holder Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Account Holder Name *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Account Holder Name *</label>
                 <input
                   type="text"
                   required
                   placeholder="As per bank passbook"
                   value={bankAccountName}
                   onChange={(e) => setBankAccountName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white"
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white"
                 />
               </div>
 
               {/* IFSC Code */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300">Bank IFSC Code *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Bank IFSC Code *</label>
                 <input
                   type="text"
                   required
@@ -496,7 +496,7 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
                   value={bankIfsc}
                   onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
                   maxLength={11}
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-white uppercase font-mono"
+                  className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white uppercase font-mono"
                 />
               </div>
             </div>

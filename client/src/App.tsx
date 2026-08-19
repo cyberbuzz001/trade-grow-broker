@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { User, Wallet, MarketTick } from './types';
+import { User, Wallet, MarketTick, isStaffUser } from './types';
 import { MarketSocketProvider } from './hooks/useMarketSocket';
 import { GrowwHeader } from './components/GrowwHeader';
 import { GrowwSubNav, SubView } from './components/GrowwSubNav';
@@ -322,7 +322,7 @@ export function App() {
           <MobileBottomNav
             activeTab={activeMobileTab}
             onSelectTab={(tab) => setActiveMobileTab(tab)}
-            isAdmin={Boolean(user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(user.role))}
+            isAdmin={Boolean(user && isStaffUser(user.role))}
           />
 
           {/* Mobile Order Confirmation Modal */}
@@ -527,7 +527,7 @@ export function App() {
                   )}
 
                   {activeSubView === 'ADMIN' && (
-                    user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user.role) ? (
+                    user && isStaffUser(user.role) ? (
                       <AdminPanel token={token} />
                     ) : (
                       <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto my-12 space-y-4 shadow-xl">

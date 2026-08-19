@@ -108,53 +108,14 @@ app.use('/api', (err: any, _req: express.Request, res: express.Response, next: e
 });
 
 // ============================================================
-// Startup: DB Init, Market Data Engine, Execution Engine
+// Startup: DB Init, Immediate Port Binding & Non-Blocking Async Services
 // ============================================================
 async function startServer() {
   try {
-    // Initialize database (run migrations & seed)
+    // 1. Initialize database schema & migrations (fast)
     await seedDatabase();
 
-    // Initialize Scrip Master (loads token lookup cache, blocks if DB empty)
-    const { InstrumentMasterService } = await import('./marketData/InstrumentMasterService');
-    await InstrumentMasterService.getInstance().initializeOnStartup();
-
-    // Initialize Market Data Engine
-    await MarketDataEngine.getInstance().initialize();
-
-    // Start Price Feed Reconciliation Monitor (every 60s)
-    import('./services/ReconciliationMonitorService')
-      .then(({ reconciliationMonitor }) => reconciliationMonitor.start(60000))
-      .catch((err) => console.error('[Startup] Failed to start ReconciliationMonitorService:', err.message));
-
-    // Start NSE Live Index & Dual-Feed Spot Guard (every 30s)
-    import('./marketData/NseOptionChainService')
-      .then(({ nseOptionChainService }) => nseOptionChainService.start())
-      .catch((err) => console.error('[Startup] Failed to start NseOptionChainService:', err.message));
-
-    // Start Automated Option Chain Pricing Accuracy Check (every 60s)
-    import('./services/AccuracyCheckService')
-      .then(({ accuracyCheckService }) => accuracyCheckService.start())
-      .catch((err) => console.error('[Startup] Failed to start AccuracyCheckService:', err.message));
-
-    // Start Simulated Execution Engine
-    ExecutionEngine.start();
-
-    // Setup WebSocket Server Gateway
-    setupWebSocketServer(server);
-
-    // Start Dhan Token Expiry Check & Morning Reminder Cron Jobs
-    const engine = MarketDataEngine.getInstance();
-    const dhanProvider = (engine as any).providers?.get('DHAN');
-    if (dhanProvider && typeof dhanProvider.getAccessToken === 'function') {
-      setDhanAdapterRef(dhanProvider);
-      startCronJobs(() => dhanProvider.getAccessToken());
-      console.log('[Startup] ✅ Dhan token cron jobs started (30-min expiry check + 08:30 AM IST reminder).');
-    } else {
-      console.warn('[Startup] ⚠️ DhanAdapter not found — cron jobs not started.');
-    }
-
-    // Serve Frontend Static Files in Production
+    // 2. Serve Frontend Static Files in Production
     const clientDistPath = path.resolve(__dirname, '../../client/dist');
     app.use(express.static(clientDistPath));
     app.get('*', (req, res, next) => {
@@ -164,16 +125,58 @@ async function startServer() {
       });
     });
 
+    // 3. Start HTTP Server IMMEDIATELY to prevent NGINX 504 Gateway Time-outs
     server.listen(PORT, () => {
       console.log(`=======================================================`);
-      console.log(`🌱 TRADE GROW — SMART TRADING PLATFORM ON PORT ${PORT}`);
+      console.log(`🌱 TRADE GROW — SMART TRADING PLATFORM LISTENING ON PORT ${PORT}`);
       console.log(`🔒 SAFETY MODE: VIRTUAL PAPER TRADING ONLY (REAL MONEY DISABLED)`);
       console.log(`📊 MARKET DATA: ${MarketDataEngine.getInstance().getActiveProviderName()}`);
-      console.log(`🔔 CRON JOBS: Dhan token expiry check (30-min) + 08:30 AM IST daily reminder`);
       console.log(`🛡️  SECURITY: Helmet.js, CORS restricted, Rate limiting active`);
-      console.log(`🗄️  DATABASE: PostgreSQL (connection pool: max 20 connections)`);
       console.log(`=======================================================`);
     });
+
+    // 4. Run Heavy Market Data Engines & Background Services Asynchronously (Non-Blocking)
+    (async () => {
+      try {
+        const { InstrumentMasterService } = await import('./marketData/InstrumentMasterService');
+        await InstrumentMasterService.getInstance().initializeOnStartup();
+
+        await MarketDataEngine.getInstance().initialize();
+
+        // Start Price Feed Reconciliation Monitor
+        import('./services/ReconciliationMonitorService')
+          .then(({ reconciliationMonitor }) => reconciliationMonitor.start(60000))
+          .catch((err) => console.error('[Startup] Failed to start ReconciliationMonitorService:', err.message));
+
+        // Start NSE Live Index & Dual-Feed Spot Guard
+        import('./marketData/NseOptionChainService')
+          .then(({ nseOptionChainService }) => nseOptionChainService.start())
+          .catch((err) => console.error('[Startup] Failed to start NseOptionChainService:', err.message));
+
+        // Start Automated Option Chain Pricing Accuracy Check
+        import('./services/AccuracyCheckService')
+          .then(({ accuracyCheckService }) => accuracyCheckService.start())
+          .catch((err) => console.error('[Startup] Failed to start AccuracyCheckService:', err.message));
+
+        ExecutionEngine.start();
+        setupWebSocketServer(server);
+
+        const engine = MarketDataEngine.getInstance();
+        const dhanProvider = (engine as any).providers?.get('DHAN');
+        if (dhanProvider && typeof dhanProvider.getAccessToken === 'function') {
+          setDhanAdapterRef(dhanProvider);
+          startCronJobs(() => dhanProvider.getAccessToken());
+          console.log('[Startup] ✅ Dhan token cron jobs started (30-min expiry check + 08:30 AM IST reminder).');
+        } else {
+          console.warn('[Startup] ⚠️ DhanAdapter not found — cron jobs not started.');
+        }
+
+        console.log('[Startup] ✅ All background market data engines & WebSocket services initialized cleanly.');
+      } catch (bgErr: any) {
+        console.error('[Startup Background Warning]', bgErr.message || bgErr);
+      }
+    })();
+
   } catch (err: any) {
     console.error('[FATAL] Server startup failed:', err.message);
     console.error(err.stack);

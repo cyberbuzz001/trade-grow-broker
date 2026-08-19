@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, TrendingUp, LineChart, Layers, PieChart, ShieldAlert, Zap, Command } from 'lucide-react';
 
+import { isStaffUser } from '../types';
+
 interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -31,7 +33,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
   if (!isOpen) return null;
 
-  const isAdminUser = ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(userRole || '');
+  const isAdminUser = isStaffUser(userRole);
 
   const staticInstruments = [
     { token: 'NSE_NIFTY50', symbol: 'NIFTY 50', name: 'Nifty 50 Index', exchange: 'NSE', type: 'INDEX' },
