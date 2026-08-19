@@ -957,15 +957,26 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 <Smartphone className="w-3.5 h-3.5" />
                                 <span>Open UPI App (GPay / PhonePe / Paytm)</span>
                               </a>
-                              <a
-                                href={`https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full py-1.5 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-[11px] flex items-center justify-center gap-1.5 transition border border-slate-300 dark:border-slate-700"
-                              >
-                                <ExternalLink className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                                <span>Open LinkPe Payment Page</span>
-                              </a>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                <a
+                                  href={`https://upipg.cit.org.in/pay?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&am=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 transition shadow-xs"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>UPI-PG (CIT India)</span>
+                                </a>
+                                <a
+                                  href={`https://ptprashanttripathi.github.io/linkpe/?pa=${encodeURIComponent(customModalUpiId.trim() || linkpeData.upiId)}&pn=${encodeURIComponent(linkpeData.merchantName)}&amt=${fundAmount}&tn=Trade%20Grow%20Margin%20Deposit`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full py-1.5 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-[11px] flex items-center justify-center gap-1 transition border border-slate-300 dark:border-slate-700"
+                                >
+                                  <ExternalLink className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>LinkPe Page</span>
+                                </a>
+                              </div>
                             </div>
                           </div>
                         </div>

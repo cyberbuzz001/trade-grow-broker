@@ -1,6 +1,6 @@
 /**
- * LinkPe UPI Payment Service
- * Integrates PtPrashantTripathi/linkpe URL schema and UPI deep links
+ * LinkPe & UPI-PG (Centre for IT India) Payment Service
+ * Integrates LinkPe, UPI-PG (CIT India), and direct NPCI UPI deep links
  */
 import QRCode from 'qrcode';
 import { queryOne } from '../db/schema';
@@ -11,13 +11,15 @@ export interface LinkPePayload {
   amount: number;
   note: string;
   linkpeUrl: string;
+  upipgUrl: string;
+  upipgEmbedUrl: string;
   upiDeepLink: string;
   qrCodeUrl: string;
 }
 
 export class LinkPeService {
   /**
-   * Get LinkPe UPI payment links and QR code for a requested deposit amount
+   * Get LinkPe & UPI-PG payment links and QR code for a requested deposit amount
    */
   public static async generatePaymentLink(
     amount: number,
@@ -41,6 +43,10 @@ export class LinkPeService {
     // LinkPe Web Payment Link
     const linkpeUrl = `https://ptprashanttripathi.github.io/linkpe/?pa=${pa}&pn=${pn}&amt=${safeAmount}&tn=${tn}`;
 
+    // UPI-PG (Centre for Information Technology India) Gateway Link & Embed Widget
+    const upipgUrl = `https://upipg.cit.org.in/pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}`;
+    const upipgEmbedUrl = `https://upipg.cit.org.in/embed?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}`;
+
     // Direct UPI Mobile Deep Link (GPay, PhonePe, Paytm, BHIM)
     const upiDeepLink = `upi://pay?pa=${pa}&pn=${pn}&am=${safeAmount}&tn=${tn}&cu=INR`;
 
@@ -62,6 +68,8 @@ export class LinkPeService {
       amount: safeAmount,
       note,
       linkpeUrl,
+      upipgUrl,
+      upipgEmbedUrl,
       upiDeepLink,
       qrCodeUrl
     };
