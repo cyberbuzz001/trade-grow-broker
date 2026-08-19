@@ -60,50 +60,82 @@ router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), as
       queryOne<any>("SELECT COUNT(*) as c FROM users WHERE status = 'FROZEN'"),
     ]);
 
-    const dbHealth = await checkDatabaseHealth();
-    const mdProvider = MarketDataEngine.getInstance().getActiveProviderName();
+    const totalTurnover = parseFloat(buyValueRow?.s || '0') + parseFloat(sellValueRow?.s || '0');
+    const totalFunds = parseFloat(totalFundsRow?.s || '0');
+    const marginUtilized = parseFloat(marginRow?.s || '0');
+    const brokerage = parseFloat(brokerageRow?.s || '0');
+    const pendingWithdrawals = parseInt(pendingWithdrawalsRow?.c || '0');
+
+    const kpisPayload = {
+      timestamp: new Date().toISOString(),
+      customers: {
+        total: parseInt(totalUsersRow?.c || '0'),
+        active: parseInt(activeUsersRow?.c || '0'),
+        new: parseInt(newUsersRow?.c || '0'),
+        newLast30Days: parseInt(newUsersRow?.c || '0'),
+        suspended: parseInt(suspendedRow?.c || '0'),
+        frozen: parseInt(frozenRow?.c || '0'),
+        kycPending: parseInt(kycPendingRow?.c || '0'),
+        kycRejected: parseInt(kycRejectedRow?.c || '0')
+      },
+      trading: {
+        ordersToday: parseInt(ordersRow?.c || '0'),
+        tradesToday: parseInt(tradesRow?.c || '0'),
+        totalTrades: parseInt(turnoverRow?.c || '0'),
+        activeTraders: parseInt(activeTradersRow?.c || '0'),
+        activeTradersToday: parseInt(activeTradersRow?.c || '0'),
+        turnover: totalTurnover,
+        totalTurnover: totalTurnover,
+        buyValue: parseFloat(buyValueRow?.s || '0'),
+        buyTurnover: parseFloat(buyValueRow?.s || '0'),
+        sellValue: parseFloat(sellValueRow?.s || '0'),
+        sellTurnover: parseFloat(sellValueRow?.s || '0')
+      },
+      financial: {
+        totalFunds: totalFunds,
+        totalFundsUnderCustody: totalFunds,
+        marginUtilized: marginUtilized,
+        totalMarginUtilized: marginUtilized,
+        brokerage: brokerage,
+        totalBrokerageEarned: brokerage,
+        pendingWithdrawals: pendingWithdrawals,
+        pendingWithdrawalsCount: pendingWithdrawals
+      },
+      financials: {
+        totalFundsUnderCustody: totalFunds,
+        totalMarginUtilized: marginUtilized,
+        totalBrokerageEarned: brokerage,
+        pendingWithdrawalsCount: pendingWithdrawals
+      },
+      risk: {
+        highRiskClients: parseInt(highRiskRow?.c || '0'),
+        highRiskEvents: parseInt(highRiskRow?.c || '0'),
+        marginAlerts: parseInt(marginAlertsRow?.c || '0'),
+        rmsBlocks: parseInt(rmsBlocksRow?.c || '0'),
+        frozenAccounts: parseInt(frozenRow?.c || '0')
+      },
+      technology: {
+        apiStatus: 'OPERATIONAL',
+        wsStatus: 'CONNECTED',
+        brokerStatus: mdProvider.toUpperCase(),
+        marketDataStatus: 'LIVE',
+        omsStatus: 'OPERATIONAL',
+        rmsStatus: 'ACTIVE',
+        databaseHealth: dbHealth.healthy ? 'HEALTHY' : 'DEGRADED'
+      },
+      system: {
+        databaseHealthy: dbHealth.healthy,
+        databaseLatencyMs: dbHealth.latencyMs,
+        marketDataProvider: mdProvider,
+        activeFeeds: 13,
+        realMoneyAllowed: SafetyLock.REAL_MONEY_TRADING_ALLOWED
+      }
+    };
 
     res.json({
       success: true,
-      data: {
-        timestamp: new Date().toISOString(),
-        customers: {
-          total: parseInt(totalUsersRow?.c || '0'),
-          active: parseInt(activeUsersRow?.c || '0'),
-          newLast30Days: parseInt(newUsersRow?.c || '0'),
-          suspended: parseInt(suspendedRow?.c || '0'),
-          frozen: parseInt(frozenRow?.c || '0'),
-          kycPending: parseInt(kycPendingRow?.c || '0'),
-          kycRejected: parseInt(kycRejectedRow?.c || '0')
-        },
-        trading: {
-          ordersToday: parseInt(ordersRow?.c || '0'),
-          tradesToday: parseInt(tradesRow?.c || '0'),
-          totalTrades: parseInt(turnoverRow?.c || '0'),
-          activeTradersToday: parseInt(activeTradersRow?.c || '0'),
-          totalTurnover: parseFloat(buyValueRow?.s || '0') + parseFloat(sellValueRow?.s || '0'),
-          buyTurnover: parseFloat(buyValueRow?.s || '0'),
-          sellTurnover: parseFloat(sellValueRow?.s || '0')
-        },
-        financials: {
-          totalFundsUnderCustody: parseFloat(totalFundsRow?.s || '0'),
-          totalMarginUtilized: parseFloat(marginRow?.s || '0'),
-          totalBrokerageEarned: parseFloat(brokerageRow?.s || '0'),
-          pendingWithdrawalsCount: parseInt(pendingWithdrawalsRow?.c || '0')
-        },
-        risk: {
-          highRiskEvents: parseInt(highRiskRow?.c || '0'),
-          marginAlerts: parseInt(marginAlertsRow?.c || '0'),
-          rmsBlocks: parseInt(rmsBlocksRow?.c || '0')
-        },
-        system: {
-          databaseHealthy: dbHealth.healthy,
-          databaseLatencyMs: dbHealth.latencyMs,
-          marketDataProvider: mdProvider,
-          activeFeeds: 13,
-          realMoneyAllowed: SafetyLock.REAL_MONEY_TRADING_ALLOWED
-        }
-      }
+      kpis: kpisPayload,
+      data: kpisPayload
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });

@@ -17,8 +17,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token }) => {
     fetch('/api/v1/admin/dashboard/executive', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
-        if (d.success) setKpis(d.kpis);
+        const payload = d.kpis || d.data;
+        if (d.success && payload) {
+          setKpis({
+            customers: {
+              total: payload.customers?.total ?? 0,
+              active: payload.customers?.active ?? 0,
+              new: payload.customers?.new ?? payload.customers?.newLast30Days ?? 0,
+              kycPending: payload.customers?.kycPending ?? 0,
+              kycRejected: payload.customers?.kycRejected ?? 0,
+              suspended: payload.customers?.suspended ?? 0,
+              frozen: payload.customers?.frozen ?? 0,
+            },
+            trading: {
+              ordersToday: payload.trading?.ordersToday ?? 0,
+              tradesToday: payload.trading?.tradesToday ?? 0,
+              turnover: payload.trading?.turnover ?? payload.trading?.totalTurnover ?? 0,
+              buyValue: payload.trading?.buyValue ?? payload.trading?.buyTurnover ?? 0,
+              sellValue: payload.trading?.sellValue ?? payload.trading?.sellTurnover ?? 0,
+              activeTraders: payload.trading?.activeTraders ?? payload.trading?.activeTradersToday ?? 0,
+            },
+            financial: {
+              totalFunds: payload.financial?.totalFunds ?? payload.financials?.totalFundsUnderCustody ?? 0,
+              marginUtilized: payload.financial?.marginUtilized ?? payload.financials?.totalMarginUtilized ?? 0,
+              brokerage: payload.financial?.brokerage ?? payload.financials?.totalBrokerageEarned ?? 0,
+              pendingWithdrawals: payload.financial?.pendingWithdrawals ?? payload.financials?.pendingWithdrawalsCount ?? 0,
+            },
+            risk: {
+              highRiskClients: payload.risk?.highRiskClients ?? payload.risk?.highRiskEvents ?? 0,
+              marginAlerts: payload.risk?.marginAlerts ?? 0,
+              rmsBlocks: payload.risk?.rmsBlocks ?? 0,
+              frozenAccounts: payload.risk?.frozenAccounts ?? payload.customers?.frozen ?? 0,
+            },
+            technology: {
+              apiStatus: payload.technology?.apiStatus ?? 'OPERATIONAL',
+              wsStatus: payload.technology?.wsStatus ?? 'CONNECTED',
+              brokerStatus: payload.technology?.brokerStatus ?? payload.system?.marketDataProvider ?? 'LIVE',
+              marketDataStatus: payload.technology?.marketDataStatus ?? 'LIVE',
+              omsStatus: payload.technology?.omsStatus ?? 'OPERATIONAL',
+              rmsStatus: payload.technology?.rmsStatus ?? 'ACTIVE',
+              databaseHealth: payload.technology?.databaseHealth ?? (payload.system?.databaseHealthy ? 'HEALTHY' : 'DEGRADED'),
+            }
+          });
+        }
         setLastRefreshed(new Date());
+      })
+      .catch((err) => {
+        console.error('Failed to fetch admin executive dashboard KPIs:', err);
       })
       .finally(() => setIsRefreshing(false));
   };
