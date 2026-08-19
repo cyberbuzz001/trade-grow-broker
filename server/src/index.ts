@@ -20,6 +20,7 @@ import adminApiRouter from './routes/adminApi';
 import { SafetyLock } from './services/SafetyLock';
 import { startCronJobs, stopCronJobs } from './utils/cronJobs';
 import { setDhanAdapterRef } from './utils/dhanTokenRefresh';
+import { setFyersAdapterRef } from './utils/fyersTokenRefresh';
 
 // Technical Assertion Lock on Server Startup
 SafetyLock.assertSimulationOnly('ServerStartup');
@@ -169,6 +170,12 @@ async function startServer() {
           console.log('[Startup] ✅ Dhan token cron jobs started (30-min expiry check + 08:30 AM IST reminder).');
         } else {
           console.warn('[Startup] ⚠️ DhanAdapter not found — cron jobs not started.');
+        }
+
+        const fyersProvider = (engine as any).providers?.get('FYERS');
+        if (fyersProvider) {
+          setFyersAdapterRef(fyersProvider);
+          console.log('[Startup] ✅ FyersAdapter reference registered for token hot-swapping.');
         }
 
         console.log('[Startup] ✅ All background market data engines & WebSocket services initialized cleanly.');

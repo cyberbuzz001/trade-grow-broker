@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Key, Database, RefreshCw, Save, Download, Server, CheckCircle2, AlertTriangle, ShieldCheck, HardDrive, Layers, Globe } from 'lucide-react';
+import { Key, Database, RefreshCw, Save, Download, Server, CheckCircle2, AlertTriangle, ShieldCheck, HardDrive, Layers, Globe, ExternalLink, KeyRound } from 'lucide-react';
 
 interface MarketDataAdminProps {
   token: string;
@@ -15,18 +15,18 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
     DHAN_ACCESS_TOKEN: '',
     DHAN_API_KEY: '21483ef7',
     DHAN_API_SECRET: 'e9730aa4-682c-4e75-a944-94f703449b09',
-    TRUEDATA_USERNAME: 'Trial208',
-    TRUEDATA_PASSWORD: 'nikhil208',
-    TRUEDATA_WS_PORT: '8086',
-    TRUEDATA_WS_URL: 'wss://push.truedata.in:8086',
-    ALPHAVANTAGE_API_KEY: '',
+    FYERS_APP_ID: '',
+    FYERS_SECRET_KEY: '',
+    FYERS_ACCESS_TOKEN: '',
+    FYERS_REDIRECT_URI: 'http://localhost:5000/api/v1/auth/fyers/callback',
     ANGELONE_API_KEY: '',
     ANGELONE_CLIENT_ID: '',
     ANGELONE_CLIENT_SECRET: '',
-    ANGELONE_TOTP_SECRET: '',
-    INDIAN_STOCK_MARKET_API_BASE_URL: ''
+    ANGELONE_TOTP_SECRET: ''
   });
 
+  const [authCodeInput, setAuthCodeInput] = useState<string>('');
+  const [validatingFyersCode, setValidatingFyersCode] = useState<boolean>(false);
   const [configMessage, setConfigMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [savingConfig, setSavingConfig] = useState(false);
 
@@ -66,16 +66,14 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
             DHAN_ACCESS_TOKEN: data.keys.DHAN_ACCESS_TOKEN || '',
             DHAN_API_KEY: data.keys.DHAN_API_KEY || '21483ef7',
             DHAN_API_SECRET: data.keys.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09',
-            TRUEDATA_USERNAME: data.keys.TRUEDATA_USERNAME || 'Trial208',
-            TRUEDATA_PASSWORD: data.keys.TRUEDATA_PASSWORD || 'nikhil208',
-            TRUEDATA_WS_PORT: data.keys.TRUEDATA_WS_PORT || '8086',
-            TRUEDATA_WS_URL: data.keys.TRUEDATA_WS_URL || 'wss://push.truedata.in:8086',
-            ALPHAVANTAGE_API_KEY: data.keys.ALPHAVANTAGE_API_KEY || '',
+            FYERS_APP_ID: data.keys.FYERS_APP_ID || '',
+            FYERS_SECRET_KEY: data.keys.FYERS_SECRET_KEY || '',
+            FYERS_ACCESS_TOKEN: data.keys.FYERS_ACCESS_TOKEN || '',
+            FYERS_REDIRECT_URI: data.keys.FYERS_REDIRECT_URI || 'http://localhost:5000/api/v1/auth/fyers/callback',
             ANGELONE_API_KEY: data.keys.ANGELONE_API_KEY || '',
             ANGELONE_CLIENT_ID: data.keys.ANGELONE_CLIENT_ID || '',
             ANGELONE_CLIENT_SECRET: data.keys.ANGELONE_CLIENT_SECRET || '',
-            ANGELONE_TOTP_SECRET: data.keys.ANGELONE_TOTP_SECRET || '',
-            INDIAN_STOCK_MARKET_API_BASE_URL: data.keys.INDIAN_STOCK_MARKET_API_BASE_URL || ''
+            ANGELONE_TOTP_SECRET: data.keys.ANGELONE_TOTP_SECRET || ''
           });
         }
       }
@@ -134,6 +132,60 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
       setConfigMessage({ type: 'error', text: err.message });
     } finally {
       setSavingConfig(false);
+    }
+  };
+
+  const handleOpenFyersLogin = async () => {
+    if (!keys.FYERS_APP_ID) {
+      setConfigMessage({ type: 'error', text: 'Please enter your Fyers App ID first.' });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/admin/broker/fyers-auth-url?appId=${encodeURIComponent(keys.FYERS_APP_ID)}&redirectUri=${encodeURIComponent(keys.FYERS_REDIRECT_URI)}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.authUrl) {
+        window.open(data.authUrl, '_blank');
+      } else {
+        setConfigMessage({ type: 'error', text: data.error?.message || 'Could not generate Fyers Auth URL.' });
+      }
+    } catch (err: any) {
+      setConfigMessage({ type: 'error', text: err.message });
+    }
+  };
+
+  const handleExchangeFyersCode = async () => {
+    if (!authCodeInput.trim()) return;
+    setValidatingFyersCode(true);
+    setConfigMessage(null);
+
+    try {
+      const res = await fetch('/api/v1/admin/broker/fyers-validate-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          authCode: authCodeInput.trim(),
+          appId: keys.FYERS_APP_ID,
+          appSecret: keys.FYERS_SECRET_KEY
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConfigMessage({ type: 'success', text: data.message });
+        setKeys(prev => ({ ...prev, FYERS_ACCESS_TOKEN: data.accessToken }));
+        setAuthCodeInput('');
+        fetchConfig();
+      } else {
+        setConfigMessage({ type: 'error', text: data.error?.message || 'Failed validating Fyers Auth Code' });
+      }
+    } catch (err: any) {
+      setConfigMessage({ type: 'error', text: err.message });
+    } finally {
+      setValidatingFyersCode(false);
     }
   };
 
@@ -196,7 +248,7 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
             Market Data API Keys & Local Storage
           </h2>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Configure primary market data provider, manage API secrets, and download market data to local database servers.
+            Configure primary market data feed (Dhan HQ v2 / Fyers v3 / Angel One), manage API secrets, and sync local market cache.
           </p>
         </div>
 
@@ -234,14 +286,12 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
               Select Primary Market Data Provider
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { id: 'DHAN', name: 'Dhan HQ API v2', desc: 'Live Market Feed & Order Placement', badge: 'Dhan Broker' },
-                { id: 'TRUEDATA', name: 'TrueData WebSocket', desc: 'Real-time Tick Stream & History', badge: 'Live Feed' },
-                { id: 'ALPHAVANTAGE', name: 'Alpha Vantage', desc: 'Global & Indian Equities API', badge: 'Production' },
-                { id: 'ANGELONE', name: 'Angel One SmartAPI', desc: 'Indian Stock & Derivatives Broker API', badge: 'Live Broker' },
-                { id: 'INDIAN_STOCK_MARKET_API', name: 'RapidAPI Indian Stocks', desc: 'NSE/BSE Real-time Data Feed', badge: 'REST API' },
-                { id: 'MOCK_ENGINE', name: 'Mock Simulation Engine', desc: 'High-frequency Synthetic Data Engine', badge: 'Fallback' }
+                { id: 'DHAN', name: 'Dhan HQ API v2', desc: 'Live Market Feed & High-Speed WebSocket', badge: 'Dhan Active' },
+                { id: 'FYERS', name: 'Fyers API v3', desc: 'Live Market Feed, History & Data Sockets', badge: 'Fyers Active' },
+                { id: 'ANGELONE', name: 'Angel One SmartAPI', desc: 'Indian Stock & Derivatives Broker Feed', badge: 'SmartAPI' },
+                { id: 'MOCK_ENGINE', name: 'Mock Simulation Engine', desc: 'High-frequency Synthetic Data Engine', badge: 'Simulation' }
               ].map(p => (
                 <div
                   key={p.id}
@@ -288,11 +338,12 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
               {/* Dhan HQ v2 Keys */}
               <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
                 <h4 className="text-xs font-bold text-sky-500 uppercase tracking-wider flex items-center justify-between">
                   <span>Dhan HQ API v2 Credentials</span>
-                  <span className="text-[10px] bg-sky-500/10 text-sky-600 px-2 py-0.5 rounded font-extrabold">Active Broker API</span>
+                  <span className="text-[10px] bg-sky-500/10 text-sky-600 px-2 py-0.5 rounded font-extrabold">Active Broker Feed</span>
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -323,7 +374,7 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
                     value={keys.DHAN_ACCESS_TOKEN}
                     onChange={(e) => setKeys({ ...keys, DHAN_ACCESS_TOKEN: e.target.value })}
                     placeholder="Paste JWT Access Token from Dhan Console"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
                 <div>
@@ -333,95 +384,98 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
                     value={keys.DHAN_API_SECRET}
                     onChange={(e) => setKeys({ ...keys, DHAN_API_SECRET: e.target.value })}
                     placeholder="e9730aa4-682c-4e75-a944-94f703449b09"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-              {/* TrueData Keys */}
-              <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
-                <h4 className="text-xs font-bold text-emerald-500 uppercase tracking-wider flex items-center justify-between">
-                  <span>TrueData Credentials</span>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded font-extrabold">Active Feed</span>
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Username</label>
-                    <input
-                      type="text"
-                      value={keys.TRUEDATA_USERNAME}
-                      onChange={(e) => setKeys({ ...keys, TRUEDATA_USERNAME: e.target.value })}
-                      placeholder="e.g. Trial208"
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Password</label>
-                    <input
-                      type="password"
-                      value={keys.TRUEDATA_PASSWORD}
-                      onChange={(e) => setKeys({ ...keys, TRUEDATA_PASSWORD: e.target.value })}
-                      placeholder="e.g. nikhil208"
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Real-Time Port</label>
-                    <input
-                      type="text"
-                      value={keys.TRUEDATA_WS_PORT}
-                      onChange={(e) => setKeys({ ...keys, TRUEDATA_WS_PORT: e.target.value })}
-                      placeholder="8086"
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">WebSocket URL</label>
-                    <input
-                      type="text"
-                      value={keys.TRUEDATA_WS_URL}
-                      onChange={(e) => setKeys({ ...keys, TRUEDATA_WS_URL: e.target.value })}
-                      placeholder="wss://push.truedata.in:8086"
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-              </div>
-              {/* AlphaVantage Keys */}
-              <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
-                <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Alpha Vantage Configuration</h4>
-                <div>
-                  <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Alpha Vantage API Key</label>
-                  <input
-                    type="password"
-                    value={keys.ALPHAVANTAGE_API_KEY}
-                    onChange={(e) => setKeys({ ...keys, ALPHAVANTAGE_API_KEY: e.target.value })}
-                    placeholder="Enter AlphaVantage API Key"
-                    className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-xs text-[var(--text-main)] font-mono focus:border-indigo-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
 
-              {/* Indian Stock Market RapidAPI */}
+              {/* Fyers API v3 Keys */}
               <div className="space-y-3 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
-                <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider">RapidAPI Indian Stocks API</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-2">
+                    <KeyRound className="w-4 h-4" />
+                    <span>Fyers API v3 Credentials</span>
+                  </h4>
+                  <a
+                    href="https://fyers.in/web/api-dashboard/user-apps"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-500 hover:underline flex items-center gap-1 font-semibold"
+                  >
+                    <span>Fyers Dashboard</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">App ID (Client ID)</label>
+                    <input
+                      type="text"
+                      value={keys.FYERS_APP_ID}
+                      onChange={(e) => setKeys({ ...keys, FYERS_APP_ID: e.target.value })}
+                      placeholder="e.g. XC12345-100"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Secret Key</label>
+                    <input
+                      type="password"
+                      value={keys.FYERS_SECRET_KEY}
+                      onChange={(e) => setKeys({ ...keys, FYERS_SECRET_KEY: e.target.value })}
+                      placeholder="Enter Fyers Secret Key"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">API Base URL</label>
+                  <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">Access Token (24hr)</label>
                   <input
-                    type="text"
-                    value={keys.INDIAN_STOCK_MARKET_API_BASE_URL}
-                    onChange={(e) => setKeys({ ...keys, INDIAN_STOCK_MARKET_API_BASE_URL: e.target.value })}
-                    placeholder="https://indian-stock-market-api.p.rapidapi.com"
-                    className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-xs text-[var(--text-main)] font-mono focus:border-indigo-500 focus:outline-none"
+                    type="password"
+                    value={keys.FYERS_ACCESS_TOKEN}
+                    onChange={(e) => setKeys({ ...keys, FYERS_ACCESS_TOKEN: e.target.value })}
+                    placeholder="Paste Fyers Access Token or Generate Below"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-emerald-500 font-mono"
                   />
+                </div>
+
+                {/* Fyers OAuth Assistant */}
+                <div className="pt-2 border-t border-[var(--border-color)] flex flex-col sm:flex-row items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenFyersLogin}
+                    className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-emerald-600/10 text-emerald-500 border border-emerald-500/20 text-xs font-bold hover:bg-emerald-600/20 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>1. Generate Auth Code</span>
+                  </button>
+
+                  <div className="flex-1 w-full flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={authCodeInput}
+                      onChange={(e) => setAuthCodeInput(e.target.value)}
+                      placeholder="Paste redirected auth_code here"
+                      className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-main)] focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleExchangeFyersCode}
+                      disabled={validatingFyersCode || !authCodeInput.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center gap-1"
+                    >
+                      {validatingFyersCode ? <RefreshCw className="w-3 h-3 animate-spin" /> : <span>2. Get Token</span>}
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* AngelOne SmartAPI Credentials */}
               <div className="md:col-span-2 space-y-4 p-4 rounded-xl bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]">
                 <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider">Angel One SmartAPI Broker Credentials</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <label className="text-xs font-bold text-[var(--text-muted)] block mb-1">SmartAPI Key</label>
                     <input
@@ -450,7 +504,7 @@ export const MarketDataAdmin: React.FC<MarketDataAdminProps> = ({ token }) => {
                       type="password"
                       value={keys.ANGELONE_CLIENT_SECRET}
                       onChange={(e) => setKeys({ ...keys, ANGELONE_CLIENT_SECRET: e.target.value })}
-                      placeholder="Client Secret or Password"
+                      placeholder="Client Secret"
                       className="w-full px-3 py-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-surface)] text-xs text-[var(--text-main)] font-mono focus:border-indigo-500 focus:outline-none"
                     />
                   </div>

@@ -11,6 +11,7 @@ import { redis } from '../db/redis';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { updateDhanToken, getTokenExpiryMinutes, setDhanAdapterRef } from '../utils/dhanTokenRefresh';
+import { updateFyersToken, setFyersAdapterRef, generateFyersAuthUrl, exchangeAuthCodeForToken } from '../utils/fyersTokenRefresh';
 import { ClientCreationService } from '../services/ClientCreationService';
 import { adminEventBus } from '../utils/adminEventBus';
 
@@ -994,22 +995,20 @@ router.get('/market-data/config', authenticateToken, checkRole(ADMIN_ROLES), asy
     res.json({
       success: true,
       activeProvider,
-      availableProviders: ['DHAN', 'TRUEDATA', 'ALPHAVANTAGE', 'ANGELONE', 'INDIAN_STOCK_MARKET_API', 'MOCK_ENGINE'],
+      availableProviders: ['DHAN', 'FYERS', 'ANGELONE', 'MOCK_ENGINE'],
       keys: {
         DHAN_CLIENT_ID: configs.DHAN_CLIENT_ID || process.env.DHAN_CLIENT_ID || '1113019677',
         DHAN_ACCESS_TOKEN: configs.DHAN_ACCESS_TOKEN || process.env.DHAN_ACCESS_TOKEN || '',
         DHAN_API_KEY: configs.DHAN_API_KEY || process.env.DHAN_API_KEY || '21483ef7',
         DHAN_API_SECRET: configs.DHAN_API_SECRET || process.env.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09',
-        TRUEDATA_USERNAME: configs.TRUEDATA_USERNAME || process.env.TRUEDATA_USERNAME || 'Trial208',
-        TRUEDATA_PASSWORD: configs.TRUEDATA_PASSWORD || process.env.TRUEDATA_PASSWORD || 'nikhil208',
-        TRUEDATA_WS_PORT: configs.TRUEDATA_WS_PORT || process.env.TRUEDATA_WS_PORT || '8086',
-        TRUEDATA_WS_URL: configs.TRUEDATA_WS_URL || process.env.TRUEDATA_WS_URL || 'wss://push.truedata.in:8086',
-        ALPHAVANTAGE_API_KEY: configs.ALPHAVANTAGE_API_KEY || process.env.ALPHAVANTAGE_API_KEY || '',
+        FYERS_APP_ID: configs.FYERS_APP_ID || process.env.FYERS_APP_ID || '',
+        FYERS_SECRET_KEY: configs.FYERS_SECRET_KEY || process.env.FYERS_SECRET_KEY || '',
+        FYERS_ACCESS_TOKEN: configs.FYERS_ACCESS_TOKEN || process.env.FYERS_ACCESS_TOKEN || '',
+        FYERS_REDIRECT_URI: configs.FYERS_REDIRECT_URI || process.env.FYERS_REDIRECT_URI || 'http://localhost:5000/api/v1/auth/fyers/callback',
         ANGELONE_API_KEY: configs.ANGELONE_API_KEY || process.env.ANGELONE_API_KEY || '',
         ANGELONE_CLIENT_ID: configs.ANGELONE_CLIENT_ID || process.env.ANGELONE_CLIENT_ID || '',
         ANGELONE_CLIENT_SECRET: configs.ANGELONE_CLIENT_SECRET || process.env.ANGELONE_CLIENT_SECRET || '',
-        ANGELONE_TOTP_SECRET: configs.ANGELONE_TOTP_SECRET || process.env.ANGELONE_TOTP_SECRET || '',
-        INDIAN_STOCK_MARKET_API_BASE_URL: configs.INDIAN_STOCK_MARKET_API_BASE_URL || process.env.INDIAN_STOCK_MARKET_API_BASE_URL || ''
+        ANGELONE_TOTP_SECRET: configs.ANGELONE_TOTP_SECRET || process.env.ANGELONE_TOTP_SECRET || ''
       }
     });
   } catch (err: any) {
@@ -1624,6 +1623,106 @@ router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADM
         ? `⚠️ Token expires in ${minutesLeft} minutes. Please renew soon.`
         : `✅ Token is healthy. Expires in ~${(minutesLeft/60).toFixed(1)} hours.`
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
+// FYERS TOKEN HOT-SWAP & OAUTH ENDPOINTS
+// ============================================================
+router.post('/broker/update-fyers-token', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken || typeof accessToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_TOKEN', message: 'accessToken is required in request body.' }
+      });
+    }
+
+    const engine = MarketDataEngine.getInstance();
+    const fyersProvider = (engine as any).providers?.get('FYERS');
+    if (fyersProvider) {
+      setFyersAdapterRef(fyersProvider);
+    }
+
+    const result = await updateFyersToken(accessToken);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: { code: 'TOKEN_UPDATE_FAILED', message: result.message } });
+    }
+
+    await logAuditAction(
+      req.user!.userId,
+      req.user!.role,
+      'FYERS_TOKEN_UPDATED',
+      'SYSTEM',
+      'fyers_access_token',
+      null,
+      {},
+      getClientIp(req)
+    );
+
+    return res.json({
+      success: true,
+      message: result.message
+    });
+  } catch (err: any) {
+    console.error('[AdminAPI] Fyers token update error:', err);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.get('/broker/fyers-auth-url', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const appId = String(req.query.appId || process.env.FYERS_APP_ID || '');
+    const redirectUri = String(req.query.redirectUri || process.env.FYERS_REDIRECT_URI || 'http://localhost:5000/api/v1/auth/fyers/callback');
+
+    if (!appId) {
+      return res.status(400).json({ success: false, error: { code: 'MISSING_APP_ID', message: 'FYERS_APP_ID is required to generate auth URL.' } });
+    }
+
+    const authUrl = generateFyersAuthUrl(appId, redirectUri);
+    return res.json({ success: true, authUrl });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/broker/fyers-validate-code', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { authCode, appId, appSecret } = req.body;
+
+    if (!authCode) {
+      return res.status(400).json({ success: false, error: { code: 'MISSING_AUTH_CODE', message: 'authCode is required.' } });
+    }
+
+    const engine = MarketDataEngine.getInstance();
+    const fyersProvider = (engine as any).providers?.get('FYERS');
+    if (fyersProvider) {
+      setFyersAdapterRef(fyersProvider);
+    }
+
+    const result = await exchangeAuthCodeForToken(authCode, appId, appSecret);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: { code: 'AUTH_VALIDATION_FAILED', message: result.message } });
+    }
+
+    await logAuditAction(
+      req.user!.userId,
+      req.user!.role,
+      'FYERS_AUTH_CODE_VALIDATED',
+      'SYSTEM',
+      'fyers_access_token',
+      null,
+      {},
+      getClientIp(req)
+    );
+
+    return res.json({ success: true, message: result.message, accessToken: result.accessToken });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }

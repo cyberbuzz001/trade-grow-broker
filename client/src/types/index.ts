@@ -49,7 +49,7 @@ export interface Wallet {
   buyingPower: number;
 }
 
-export type TickSource = 'live' | 'guard_feed' | 'synthetic_skew' | 'cached_stale' | 'market_closed';
+export type TickSource = 'live' | 'guard_feed' | 'synthetic_skew' | 'cached_stale' | 'market_closed' | 'dhan' | 'fyers' | 'angelone';
 
 export interface MarketTick {
   instrumentToken: string;

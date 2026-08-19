@@ -9,10 +9,10 @@ from SmartApi.smartWebSocketV2 import SmartWebSocketV2
 
 logging.basicConfig(level=logging.INFO, format='[AngelTicker] %(asctime)s - %(levelname)s - %(message)s')
 
-API_KEY = os.getenv('ANGEL_ONE_API_KEY', '')
-CLIENT_CODE = os.getenv('ANGEL_ONE_CLIENT_CODE', '')
-PASSWORD = os.getenv('ANGEL_ONE_PASSWORD', '')
-TOTP_SECRET = os.getenv('ANGEL_ONE_TOTP_SECRET', '')
+API_KEY = os.getenv('ANGELONE_API_KEY') or os.getenv('SMARTAPI_API_KEY') or os.getenv('ANGEL_ONE_API_KEY') or ''
+CLIENT_CODE = os.getenv('ANGELONE_CLIENT_ID') or os.getenv('SMARTAPI_CLIENT_CODE') or os.getenv('ANGEL_ONE_CLIENT_CODE') or ''
+PASSWORD = os.getenv('ANGELONE_CLIENT_SECRET') or os.getenv('SMARTAPI_PASSWORD') or os.getenv('ANGEL_ONE_PASSWORD') or ''
+TOTP_SECRET = os.getenv('ANGELONE_TOTP_SECRET') or os.getenv('SMARTAPI_TOTP_SECRET') or os.getenv('ANGEL_ONE_TOTP_SECRET') or ''
 
 DATA_DIR = os.getenv('ANGEL_TICKS_DIR', os.path.join(os.getcwd(), 'server', 'data'))
 os.makedirs(DATA_DIR, exist_ok=True)

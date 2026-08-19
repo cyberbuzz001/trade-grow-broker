@@ -1,9 +1,7 @@
 import { IMarketDataProvider } from './IMarketDataProvider';
 import { AngelOneAdapter } from './AngelOneAdapter';
-import { IndianStockMarketApiAdapter } from './IndianStockMarketApiAdapter';
-import { AlphaVantageAdapter } from './AlphaVantageAdapter';
-import { TrueDataAdapter } from './TrueDataAdapter';
 import { DhanAdapter } from './DhanAdapter';
+import { FyersAdapter } from './FyersAdapter';
 import { MockMarketDataProvider } from './MockMarketDataProvider';
 import { MarketTick, Candle, OptionChainItem, TickCallback } from './types';
 import { redis } from '../db/redis';
@@ -18,21 +16,21 @@ export class MarketDataEngine {
   private constructor() {
     const mock = new MockMarketDataProvider();
     const angelOne = new AngelOneAdapter();
-    const indianApi = new IndianStockMarketApiAdapter();
-    const alphaVantage = new AlphaVantageAdapter();
     const dhan = new DhanAdapter();
+    const fyers = new FyersAdapter();
 
     this.providers.set(mock.name, mock);
+    this.providers.set('MOCK', mock);
+    this.providers.set('MOCK_ENGINE', mock);
     this.providers.set(angelOne.name, angelOne);
     this.providers.set('ANGELONE', angelOne);
-    this.providers.set(indianApi.name, indianApi);
-    this.providers.set(alphaVantage.name, alphaVantage);
-    this.providers.set('ALPHAVANTAGE', alphaVantage);
     this.providers.set(dhan.name, dhan);
     this.providers.set('DHAN', dhan);
+    this.providers.set(fyers.name, fyers);
+    this.providers.set('FYERS', fyers);
 
-    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'ANGELONE';
-    this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || angelOne;
+    const configuredProvider = process.env.PRIMARY_MARKET_DATA_PROVIDER || 'DHAN';
+    this.activeProvider = this.providers.get(configuredProvider.toUpperCase()) || dhan;
 
     // Subscribe to Redis pub/sub for tick broadcasts (multi-process horizontal scaling)
     redis.subscribe('market:ticks', (msg: string) => {
@@ -149,8 +147,17 @@ export class MarketDataEngine {
   }
 
   public updateProviderCredentials(keys: Record<string, string>): void {
-    if (keys.ALPHAVANTAGE_API_KEY) {
-      process.env.ALPHAVANTAGE_API_KEY = keys.ALPHAVANTAGE_API_KEY;
+    if (keys.FYERS_APP_ID) {
+      process.env.FYERS_APP_ID = keys.FYERS_APP_ID;
+    }
+    if (keys.FYERS_SECRET_KEY) {
+      process.env.FYERS_SECRET_KEY = keys.FYERS_SECRET_KEY;
+    }
+    if (keys.FYERS_ACCESS_TOKEN) {
+      process.env.FYERS_ACCESS_TOKEN = keys.FYERS_ACCESS_TOKEN;
+    }
+    if (keys.FYERS_REDIRECT_URI) {
+      process.env.FYERS_REDIRECT_URI = keys.FYERS_REDIRECT_URI;
     }
     if (keys.ANGELONE_API_KEY) {
       process.env.ANGELONE_API_KEY = keys.ANGELONE_API_KEY;
@@ -167,21 +174,6 @@ export class MarketDataEngine {
     if (keys.ANGELONE_TOTP_SECRET) {
       process.env.ANGELONE_TOTP_SECRET = keys.ANGELONE_TOTP_SECRET;
       process.env.SMARTAPI_TOTP_SECRET = keys.ANGELONE_TOTP_SECRET;
-    }
-    if (keys.INDIAN_STOCK_MARKET_API_BASE_URL) {
-      process.env.INDIAN_STOCK_MARKET_API_BASE_URL = keys.INDIAN_STOCK_MARKET_API_BASE_URL;
-    }
-    if (keys.TRUEDATA_USERNAME) {
-      process.env.TRUEDATA_USERNAME = keys.TRUEDATA_USERNAME;
-    }
-    if (keys.TRUEDATA_PASSWORD) {
-      process.env.TRUEDATA_PASSWORD = keys.TRUEDATA_PASSWORD;
-    }
-    if (keys.TRUEDATA_WS_PORT) {
-      process.env.TRUEDATA_WS_PORT = keys.TRUEDATA_WS_PORT;
-    }
-    if (keys.TRUEDATA_WS_URL) {
-      process.env.TRUEDATA_WS_URL = keys.TRUEDATA_WS_URL;
     }
     if (keys.DHAN_CLIENT_ID) {
       process.env.DHAN_CLIENT_ID = keys.DHAN_CLIENT_ID;

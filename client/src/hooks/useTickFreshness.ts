@@ -59,7 +59,7 @@ export function evaluateTickState(
     return { state: 'MARKET_CLOSED', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: false, source: tickSource };
   }
 
-  if (tickSourceStr === 'synthetic_skew' || tickSourceStr === 'mock' || (isSynthetic && tickSourceStr !== 'dhan' && tickSourceStr !== 'guard_feed' && tickSourceStr !== 'live' && tickSourceStr !== 'truedata')) {
+  if (tickSourceStr === 'synthetic_skew' || tickSourceStr === 'mock' || (isSynthetic && tickSourceStr !== 'dhan' && tickSourceStr !== 'fyers' && tickSourceStr !== 'angelone' && tickSourceStr !== 'guard_feed' && tickSourceStr !== 'live')) {
     return { state: 'SYNTHETIC', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: true, source: tickSource };
   }
 
@@ -72,7 +72,7 @@ export function evaluateTickState(
     return { state: 'DISCONNECTED', timeSinceLastTick: lastTickAt ? now - lastTickAt : undefined, isSynthetic: false, source: tickSource };
   }
 
-  // If a tick was received recently within stale threshold (e.g., TrueData Replay stream), mark as LIVE
+  // If a tick was received recently within stale threshold, mark as LIVE
   if (lastTickAt && (now - lastTickAt) <= staleThresholdMs) {
     return { state: 'LIVE', timeSinceLastTick: now - lastTickAt, isSynthetic: false, source: tickSource || 'live' };
   }
