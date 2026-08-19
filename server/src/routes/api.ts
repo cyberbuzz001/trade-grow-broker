@@ -922,6 +922,15 @@ router.delete('/orders/:id', authenticateToken, async (req: AuthenticatedRequest
   res.json({ success: true, message: 'Order Cancelled' });
 });
 
+router.post('/orders/:id/cancel', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const result = await OMS.cancelOrder(req.params.id as string, req.user!.userId);
+  if (!result.success) {
+    res.status(400).json({ success: false, error: { code: 'CANCEL_FAILED', message: result.error } });
+    return;
+  }
+  res.json({ success: true, message: 'Order Cancelled' });
+});
+
 router.put('/orders/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const price = parseFloat(req.body.price || '0');

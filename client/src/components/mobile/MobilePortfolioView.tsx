@@ -217,6 +217,28 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
     }
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    const userToken = token || localStorage.getItem('token') || localStorage.getItem('stocksharp_token');
+    if (!userToken) return;
+
+    try {
+      const res = await fetch(`/api/v1/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${userToken}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        navigator.vibrate?.([30, 50, 30]);
+        setActionMessage({ type: 'success', text: `Order ${orderId} cancelled successfully.` });
+        fetchPortfolio();
+      } else {
+        setActionMessage({ type: 'error', text: `Failed to cancel order: ${data.error?.message || 'Unknown error'}` });
+      }
+    } catch (err: any) {
+      setActionMessage({ type: 'error', text: `Error cancelling order: ${err.message}` });
+    }
+  };
+
   // Bulk Exit (Secure Exit)
   const confirmExitAll = async () => {
     if (isSubmittingExit || openPositions.length === 0) return;
@@ -661,10 +683,10 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
             orders.map(order => {
               const isBuy = (order.side || '').toUpperCase() === 'BUY';
               const isFilled = (order.status || '').toUpperCase() === 'FILLED' || (order.status || '').toUpperCase() === 'COMPLETED';
-              const isPending = (order.status || '').toUpperCase() === 'ACCEPTED' || (order.status || '').toUpperCase() === 'PENDING';
+              const isPending = ['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes((order.status || '').toUpperCase());
 
               return (
-                <div key={order.orderId || order.id} className="p-3.5 space-y-1.5 font-mono">
+                <div key={order.orderId || order.id} className="p-3.5 space-y-2 font-mono">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <span className={`px-1.5 py-0.2 rounded font-black text-[9px] ${isBuy ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'}`}>
@@ -690,6 +712,20 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
                       <span className="font-black text-[var(--text-main)]">₹{parseFloat(order.price || order.averagePrice || 0).toFixed(2)}</span>
                     </div>
                   </div>
+
+                  {isPending && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelOrder(order.id || order.orderId || order.order_id);
+                      }}
+                      className="w-full py-1.5 px-3 rounded-lg bg-rose-600/15 hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white border border-rose-500/30 text-[11px] font-black transition cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Cancel Order</span>
+                    </button>
+                  )}
                 </div>
               );
             })

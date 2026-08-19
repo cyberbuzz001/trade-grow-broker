@@ -461,14 +461,6 @@ router.get('/orders/:id/events', authenticateToken, checkRole(ADMIN_ROLES), asyn
   res.json({ success: true, events });
 });
 
-router.post('/orders/:id/cancel', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
-  const { reason } = req.body;
-  const orderId = req.params.id as string;
-  await execute("UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE order_id = $1 AND status IN ('ACCEPTED','PENDING')", [orderId]);
-  await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_CANCEL_ORDER', 'ORDER', orderId, null, { reason }, getClientIp(req));
-  res.json({ success: true, message: 'Order cancelled by admin' });
-});
-
 // ============================================================
 // 5. RISK COMMAND CENTER
 // ============================================================
@@ -1242,7 +1234,7 @@ router.post('/orders/:orderId/cancel', authenticateToken, checkRole(ADMIN_ROLES)
       return;
     }
 
-    if (!['ACCEPTED', 'PENDING'].includes(order.status)) {
+    if (!['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes(order.status)) {
       res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Order is already ${order.status}` } });
       return;
     }
@@ -1254,7 +1246,8 @@ router.post('/orders/:orderId/cancel', authenticateToken, checkRole(ADMIN_ROLES)
       ['evt_' + generateUUID(), order.id, order.status, reason || 'Cancelled by Admin']
     );
 
-    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10);
+    const leverageMultiplier = order.product_type === 'MIS' ? 0.20 : 1.0;
+    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10) * leverageMultiplier;
     if (marginToRelease > 0) {
       await VirtualWalletLedger.releaseMargin(order.user_id, marginToRelease, order.order_id, 'ADMIN_CANCEL');
     }

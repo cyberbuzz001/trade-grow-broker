@@ -542,7 +542,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   <tr><td colSpan={8} className="py-8 text-center text-slate-500 text-xs">No orders recorded for this client.</td></tr>
                 ) : (
                   (data.orders || []).map((o: any) => {
-                    const isPending = ['ACCEPTED', 'PENDING'].includes(o.status);
+                    const isPending = ['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes(o.status);
 
                     return (
                       <tr key={o.id || o.order_id} className="hover:bg-slate-800/40">
@@ -563,18 +563,18 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                           {isPending ? (
                             <div className="flex items-center justify-center gap-1">
                               <button
-                                onClick={() => handleEditOrderPrice(o.order_id, parseFloat(o.price || '0'))}
+                                onClick={() => handleEditOrderPrice(o.order_id || o.id, parseFloat(o.price || '0'))}
                                 className="p-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded"
                                 title="Edit Price"
                               ><Edit2 className="w-3.5 h-3.5" /></button>
                               <button
-                                onClick={() => handleForceExecuteOrder(o.order_id, parseFloat(o.price || '0'))}
+                                onClick={() => handleForceExecuteOrder(o.order_id || o.id, parseFloat(o.price || '0'))}
                                 className="p-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded"
                                 title="Force Execute"
                               ><Play className="w-3.5 h-3.5" /></button>
                               <button
-                                onClick={() => handleCancelOrder(o.order_id)}
-                                className="p-1 bg-slate-800 hover:bg-slate-700 text-rose-400 rounded"
+                                onClick={() => handleCancelOrder(o.order_id || o.id)}
+                                className="p-1 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 rounded transition"
                                 title="Cancel Order"
                               ><XCircle className="w-3.5 h-3.5" /></button>
                             </div>

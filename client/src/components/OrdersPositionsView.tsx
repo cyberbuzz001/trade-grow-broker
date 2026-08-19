@@ -807,12 +807,13 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {(o.status === 'ACCEPTED' || o.status === 'PENDING') && (
+                        {['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes(o.status) && (
                           <button
-                            onClick={() => handleCancelOrder(o.id || o.order_id)}
-                            className="text-xs text-rose-400 hover:underline font-bold cursor-pointer min-h-[36px]"
+                            type="button"
+                            onClick={() => handleCancelOrder(o.id || o.order_id || o.orderId)}
+                            className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 rounded-lg text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
                           >
-                            Cancel
+                            Cancel Order
                           </button>
                         )}
                       </td>

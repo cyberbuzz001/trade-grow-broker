@@ -146,7 +146,7 @@ export class OMS {
 
   public static async cancelOrder(orderId: string, userId: string): Promise<{ success: boolean; error?: string }> {
     const order = await queryOne<any>(
-      'SELECT * FROM orders WHERE order_id = $1 AND user_id = $2',
+      'SELECT * FROM orders WHERE (order_id = $1 OR id = $1) AND user_id = $2',
       [orderId, userId]
     );
 
@@ -154,7 +154,7 @@ export class OMS {
       return { success: false, error: 'Order not found' };
     }
 
-    if (order.status !== 'ACCEPTED' && order.status !== 'PENDING') {
+    if (!['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes(order.status)) {
       return { success: false, error: `Order cannot be cancelled in state ${order.status}` };
     }
 
@@ -167,8 +167,10 @@ export class OMS {
 
     // Release blocked margin
     const leverageMultiplier = order.product_type === 'MIS' ? 0.20 : 1.0;
-    const marginToRelease = parseFloat(order.price || '100') * parseInt(order.quantity) * leverageMultiplier;
-    await VirtualWalletLedger.releaseMargin(userId, marginToRelease, orderId, 'OMS_CANCEL');
+    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10) * leverageMultiplier;
+    if (marginToRelease > 0) {
+      await VirtualWalletLedger.releaseMargin(userId, marginToRelease, order.order_id, 'OMS_CANCEL');
+    }
 
     return { success: true };
   }
