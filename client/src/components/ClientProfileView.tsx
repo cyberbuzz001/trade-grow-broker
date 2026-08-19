@@ -21,7 +21,9 @@ import {
   KeyRound,
   ShieldAlert,
   ArrowUpRight,
-  ArrowDownLeft
+  ArrowDownLeft,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { User, Wallet } from '../types';
 
@@ -30,15 +32,19 @@ interface ClientProfileViewProps {
   wallet: Wallet | null;
   token?: string | null;
   onRefreshWallet: () => void;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
   user,
   wallet,
   token,
-  onRefreshWallet
+  onRefreshWallet,
+  theme = 'dark',
+  onToggleTheme
 }) => {
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'KYC' | 'BANK' | 'SECURITY'>('KYC');
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'KYC' | 'BANK' | 'SECURITY' | 'APPEARANCE'>('KYC');
 
   // Helper for authenticated requests
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
@@ -357,6 +363,7 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
             { id: 'PROFILE', label: 'Personal Information', icon: <UserIcon className="w-4 h-4" /> },
             { id: 'BANK', label: 'Bank & Payout Accounts', icon: <Building2 className="w-4 h-4" /> },
             { id: 'SECURITY', label: 'Security & 2FA / Password', icon: <KeyRound className="w-4 h-4" /> },
+            { id: 'APPEARANCE', label: 'Lite Mode & Theme', icon: <Sun className="w-4 h-4 text-amber-400" /> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -924,6 +931,120 @@ export const ClientProfileView: React.FC<ClientProfileViewProps> = ({
               <span>Update Password</span>
             </button>
           </form>
+        </div>
+      )}
+
+      {/* TAB CONTENT 5: APPEARANCE & LITE MODE */}
+      {activeTab === 'APPEARANCE' && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-xl shadow-xl space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sun className="w-5 h-5 text-amber-400" />
+                Appearance & Interface Theme (Lite Mode)
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Customize your trading visual interface. Switch between Lite Mode (Light Theme) and Pro Dark Mode.
+              </p>
+            </div>
+            <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+              theme === 'light'
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
+            }`}>
+              {theme === 'light' ? 'LITE MODE ACTIVE' : 'DARK MODE ACTIVE'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            {/* LITE MODE CARD */}
+            <div
+              onClick={() => {
+                if (theme !== 'light' && onToggleTheme) onToggleTheme();
+              }}
+              className={`p-6 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-4 ${
+                theme === 'light'
+                  ? 'bg-amber-500/10 border-amber-500/50 shadow-xl shadow-amber-500/10 ring-2 ring-amber-500/40'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-amber-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <Sun className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-base text-white">Lite Mode</h4>
+                    <p className="text-xs text-slate-400">High contrast light background design</p>
+                  </div>
+                </div>
+                {theme === 'light' && (
+                  <CheckCircle2 className="w-6 h-6 text-amber-400" />
+                )}
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Optimized for day trading in bright light or office environments. Crisp light gray background with high-contrast dark text and green/red trading accents.
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (theme !== 'light' && onToggleTheme) onToggleTheme();
+                }}
+                className={`w-full py-3 px-4 rounded-xl font-black text-xs transition-colors cursor-pointer ${
+                  theme === 'light'
+                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                    : 'bg-slate-900 text-white hover:bg-amber-500 hover:text-slate-950'
+                }`}
+              >
+                {theme === 'light' ? 'Selected (Lite Mode Active)' : 'Switch to Lite Mode'}
+              </button>
+            </div>
+
+            {/* DARK MODE CARD */}
+            <div
+              onClick={() => {
+                if (theme !== 'dark' && onToggleTheme) onToggleTheme();
+              }}
+              className={`p-6 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-4 ${
+                theme === 'dark'
+                  ? 'bg-indigo-500/10 border-indigo-500/50 shadow-xl shadow-indigo-500/10 ring-2 ring-indigo-500/40'
+                  : 'bg-slate-950/80 border-slate-800 hover:border-indigo-500/40'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                    <Moon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-base text-white">Dark Mode</h4>
+                    <p className="text-xs text-slate-400">Pro financial terminal layout</p>
+                  </div>
+                </div>
+                {theme === 'dark' && (
+                  <CheckCircle2 className="w-6 h-6 text-indigo-400" />
+                )}
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Standard dark financial workstation. Reduces eye strain during intense trading sessions with dark slate background and high-vibrancy charts.
+              </p>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (theme !== 'dark' && onToggleTheme) onToggleTheme();
+                }}
+                className={`w-full py-3 px-4 rounded-xl font-black text-xs transition-colors cursor-pointer ${
+                  theme === 'dark'
+                    ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                    : 'bg-slate-900 text-white hover:bg-indigo-500'
+                }`}
+              >
+                {theme === 'dark' ? 'Selected (Dark Mode Active)' : 'Switch to Dark Mode'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

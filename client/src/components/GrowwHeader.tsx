@@ -15,7 +15,7 @@ interface GrowwHeaderProps {
   onOpenWalletModal?: () => void;
   onNavigateView: (view: SubView) => void;
   onOpenSupport?: () => void;
-  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT') => void;
+  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT' | 'APPEARANCE') => void;
 }
 
 export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
@@ -327,6 +327,29 @@ export const GrowwHeader: React.FC<GrowwHeaderProps> = ({
                     <span>24x7 Trade Support</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-[var(--text-muted)] group-hover:text-emerald-500 transition-transform group-hover:translate-x-0.5" />
+                </button>
+
+                {/* 7. APPEARANCE & LITE MODE */}
+                <button
+                  onClick={() => { setIsProfileOpen(false); onOpenProfileModal?.('APPEARANCE'); }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)] transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-500 flex items-center justify-center">
+                      {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
+                    </div>
+                    <div className="text-left">
+                      <div>Appearance & Lite Mode</div>
+                      <div className="text-[10px] text-[var(--text-muted)] font-medium">Lite Mode & Dark Theme</div>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${
+                    theme === 'light'
+                      ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                      : 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30'
+                  }`}>
+                    {theme === 'light' ? 'LITE' : 'DARK'}
+                  </span>
                 </button>
 
                 {['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER'].includes(user?.role || '') && (

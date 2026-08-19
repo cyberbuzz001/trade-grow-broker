@@ -52,7 +52,7 @@ export function App() {
   
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT'>('PROFILE');
+  const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT' | 'APPEARANCE'>('PROFILE');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isLinkPeModalOpen, setIsLinkPeModalOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -359,6 +359,8 @@ export function App() {
               onClose={() => setIsProfileModalOpen(false)}
               onLogout={handleLogout}
               onRefreshWallet={fetchWallet}
+              theme={theme}
+              onToggleTheme={toggleTheme}
             />
           )}
 
@@ -519,6 +521,8 @@ export function App() {
                       wallet={wallet}
                       token={token}
                       onRefreshWallet={fetchWallet}
+                      theme={theme}
+                      onToggleTheme={toggleTheme}
                     />
                   )}
 
@@ -575,6 +579,8 @@ export function App() {
             onClose={() => setIsProfileModalOpen(false)}
             onLogout={handleLogout}
             onRefreshWallet={fetchWallet}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
         )}
 

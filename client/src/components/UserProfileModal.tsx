@@ -23,7 +23,9 @@ import {
   Mail,
   MapPin,
   Calendar,
-  FileText
+  FileText,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { User, Wallet } from '../types';
 
@@ -33,9 +35,11 @@ interface UserProfileModalProps {
   user: User;
   wallet: Wallet | null;
   token?: string | null;
-  initialTab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS';
+  initialTab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS' | 'APPEARANCE';
   onRefreshWallet: () => void;
   onLogout: () => void;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -46,9 +50,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   token,
   initialTab = 'PROFILE',
   onRefreshWallet,
-  onLogout
+  onLogout,
+  theme = 'dark',
+  onToggleTheme
 }) => {
-  const [activeTab, setActiveTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS'>(initialTab || 'PROFILE');
+  const [activeTab, setActiveTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS' | 'APPEARANCE'>(initialTab || 'PROFILE');
   const [isResetting, setIsResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
@@ -493,6 +499,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             { key: 'FUNDS', label: 'Wallet & Ledger', icon: <WalletIcon className="w-3.5 h-3.5 text-blue-400" /> },
             { key: 'SECURITY', label: 'Security & Auth', icon: <Lock className="w-3.5 h-3.5 text-purple-400" /> },
             { key: 'SUPPORT', label: '24/7 Support', icon: <HelpCircle className="w-3.5 h-3.5 text-amber-400" /> },
+            { key: 'APPEARANCE', label: 'Lite Mode & Theme', icon: <Sun className="w-3.5 h-3.5 text-amber-400" /> },
           ].map(tab => (
             <button
               key={tab.key}
@@ -1221,6 +1228,124 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================ */}
+          {/* 6. APPEARANCE & LITE MODE TAB */}
+          {/* ============================================================ */}
+          {activeTab === 'APPEARANCE' && (
+            <div className="space-y-4 font-headline">
+              <div className="bg-[#161B22] p-4 rounded-2xl border border-[#30363D] space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Sun className="w-4 h-4 text-amber-400" />
+                      Appearance & Interface Theme
+                    </h3>
+                    <p className="text-xs text-[#8B949E] mt-0.5">
+                      Switch between Lite Mode (Light Theme) and Dark Mode for high readability or sleek dark trading.
+                    </p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+                    theme === 'light' 
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' 
+                      : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40'
+                  }`}>
+                    {theme === 'light' ? 'LITE MODE ACTIVE' : 'DARK MODE ACTIVE'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  {/* LITE MODE CARD */}
+                  <div 
+                    onClick={() => {
+                      if (theme !== 'light' && onToggleTheme) onToggleTheme();
+                    }}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+                      theme === 'light'
+                        ? 'bg-amber-500/10 border-amber-500/50 shadow-lg shadow-amber-500/10 ring-2 ring-amber-500/30'
+                        : 'bg-[#0D1117] border-[#30363D] hover:border-amber-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                          <Sun className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-white">Lite Mode</h4>
+                          <span className="text-[10px] text-[#8B949E]">High contrast light background</span>
+                        </div>
+                      </div>
+                      {theme === 'light' && (
+                        <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                      )}
+                    </div>
+                    <p className="text-xs text-[#8B949E]">
+                      Optimized for bright environments and daylight trading. Clean white & slate interfaces.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (theme !== 'light' && onToggleTheme) onToggleTheme();
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                        theme === 'light'
+                          ? 'bg-amber-500 text-[#0D1117] font-black'
+                          : 'bg-[#1C2128] text-white hover:bg-amber-500 hover:text-[#0D1117]'
+                      }`}
+                    >
+                      {theme === 'light' ? 'Selected (Active)' : 'Switch to Lite Mode'}
+                    </button>
+                  </div>
+
+                  {/* DARK MODE CARD */}
+                  <div 
+                    onClick={() => {
+                      if (theme !== 'dark' && onToggleTheme) onToggleTheme();
+                    }}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
+                      theme === 'dark'
+                        ? 'bg-indigo-500/10 border-indigo-500/50 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/30'
+                        : 'bg-[#0D1117] border-[#30363D] hover:border-indigo-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                          <Moon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-white">Dark Mode</h4>
+                          <span className="text-[10px] text-[#8B949E]">Sleek financial terminal dark</span>
+                        </div>
+                      </div>
+                      {theme === 'dark' && (
+                        <CheckCircle2 className="w-5 h-5 text-indigo-400" />
+                      )}
+                    </div>
+                    <p className="text-xs text-[#8B949E]">
+                      Pro financial terminal design. Reduced eye strain with dark background and vibrant charts.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (theme !== 'dark' && onToggleTheme) onToggleTheme();
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                        theme === 'dark'
+                          ? 'bg-indigo-500 text-white font-black'
+                          : 'bg-[#1C2128] text-white hover:bg-indigo-500'
+                      }`}
+                    >
+                      {theme === 'dark' ? 'Selected (Active)' : 'Switch to Dark Mode'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

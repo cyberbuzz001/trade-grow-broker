@@ -26,7 +26,7 @@ interface MobileProfileViewProps {
   onToggleTheme?: () => void;
   onBack: () => void;
   onLogout: () => void;
-  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS') => void;
+  onOpenProfileModal?: (tab?: 'PROFILE' | 'KYC' | 'FUNDS' | 'SECURITY' | 'SUPPORT' | 'PERMISSIONS' | 'APPEARANCE') => void;
   onOpenSupportModal?: () => void;
   onOpenAdmin?: () => void;
   onRefreshWallet?: () => void;
@@ -281,6 +281,37 @@ export const MobileProfileView: React.FC<MobileProfileViewProps> = ({
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+        </button>
+
+        {/* Card 6: Appearance & Lite Mode Toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onToggleTheme) onToggleTheme();
+          }}
+          className="w-full min-h-[52px] text-left flex items-center justify-between p-3 rounded-xl hover:bg-[var(--bg-surface-elevated)] cursor-pointer transition-colors active:scale-98"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+            </div>
+            <div>
+              <span className="font-bold text-xs text-[var(--text-main)] block">Appearance & Lite Mode</span>
+              <span className="text-[10px] text-[var(--text-muted)] font-medium">
+                {theme === 'light' ? 'Lite Mode Active (Light Theme)' : 'Dark Mode Active (Dark Theme)'}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+              theme === 'light' 
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40' 
+                : 'bg-indigo-500/20 text-indigo-500 border-indigo-500/40'
+            }`}>
+              {theme === 'light' ? 'LITE MODE' : 'DARK MODE'}
+            </span>
+            <ChevronRight className="w-4 h-4 text-[var(--text-muted)]" />
+          </div>
         </button>
 
       </div>
