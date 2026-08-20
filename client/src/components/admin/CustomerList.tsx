@@ -536,11 +536,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                     }`}>{c.status}</span>
                   </td>
                   <td className="py-2.5 px-3.5">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      c.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      c.kyc_status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                      c.kyc_status ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-slate-800 text-slate-500'
-                    }`}>{c.kyc_status || 'N/A'}</span>
+                    <div className="space-y-1">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
+                        c.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                        c.kyc_status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
+                        c.kyc_status ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-slate-800 text-slate-500'
+                      }`}>{c.kyc_status || 'N/A'}</span>
+                      {c.bank_account_number && (
+                        <div className="text-[10px] font-mono text-indigo-400 truncate max-w-[120px]" title={`${c.bank_name || 'Bank'}: ${c.bank_account_number}`}>
+                          🏦 {c.bank_name ? c.bank_name.slice(0, 8) : 'A/C'} ••{c.bank_account_number.slice(-4)}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="py-2.5 px-3.5"><span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-amber-400 border border-slate-700 font-bold">{c.role}</span></td>
                   <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-400">₹{(c.cash_balance || 0).toLocaleString('en-IN')}</td>

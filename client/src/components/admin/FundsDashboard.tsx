@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw, X, Sliders, AlertCircle, AlertTriangle } from 'lucide-react';
+import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw, X, Sliders, AlertCircle, AlertTriangle, Building2, Copy, Check } from 'lucide-react';
 
 interface FundsDashboardProps { token: string; }
 
@@ -8,6 +8,14 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedFundKey, setCopiedFundKey] = useState<string | null>(null);
+
+  const copyFundText = (text: string, key: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedFundKey(key);
+    setTimeout(() => setCopiedFundKey(null), 2000);
+  };
 
   const [clients, setClients] = useState<any[]>([]);
   const [targetUserId, setTargetUserId] = useState<string>('');
@@ -442,9 +450,37 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                   </td>
                   <td className="py-2 px-2">
                     <div className="text-[10px] text-slate-300 font-mono font-semibold">{r.payment_method || 'UPI'}</div>
-                    <div className="text-[9px] text-slate-400 truncate max-w-[150px]" title={r.reference_note || ''}>
-                      {r.reference_note || '-'}
-                    </div>
+                    {r.kyc_account_number ? (
+                      <div className="mt-0.5 space-y-0.5">
+                        <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono font-bold">
+                          <Building2 className="w-3 h-3 text-indigo-400 shrink-0" />
+                          <span>{r.kyc_bank_name ? r.kyc_bank_name.slice(0, 10) : 'Bank'}: {r.kyc_account_number}</span>
+                          <button
+                            onClick={() => copyFundText(r.kyc_account_number, `fund_ac_${r.id}`)}
+                            title="Copy Account Number"
+                            className="p-0.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white cursor-pointer"
+                          >
+                            {copiedFundKey === `fund_ac_${r.id}` ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
+                          </button>
+                        </div>
+                        {r.kyc_ifsc && (
+                          <div className="flex items-center gap-1 text-[9px] text-amber-400 font-mono">
+                            <span>IFSC: {r.kyc_ifsc}</span>
+                            <button
+                              onClick={() => copyFundText(r.kyc_ifsc, `fund_ifsc_${r.id}`)}
+                              title="Copy IFSC"
+                              className="p-0.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white cursor-pointer"
+                            >
+                              {copiedFundKey === `fund_ifsc_${r.id}` ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-[9px] text-slate-400 truncate max-w-[150px]" title={r.reference_note || ''}>
+                        {r.reference_note || '-'}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2 px-2 text-[10px] text-slate-400 font-mono whitespace-nowrap">
                     {new Date(r.created_at).toLocaleDateString('en-IN', { month: 'numeric', day: 'numeric' })}, {new Date(r.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, PlusCircle, Edit2, XCircle, Play, KeyRound, Copy, Check, RefreshCw, X, CheckCircle2, AlertTriangle, Wifi, WifiOff, Shield, CheckCircle, User, Phone, Mail, MapPin, Activity, Clock, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Edit2, XCircle, Play, KeyRound, Copy, Check, RefreshCw, X, CheckCircle2, AlertTriangle, Wifi, WifiOff, Shield, CheckCircle, User, Phone, Mail, MapPin, Activity, Clock, ThumbsUp, ThumbsDown, RotateCcw, Building2, Download, CreditCard, FileCheck } from 'lucide-react';
 import { useAdminUserSocket } from '../../hooks/useAdminUserSocket';
 
 interface Customer360Props {
@@ -877,26 +877,111 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
               </div>
             )}
 
-            {/* KYC Records */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-              <h4 className="text-xs font-bold text-white uppercase mb-3">KYC Verification Record</h4>
+            {/* KYC Applications & Bank Account Records */}
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-teal-400" /> Customer KYC & Bank Account Records
+                </h4>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Total Applications: {(data.kycRecords || []).length}
+                </span>
+              </div>
+
               {(data.kycRecords || []).length === 0 ? (
-                <div className="text-slate-500 text-xs py-4 text-center">No KYC document records found for this client.</div>
+                <div className="text-slate-500 text-xs py-8 text-center bg-slate-950/60 rounded-xl border border-slate-800">
+                  No KYC application records found for this client.
+                </div>
               ) : (
                 (data.kycRecords || []).map((k: any) => (
-                  <div key={k.id} className="border border-slate-800 rounded-lg p-3 space-y-2 text-xs mb-3">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-white">Verification Status</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        k.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                        k.kyc_status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                        'bg-amber-950 text-amber-400 border border-amber-800'
-                      }`}>{k.kyc_status || 'PENDING'}</span>
+                  <div key={k.id} className="border border-slate-800 rounded-xl p-4 space-y-3.5 text-xs bg-slate-950/80 shadow-md">
+                    {/* Status Bar */}
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">Application {k.id?.slice(0, 10)}</span>
+                        {k.submitted_at && (
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            Submitted: {new Date(k.submitted_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-black border ${
+                        (k.status === 'APPROVED' || k.kyc_status === 'APPROVED') ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
+                        (k.status === 'REJECTED' || k.kyc_status === 'REJECTED') ? 'bg-rose-950 text-rose-400 border-rose-800' :
+                        'bg-amber-950 text-amber-400 border-amber-800'
+                      }`}>
+                        {k.status || k.kyc_status || 'PENDING'}
+                      </span>
                     </div>
-                    <div className="flex justify-between"><span className="text-slate-400">PAN</span><span className="font-mono text-white">{k.pan_number || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Aadhaar</span><span className="font-mono text-white">{k.aadhaar_number || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Bank Account</span><span className="font-mono text-white">{k.bank_account_no || 'N/A'} ({k.ifsc_code || 'N/A'})</span></div>
-                    {k.notes && <div className="flex justify-between"><span className="text-slate-400">Notes</span><span className="text-slate-300">{k.notes}</span></div>}
+
+                    {/* Bank Account Grid */}
+                    <div className="bg-slate-900/80 p-3.5 rounded-xl border border-indigo-500/20 space-y-2">
+                      <div className="flex items-center gap-1.5 text-indigo-400 font-bold text-xs">
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>Bank Account Information (For Payouts & Verification)</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Bank Name</span>
+                          <span className="text-white font-bold text-xs truncate block">{k.bank_name || 'N/A'}</span>
+                        </div>
+                        <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Account Holder</span>
+                          <span className="text-white font-bold text-xs truncate block">{k.bank_account_name || data.profile.full_name || data.profile.username}</span>
+                        </div>
+                        <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Account Number</span>
+                          <span className="font-mono text-emerald-400 font-bold text-xs truncate block">{k.bank_account_number || k.bank_account_no || 'N/A'}</span>
+                        </div>
+                        <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">IFSC Code</span>
+                          <span className="font-mono text-amber-400 font-bold text-xs truncate block">{k.bank_ifsc || k.ifsc_code || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Identity Details Grid */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
+                        <div>
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">PAN Card</span>
+                          <span className="font-mono font-bold text-teal-400">{k.pan_number || 'N/A'}</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
+                        <div>
+                          <span className="text-[9px] text-slate-400 uppercase font-bold block">Aadhaar Card</span>
+                          <span className="font-mono font-bold text-slate-200">{k.aadhaar_number || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Attached Documents */}
+                    {k.documents && k.documents.length > 0 && (
+                      <div className="pt-1">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1.5">Attached Documents</span>
+                        <div className="flex flex-wrap gap-2">
+                          {k.documents.map((doc: any) => (
+                            <a
+                              key={doc.id}
+                              href={`/api/v1/admin/kyc/documents/${doc.id}/download?token=${encodeURIComponent(token)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 hover:border-teal-500 text-teal-400 text-[10px] font-bold inline-flex items-center gap-1.5 transition-colors shadow-sm"
+                            >
+                              <Download className="w-3 h-3" />
+                              <span>{doc.document_type.replace('_', ' ')}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {k.rejection_reason && (
+                      <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-[11px]">
+                        <strong>Rejection Reason:</strong> {k.rejection_reason}
+                      </div>
+                    )}
                   </div>
                 ))
               )}

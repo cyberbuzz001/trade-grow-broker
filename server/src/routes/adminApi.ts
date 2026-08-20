@@ -194,7 +194,15 @@ router.get('/customers', authenticateToken, checkRole(ADMIN_ROLES), async (req: 
   const users = await query(
     `SELECT u.id, u.client_id, u.username, u.email, u.full_name, u.phone_number, u.role, u.status, u.created_at, u.last_login_at, u.failed_login_attempts,
             w.cash_balance, w.used_margin,
-            (SELECT kyc_status FROM kyc_records WHERE customer_id = u.id ORDER BY created_at DESC LIMIT 1) as kyc_status
+            COALESCE(
+              (SELECT status FROM kyc_applications WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1),
+              (SELECT kyc_status FROM kyc_records WHERE customer_id = u.id ORDER BY created_at DESC LIMIT 1),
+              'NOT_STARTED'
+            ) as kyc_status,
+            (SELECT bank_name FROM kyc_applications WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as bank_name,
+            (SELECT bank_account_number FROM kyc_applications WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as bank_account_number,
+            (SELECT bank_ifsc FROM kyc_applications WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as bank_ifsc,
+            (SELECT bank_account_name FROM kyc_applications WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as bank_account_name
      FROM users u
      LEFT JOIN virtual_wallets w ON u.id = w.user_id
      ${where}
@@ -303,9 +311,18 @@ router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN',
 router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
   const customerId = req.params.id;
   const [user, wallet, kycRecords, orders, trades, positions, holdings, ledger, auditLogs] = await Promise.all([
-    queryOne<any>('SELECT id, username, email, role, status, created_at, last_login_at, failed_login_attempts FROM users WHERE id = $1', [customerId]),
+    queryOne<any>('SELECT id, username, email, role, status, full_name, phone_number, city, address, date_of_birth, is_kyc_completed, created_at, last_login_at, failed_login_attempts FROM users WHERE id = $1', [customerId]),
     queryOne<any>('SELECT * FROM virtual_wallets WHERE user_id = $1', [customerId]),
-    query('SELECT * FROM kyc_records WHERE customer_id = $1 ORDER BY created_at DESC', [customerId]),
+    query<any>(
+      `SELECT ka.*, 
+              (SELECT json_agg(json_build_object(
+                'id', kd.id, 'document_type', kd.document_type, 
+                'original_filename', kd.original_filename, 'mime_type', kd.mime_type,
+                'file_size', kd.file_size, 'uploaded_at', kd.uploaded_at
+              )) FROM kyc_documents kd WHERE kd.kyc_application_id = ka.id) as documents
+       FROM kyc_applications ka WHERE ka.user_id = $1 ORDER BY ka.submitted_at DESC`,
+      [customerId]
+    ),
     query('SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50', [customerId]),
     query('SELECT * FROM executions WHERE user_id = $1 ORDER BY executed_at DESC LIMIT 50', [customerId]),
     query('SELECT * FROM positions WHERE user_id = $1', [customerId]),
@@ -665,9 +682,21 @@ router.get('/funds/requests', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
     }
 
     const requests = await query<any>(
-      `SELECT fr.*, u.username, u.email
+      `SELECT fr.*, u.username, u.email, u.full_name,
+              ka.bank_name as kyc_bank_name,
+              ka.bank_account_name as kyc_account_name,
+              ka.bank_account_number as kyc_account_number,
+              ka.bank_ifsc as kyc_ifsc,
+              ka.status as kyc_status
        FROM fund_requests fr
        JOIN users u ON fr.user_id = u.id
+       LEFT JOIN LATERAL (
+         SELECT bank_name, bank_account_name, bank_account_number, bank_ifsc, status
+         FROM kyc_applications
+         WHERE user_id = fr.user_id
+         ORDER BY (status = 'APPROVED') DESC, created_at DESC
+         LIMIT 1
+       ) ka ON true
        ${whereClause}
        ORDER BY fr.created_at DESC LIMIT 100`,
       params
