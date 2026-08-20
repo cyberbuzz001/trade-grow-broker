@@ -9,24 +9,31 @@ import { GreeksEngine } from '../marketData/GreeksEngine';
 
 export class ExecutionEngine {
   private static timer: NodeJS.Timeout | null = null;
+  private static repairTimer: NodeJS.Timeout | null = null;
 
   public static start(): void {
     console.log('[ExecutionEngine] Starting simulated order matching loop (500ms cycle)...');
     if (this.timer) clearInterval(this.timer);
+    if (this.repairTimer) clearInterval(this.repairTimer);
+
+    // Run matching loop every 500ms (in-memory only, no blocking REST calls)
     this.timer = setInterval(() => {
       this.processPendingOrders().catch(err => console.error('[ExecutionEngine] Matching cycle error:', err.message));
     }, 500);
+
+    // Run position audit/repair every 60 seconds (not 500ms)
+    this.repairTimer = setInterval(() => {
+      PortfolioService.auditAndRepairAllPositions().catch(() => {});
+    }, 60000);
   }
 
   public static stop(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.repairTimer) clearInterval(this.repairTimer);
   }
 
   public static async processPendingOrders(): Promise<void> {
     try {
-      // Self-healing: repair positions with missing/zero entry prices across all accounts automatically
-      await PortfolioService.auditAndRepairAllPositions().catch(() => {});
-
       const pendingOrders = await query<any>(
         `SELECT * FROM orders WHERE status IN ('ACCEPTED', 'PENDING') ORDER BY created_at ASC LIMIT 50`
       );
@@ -48,10 +55,10 @@ export class ExecutionEngine {
           if (tick && tick.ltp > 0) break;
         }
 
+        // If not in cache, subscribe token to live WebSocket feed for future cycles
         if (!tick && (order.instrument_token || order.symbol)) {
-          try {
-            tick = await engine.getQuote(order.instrument_token || order.symbol);
-          } catch (_) {}
+          const subToken = order.instrument_token || order.symbol;
+          engine.subscribe([subToken]);
         }
 
         // Check tick freshness (must be within last 30 seconds)
