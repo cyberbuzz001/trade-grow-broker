@@ -14,6 +14,38 @@ services:
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: tradegrow_postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=8GB"
+      - "-c"
+      - "effective_cache_size=24GB"
+      - "-c"
+      - "maintenance_work_mem=2GB"
+      - "-c"
+      - "work_mem=64MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=16GB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "max_worker_processes=8"
+      - "-c"
+      - "max_parallel_workers=8"
+      - "-c"
+      - "max_parallel_workers_per_gather=4"
+      - "-c"
+      - "max_connections=300"
     environment:
       POSTGRES_DB:       ${PG_DATABASE:-tradegrow}
       POSTGRES_USER:     ${PG_USER:-tradegrow}
@@ -28,8 +60,12 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    # PostgreSQL is NOT exposed on host — only accessible internally
-    # No `ports:` — intentional security measure
+    deploy:
+      resources:
+        limits:
+          memory: 10g
+        reservations:
+          memory: 4g
 
   # ============================================================
   # Redis — Cache, Pub/Sub, Rate Limiting
@@ -37,7 +73,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: tradegrow_redis
-    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --save ""
+    command: redis-server --maxmemory 4gb --maxmemory-policy allkeys-lru --save ""
     volumes:
       - redis_data:/data
     networks:
@@ -48,7 +84,12 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-    # Redis is NOT exposed on host — only accessible internally
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+        reservations:
+          memory: 1g
 
   # ============================================================
   # Python FastAPI Options Math Engine
@@ -74,7 +115,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          cpus: '2.0'
+          memory: 2g
 
   # ============================================================
   # Trade Grow — Main Application Server (Node.js + React SPA)
@@ -126,14 +168,15 @@ services:
       PG_DATABASE:                  ${PG_DATABASE:-tradegrow}
       PG_USER:                      ${PG_USER:-tradegrow}
       PG_PASSWORD:                  ${PG_PASSWORD}
-      PG_POOL_MAX:                  "20"
+      PG_POOL_MAX:                  "50"
+      PG_POOL_MIN:                  "5"
       # Redis
       REDIS_URL:                    redis://redis:6379
       REDIS_HOST:                   redis
       REDIS_PORT:                   "6379"
       # CORS — set to your actual domain
       ALLOWED_ORIGINS:              ${ALLOWED_ORIGINS:-http://localhost:5000}
-      NODE_OPTIONS:                 "--max-old-space-size=6144"
+      NODE_OPTIONS:                 "--max-old-space-size=16384"
     ports:
       - "5000:5000"
     depends_on:
@@ -155,9 +198,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8g
+          cpus: '6.0'
+          memory: 18g
         reservations:
-          memory: 2g
+          memory: 4g
     logging:
       driver: "json-file"
       options:

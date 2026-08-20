@@ -43,4 +43,4 @@ COPY --from=builder /app/docs ./docs
 
 EXPOSE 5000
 
-CMD ["node", "--max-old-space-size=6144", "server/dist/index.js"]
+CMD ["node", "--max-old-space-size=16384", "server/dist/index.js"]
