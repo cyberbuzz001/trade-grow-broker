@@ -406,78 +406,82 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
           </span>
         </div>
 
-        <div className="overflow-x-auto border border-slate-800 rounded-xl">
-          <table className="w-full text-left border-collapse min-w-[1080px]">
+        <div className="overflow-x-auto border border-slate-800 rounded-xl relative shadow-inner">
+          <table className="w-full text-left border-collapse min-w-[840px]">
             <thead>
-              <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-950/80">
-                <th className="py-2.5 px-3">Req ID</th>
-                <th className="py-2.5 px-3">Client</th>
-                <th className="py-2.5 px-3">Type</th>
-                <th className="py-2.5 px-3 text-right">Amount</th>
-                <th className="py-2.5 px-3">Method</th>
-                <th className="py-2.5 px-3">Reference / Note</th>
-                <th className="py-2.5 px-3">Requested At</th>
-                <th className="py-2.5 px-3 text-center">Status</th>
-                <th className="py-2.5 px-3 text-center min-w-[260px]">Action</th>
+              <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-950">
+                <th className="py-2 px-2.5">Req ID & Client</th>
+                <th className="py-2 px-2">Type</th>
+                <th className="py-2 px-2 text-right">Amount</th>
+                <th className="py-2 px-2">Method & Note</th>
+                <th className="py-2 px-2">Requested</th>
+                <th className="py-2 px-2 text-center">Status</th>
+                <th className="py-2 px-2 text-center w-[210px] sticky right-0 bg-slate-950 shadow-[-6px_0_10px_rgba(0,0,0,0.6)] z-10">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
+            <tbody className="divide-y divide-slate-800/80 bg-slate-900/40 text-xs">
               {requests.map((r: any) => (
-                <tr key={r.id} className="hover:bg-slate-800/50 transition">
-                  <td className="py-2.5 px-3 font-mono font-bold text-amber-400 text-[11px]">{r.request_id}</td>
-                  <td className="py-2.5 px-3">
-                    <div className="font-bold text-white text-xs">{r.username}</div>
-                    <div className="text-[10px] text-slate-400 font-mono">{r.email}</div>
+                <tr key={r.id} className="hover:bg-slate-800/60 transition group">
+                  <td className="py-2 px-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-amber-400 text-[11px]">{r.request_id}</span>
+                    </div>
+                    <div className="font-bold text-white text-[11px] truncate max-w-[140px]">{r.username}</div>
+                    <div className="text-[9px] text-slate-400 font-mono truncate max-w-[140px]">{r.email}</div>
                   </td>
-                  <td className="py-2.5 px-3">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
-                      r.request_type === 'DEPOSIT' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'
+                  <td className="py-2 px-2">
+                    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                      r.request_type === 'DEPOSIT' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/80' : 'bg-rose-950 text-rose-400 border border-rose-800/80'
                     }`}>
-                      {r.request_type === 'DEPOSIT' ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                      {r.request_type === 'DEPOSIT' ? <ArrowDownLeft className="w-2.5 h-2.5" /> : <ArrowUpRight className="w-2.5 h-2.5" />}
                       {r.request_type}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-white text-sm">
+                  <td className="py-2 px-2 text-right font-mono font-bold text-white text-xs">
                     ₹{parseFloat(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2.5 px-3 text-[11px] text-slate-300 font-mono">{r.payment_method || 'BANK_TRANSFER'}</td>
-                  <td className="py-2.5 px-3 text-[11px] text-slate-400 max-w-[220px] truncate" title={r.reference_note || ''}>
-                    {r.reference_note || '-'}
+                  <td className="py-2 px-2">
+                    <div className="text-[10px] text-slate-300 font-mono font-semibold">{r.payment_method || 'UPI'}</div>
+                    <div className="text-[9px] text-slate-400 truncate max-w-[150px]" title={r.reference_note || ''}>
+                      {r.reference_note || '-'}
+                    </div>
                   </td>
-                  <td className="py-2.5 px-3 text-[10px] text-slate-500 font-mono">{new Date(r.created_at).toLocaleString()}</td>
-                  <td className="py-2.5 px-3 text-center">
-                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                      r.status === 'APPROVED' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' :
-                      r.status === 'PARTIALLY_APPROVED' ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-700' :
-                      r.status === 'REJECTED' ? 'bg-rose-950/80 text-rose-400 border border-rose-800' :
-                      'bg-amber-950/80 text-amber-300 border border-amber-800 animate-pulse'
+                  <td className="py-2 px-2 text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                    {new Date(r.created_at).toLocaleDateString('en-IN', { month: 'numeric', day: 'numeric' })}, {new Date(r.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="py-2 px-2 text-center">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider inline-block ${
+                      r.status === 'APPROVED' ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-800' :
+                      r.status === 'PARTIALLY_APPROVED' ? 'bg-indigo-950/90 text-indigo-300 border border-indigo-700' :
+                      r.status === 'REJECTED' ? 'bg-rose-950/90 text-rose-400 border border-rose-800' :
+                      'bg-amber-950/90 text-amber-300 border border-amber-800 animate-pulse'
                     }`}>
                       {r.status === 'PENDING' ? 'PENDING' : r.status === 'PARTIALLY_APPROVED' ? 'PARTIAL' : r.status}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-center min-w-[260px]">
+                  <td className="py-2 px-2 text-center w-[210px] sticky right-0 bg-slate-900 group-hover:bg-slate-800/90 shadow-[-6px_0_10px_rgba(0,0,0,0.6)] z-10 transition">
                     {r.status === 'PENDING' ? (
-                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => handleApprove(r.id, r.request_id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                          title="Approve full requested amount"
+                          className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
+                          title="Approve full amount"
                         >
                           <CheckCircle className="w-3 h-3" /> Approve
                         </button>
                         {r.request_type === 'WITHDRAWAL' && (
                           <button
                             onClick={() => openPartialModal(r)}
-                            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                            title="Approve partial withdrawal amount"
+                            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
+                            title="Approve partial amount"
                           >
                             <Sliders className="w-3 h-3" /> Partial
                           </button>
                         )}
                         <button
                           onClick={() => openRejectModal(r)}
-                          className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
-                          title="Reject request with audit note"
+                          className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
+                          title="Reject request"
                         >
                           <XCircle className="w-3 h-3" /> Reject
                         </button>
@@ -490,7 +494,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
               ))}
               {requests.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500 font-medium">No deposit or withdrawal requests found.</td>
+                  <td colSpan={7} className="py-8 text-center text-slate-500 font-medium">No deposit or withdrawal requests found.</td>
                 </tr>
               )}
             </tbody>
