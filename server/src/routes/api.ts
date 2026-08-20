@@ -465,15 +465,20 @@ router.get('/market/option-chain', async (req, res) => {
     const strikeRange = (req.query.strikeRange as any) || '10';
 
     const { OptionChainEngine } = await import('../marketData/OptionChainEngine');
-    const result = await OptionChainEngine.generateOptionChain({
-      symbol,
-      expiry,
-      strikeRange,
-    });
+
+    // Timeout guard: reject after 40s to avoid nginx 504
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Option chain generation timed out after 40s')), 40000)
+    );
+    const result = await Promise.race([
+      OptionChainEngine.generateOptionChain({ symbol, expiry, strikeRange }),
+      timeoutPromise
+    ]);
 
     res.json({ success: true, ...result });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    const isTimeout = err.message?.includes('timed out');
+    res.status(isTimeout ? 503 : 500).json({ success: false, error: err.message });
   }
 });
 

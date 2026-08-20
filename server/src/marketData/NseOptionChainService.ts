@@ -330,6 +330,26 @@ export class NseOptionChainService extends EventEmitter {
   }
 
   public async fetchNseLiveIndices(): Promise<void> {
+    // PRIMARY: Always sync guard cache from live Dhan WS ticks first (works even when NSE is blocked)
+    try {
+      const { MarketDataEngine } = require('./MarketDataEngine');
+      const engine = MarketDataEngine.getInstance();
+      const dhanTicks: Array<{ token: string; dhanToken?: string }> = [
+        { token: 'NSE_NIFTY50' },
+        { token: 'NSE_BANKNIFTY' },
+        { token: 'NSE_FINNIFTY' },
+        { token: 'NSE_MIDCPNIFTY' },
+        { token: 'BSE_SENSEX' },
+      ];
+      for (const { token } of dhanTicks) {
+        const tick = engine.getCachedTick(token);
+        if (tick && tick.ltp > 0 && (Date.now() - (tick.timestamp || 0) < 120_000)) {
+          this.guardSpotCache.set(token, { price: tick.ltp, timestamp: tick.timestamp || Date.now() });
+        }
+      }
+    } catch (_) {}
+
+    // SECONDARY: Try NSE allIndices API (may be blocked by NSE CDN on VPS IPs)
     try {
       const cookies = await this.getCookies();
       const res = await fetch('https://www.nseindia.com/api/allIndices', {

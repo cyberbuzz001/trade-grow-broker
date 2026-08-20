@@ -705,11 +705,15 @@ export class DhanAdapter implements IMarketDataProvider {
     SafetyLock.assertSimulationOnly('DhanAdapter.getOptionChain');
 
     const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
-    if (cleanSym !== 'SENSEX' && cleanSym !== 'NIFTY') {
+    // Dhan supports NIFTY, BANKNIFTY, FINNIFTY and SENSEX indices
+    const SUPPORTED_SYMS: Record<string, number> = {
+      'NIFTY': 13, 'BANKNIFTY': 25, 'FINNIFTY': 27, 'MIDCPNIFTY': 33, 'SENSEX': 51
+    };
+    if (!SUPPORTED_SYMS[cleanSym]) {
       return [];
     }
     const underlyingSeg = 'IDX_I';
-    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : 13;
+    const underlyingScrip = SUPPORTED_SYMS[cleanSym];
     let targetExpiry = expiry ? expiry.trim() : '';
     if (!targetExpiry) {
       const liveExpiries = await this.getExpiryList(cleanSym);
@@ -743,7 +747,8 @@ export class DhanAdapter implements IMarketDataProvider {
           'client-id': this.clientId,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000) // 10s timeout to prevent nginx 504s
       });
 
       if (res.ok) {
