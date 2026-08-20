@@ -4,16 +4,37 @@ import { logMarketTelemetry } from './useMarketTelemetry';
 
 export type SocketStatus = 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING' | 'UNAVAILABLE';
 
+/** Server-reported market data feed health (Phase 6). */
+export interface FeedStatus {
+  status: 'LIVE' | 'STALE' | 'CLOSED' | 'DISCONNECTED';
+  lastTickMsAgo: number;
+  provider: string;
+  subscribedTokens: number;
+  marketOpen: boolean;
+}
+
 export interface MarketSocketContextType {
   status: SocketStatus;
+  feedStatus: FeedStatus | null;
   ticks: Map<string, MarketTick>;
   lastTickTimestamps: Map<string, number>;
   firstSubscribedAt: Map<string, number>;
   reconnectCount: number;
   subscribe: (tokens: string[]) => void;
   unsubscribe: (tokens: string[]) => void;
-  subscribeOptionChain: (symbol: string) => void;
-  unsubscribeOptionChain: (symbol: string) => void;
+  subscribeOptionChain: (sub: ChainSubscription) => void;
+  unsubscribeOptionChain: (sub: ChainSubscription) => void;
+}
+
+/** Identifies one distinct option-chain view. Must match the server's chainKey(). */
+export interface ChainSubscription {
+  symbol: string;
+  expiry?: string;
+  strikeRange?: string;
+}
+
+export function chainKey(sub: ChainSubscription): string {
+  return `${sub.symbol.toUpperCase().trim()}|${(sub.expiry || '').trim()}|${sub.strikeRange || '10'}`;
 }
 
 const MarketSocketContext = createContext<MarketSocketContextType | null>(null);
@@ -29,12 +50,19 @@ interface MarketSocketProviderProps {
 
 export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ children, userToken }) => {
   const [status, setStatus] = useState<SocketStatus>('CONNECTING');
+  const [feedStatus, setFeedStatus] = useState<FeedStatus | null>(null);
   const [ticks, setTicks] = useState<Map<string, MarketTick>>(new Map());
   const [lastTickTimestamps, setLastTickTimestamps] = useState<Map<string, number>>(new Map());
   const [reconnectCount, setReconnectCount] = useState<number>(0);
 
   // Active subscriptions ref-counting map: token -> subscriber count
   const subscriptionCountsRef = useRef<Map<string, number>>(new Map());
+  // Option-chain subscriptions ref-counting map: symbol -> subscriber count.
+  // Tracked so they can be restored after a reconnect — previously option chain
+  // subscriptions were fire-and-forget and were permanently lost on any drop.
+  const optionChainCountsRef = useRef<Map<string, number>>(new Map());
+  // Highest tick timestamp seen per instrument, used to reject out-of-order ticks.
+  const latestTsRef = useRef<Map<string, number>>(new Map());
   // Tracks timestamp when token was first subscribed (for 10s initial tick timeout check)
   const firstSubscribedAtRef = useRef<Map<string, number>>(new Map());
   const [firstSubscribedAt, setFirstSubscribedAt] = useState<Map<string, number>>(new Map());
@@ -105,20 +133,53 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
     }
   }, []);
 
-  const subscribeOptionChain = useCallback((symbol: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && symbol) {
+  /**
+   * Subscribe to a server-broadcast option chain.
+   * Ref-counted and recorded so the subscription is restored automatically after a
+   * reconnect, and so mounting the same chain twice does not double-subscribe.
+   * Safe to call before the socket is OPEN — it will be sent on connect.
+   */
+  const subscribeOptionChain = useCallback((sub: ChainSubscription) => {
+    if (!sub || !sub.symbol) return;
+    const key = chainKey(sub);
+    const count = optionChainCountsRef.current.get(key) ?? 0;
+    optionChainCountsRef.current.set(key, count + 1);
+    if (count > 0) return; // already subscribed on the wire
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
-        wsRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_OPTION_CHAIN', symbol }));
+        wsRef.current.send(JSON.stringify({
+          action: 'SUBSCRIBE_OPTION_CHAIN',
+          symbol: sub.symbol.toUpperCase().trim(),
+          expiry: sub.expiry || '',
+          strikeRange: sub.strikeRange || '10'
+        }));
       } catch (err) {
         console.error('[MarketSocket] Failed to send SUBSCRIBE_OPTION_CHAIN', err);
       }
     }
+    // If not OPEN yet, ws.onopen replays everything in optionChainCountsRef.
   }, []);
 
-  const unsubscribeOptionChain = useCallback((symbol: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && symbol) {
+  const unsubscribeOptionChain = useCallback((sub: ChainSubscription) => {
+    if (!sub || !sub.symbol) return;
+    const key = chainKey(sub);
+    const count = optionChainCountsRef.current.get(key) ?? 0;
+    if (count <= 1) {
+      optionChainCountsRef.current.delete(key);
+    } else {
+      optionChainCountsRef.current.set(key, count - 1);
+      return; // other consumers still need it
+    }
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
-        wsRef.current.send(JSON.stringify({ action: 'UNSUBSCRIBE_OPTION_CHAIN', symbol }));
+        wsRef.current.send(JSON.stringify({
+          action: 'UNSUBSCRIBE_OPTION_CHAIN',
+          symbol: sub.symbol.toUpperCase().trim(),
+          expiry: sub.expiry || '',
+          strikeRange: sub.strikeRange || '10'
+        }));
       } catch (err) {
         console.error('[MarketSocket] Failed to send UNSUBSCRIBE_OPTION_CHAIN', err);
       }
@@ -208,11 +269,21 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
           }
         }, 25000);
 
-        // Auto re-subscribe to all active tokens
+        // ── Subscription recovery (Phase 13) ──────────────────────────────
+        // Restore BOTH token subscriptions and option-chain subscriptions so the
+        // user never has to refresh the page after a network blip.
         const activeTokens = Array.from(subscriptionCountsRef.current.keys());
         if (activeTokens.length > 0) {
           sendSubscribe(activeTokens);
         }
+        optionChainCountsRef.current.forEach((_count, key) => {
+          const [symbol, expiry, strikeRange] = key.split('|');
+          try {
+            ws.send(JSON.stringify({
+              action: 'SUBSCRIBE_OPTION_CHAIN', symbol, expiry: expiry || '', strikeRange: strikeRange || '10'
+            }));
+          } catch (_) {}
+        });
       };
 
       ws.onmessage = (event) => {
@@ -220,6 +291,15 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
           const message = JSON.parse(event.data);
           const storeTick = (t: MarketTick) => {
             if (!t || !t.instrumentToken) return;
+
+            // ── Stale-tick guard (Phase 6) ────────────────────────────────
+            // An older tick must never overwrite a newer one. This happens in
+            // practice when a TICK_SNAPSHOT (built from cache) lands after a live
+            // MARKET_TICK for the same instrument, or on reconnect replay.
+            const incomingTs = typeof t.timestamp === 'number' && t.timestamp > 0 ? t.timestamp : Date.now();
+            const knownTs = latestTsRef.current.get(t.instrumentToken);
+            if (knownTs !== undefined && incomingTs < knownTs) return;
+            latestTsRef.current.set(t.instrumentToken, incomingTs);
 
             // Always store by the canonical instrumentToken
             pendingTicksRef.current.set(t.instrumentToken, t);
@@ -248,6 +328,9 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
           } else if (message.type === 'MARKET_TICK' && message.data) {
             storeTick(message.data as MarketTick);
             scheduleBatchUpdate();
+          } else if (message.type === 'MARKET_STATUS' && message.data) {
+            // Server-reported feed health: LIVE | STALE | CLOSED | DISCONNECTED
+            setFeedStatus(message.data as FeedStatus);
           } else if (message.type === 'OPTION_CHAIN_SNAPSHOT' && message.data) {
             window.dispatchEvent(new CustomEvent('market:option_chain_snapshot', { detail: message.data }));
           }
@@ -292,6 +375,7 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
     {
       value: {
         status,
+        feedStatus,
         ticks,
         lastTickTimestamps,
         firstSubscribedAt,
@@ -316,11 +400,16 @@ export function useMarketSocket(): MarketSocketContextType {
 
 export function useSubscribeTokens(tokens: string[]) {
   const { subscribe, unsubscribe } = useMarketSocket();
-  const tokensKey = tokens.sort().join(',');
+  // NOTE: copy before sorting. `tokens.sort()` sorted the caller's array IN PLACE,
+  // reordering component state/props as a side effect of merely computing a cache key.
+  const tokensKey = React.useMemo(
+    () => (tokens || []).filter(Boolean).slice().sort().join(','),
+    [tokens]
+  );
 
   useEffect(() => {
-    if (!tokens || tokens.length === 0) return;
-    const tokenList = tokens.filter(Boolean);
+    if (!tokensKey) return;
+    const tokenList = tokensKey.split(',');
     subscribe(tokenList);
 
     return () => {
@@ -329,14 +418,28 @@ export function useSubscribeTokens(tokens: string[]) {
   }, [tokensKey, subscribe, unsubscribe]);
 }
 
-export function useSubscribeOptionChain(symbol: string) {
+/**
+ * Subscribes to a server-broadcast option chain for exactly the view the user is looking at.
+ * Changing symbol / expiry / strike range tears down the old view and starts the new one,
+ * so the server never computes chains nobody is watching (Phase 7).
+ * Returns the subscription key, which callers use to discard snapshots for stale views.
+ */
+export function useSubscribeOptionChain(
+  symbol: string,
+  expiry?: string,
+  strikeRange?: string
+): string {
   const { subscribeOptionChain, unsubscribeOptionChain } = useMarketSocket();
+  const key = symbol ? chainKey({ symbol, expiry, strikeRange }) : '';
 
   useEffect(() => {
     if (!symbol) return;
-    subscribeOptionChain(symbol);
+    const sub = { symbol, expiry, strikeRange };
+    subscribeOptionChain(sub);
     return () => {
-      unsubscribeOptionChain(symbol);
+      unsubscribeOptionChain(sub);
     };
-  }, [symbol, subscribeOptionChain, unsubscribeOptionChain]);
+  }, [key, subscribeOptionChain, unsubscribeOptionChain]);
+
+  return key;
 }

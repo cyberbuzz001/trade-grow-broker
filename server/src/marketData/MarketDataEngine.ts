@@ -16,6 +16,8 @@ export class MarketDataEngine {
   private tickCache: Map<string, MarketTick> = new Map();
   private globalCallbacks: Set<TickCallback> = new Set();
   private subscribedTokens: Set<string> = new Set();
+  // ref-count per token so we only unsubscribe from Dhan when truly zero clients need it
+  private tokenRefCount: Map<string, number> = new Map();
 
   private lastDhanTickTime: number = 0;
   private configuredProviderName: string = 'DHAN';
@@ -89,13 +91,14 @@ export class MarketDataEngine {
 
     defaultTokens.forEach(t => this.subscribedTokens.add(t));
 
-    // Initialize Dhan as the ONLY provider
+    // Initialize Dhan as the ONLY provider — register callback ONCE here, never again
     try {
       await this.dhanProvider.initialize();
-      this.dhanProvider.subscribe(Array.from(this.subscribedTokens), (tick) => {
+      this.dhanProvider.registerCallback((tick) => {
         this.lastDhanTickTime = Date.now();
         this.broadcastTick(tick);
       });
+      this.dhanProvider.subscribeToTokens(Array.from(this.subscribedTokens));
     } catch (err: any) {
       console.warn('[MarketDataEngine] Dhan initialization warning:', err.message);
     }
@@ -109,22 +112,82 @@ export class MarketDataEngine {
   }
 
   /**
-   * Broadcasts tick to local cache, Redis PubSub, and all client WebSocket listeners
+   * Broadcasts tick to local cache, Redis PubSub, and all client WebSocket listeners.
+   *
+   * The durable `tick:<token>` Redis SET is throttled to at most once per second per
+   * instrument. Writing every tick was generating thousands of Redis round-trips per
+   * second during market hours with no added value — the in-memory tickCache already
+   * serves all reads, and the durable copy only exists for warm-start after a restart.
    */
   private broadcastTick(tick: MarketTick): void {
     this.setCachedTick(tick);
-    redis.set(`tick:${tick.instrumentToken}`, JSON.stringify(tick), 3600);
+
+    this.totalTicksProcessed++;
+    this.ticksInWindow++;
+    const nowTs = Date.now();
+    if (nowTs - this.tickCounterResetAt > 60_000) {
+      this.ticksInWindow = 0;
+      this.tickCounterResetAt = nowTs;
+    }
+
+    const now = Date.now();
+    const lastWrite = this.lastRedisWrite.get(tick.instrumentToken) ?? 0;
+    if (now - lastWrite >= MarketDataEngine.REDIS_WRITE_THROTTLE_MS) {
+      this.lastRedisWrite.set(tick.instrumentToken, now);
+      redis.set(`tick:${tick.instrumentToken}`, JSON.stringify(tick), 3600);
+    }
+
     redis.publish('market:ticks', JSON.stringify(tick));
-    this.globalCallbacks.forEach(cb => cb(tick));
+    this.globalCallbacks.forEach(cb => {
+      try { cb(tick); } catch (_) {}
+    });
+  }
+
+  private lastRedisWrite: Map<string, number> = new Map();
+  private static readonly REDIS_WRITE_THROTTLE_MS = 1000;
+  private static readonly STALE_THRESHOLD_MS = 15_000;
+
+  public getActiveProviderName(): string {
+    return this.activeProvider ? this.activeProvider.name : 'DHAN';
   }
 
   /**
-   * Auto-Failover Monitor (checks every 5 seconds):
-   * Evaluates Dhan stream health. If Dhan goes quiet for >25000ms during market hours,
-   * cleanly toggles failover to Fyers without leaking callbacks.
+   * Feed health for the UI status indicator (Phase 6).
+   * LIVE          — ticks arriving normally
+   * STALE         — connected but no tick for > STALE_THRESHOLD_MS during market hours
+   * CLOSED        — outside market hours; last known prices are valid but not moving
+   * DISCONNECTED  — provider socket is down
    */
-  public getActiveProviderName(): string {
-    return this.activeProvider ? this.activeProvider.name : 'DHAN';
+  public getFeedHealth(): {
+    status: 'LIVE' | 'STALE' | 'CLOSED' | 'DISCONNECTED';
+    lastTickMsAgo: number;
+    provider: string;
+    subscribedTokens: number;
+    marketOpen: boolean;
+  } {
+    const now = Date.now();
+    const lastTickMsAgo = this.lastDhanTickTime > 0 ? now - this.lastDhanTickTime : -1;
+    const marketOpen = MarketDataEngine.isMarketHours();
+    const connected = this.dhanProvider.isConnected?.() ?? this.lastDhanTickTime > 0;
+
+    let status: 'LIVE' | 'STALE' | 'CLOSED' | 'DISCONNECTED';
+    if (!connected) {
+      status = 'DISCONNECTED';
+    } else if (!marketOpen) {
+      status = 'CLOSED';
+    } else if (lastTickMsAgo < 0 || lastTickMsAgo > MarketDataEngine.STALE_THRESHOLD_MS) {
+      status = 'STALE';
+    } else {
+      status = 'LIVE';
+    }
+
+    return {
+      status,
+      lastTickMsAgo,
+      provider: this.getActiveProviderName(),
+      subscribedTokens: this.subscribedTokens.size,
+      marketOpen
+    };
   }
 
   public getHybridStatus(): Record<string, any> {
@@ -139,6 +202,32 @@ export class MarketDataEngine {
     };
   }
 
+  /**
+   * Pipeline load metrics (Phase 16).
+   * `providerConnections` is the number that must stay flat as users grow — it proves
+   * the fan-out architecture is holding and connections are not scaling per user.
+   */
+  public getPipelineMetrics(): Record<string, number> {
+    const now = Date.now();
+    const windowSec = Math.max(1, (now - this.tickCounterResetAt) / 1000);
+    return {
+      providerConnections: this.dhanProvider.isConnected() ? 1 : 0,
+      upstreamSubscribedTokens: this.dhanProvider.getSubscribedTokenCount(),
+      engineTrackedTokens: this.subscribedTokens.size,
+      refCountedTokens: this.tokenRefCount.size,
+      tickCacheEntries: this.tickCache.size,
+      globalCallbacks: this.globalCallbacks.size,
+      ticksProcessed: this.totalTicksProcessed,
+      ticksPerSecond: Number((this.ticksInWindow / windowSec).toFixed(2)),
+      staleTicksRejected: this.staleTicksRejected
+    };
+  }
+
+  private totalTicksProcessed = 0;
+  private ticksInWindow = 0;
+  private tickCounterResetAt = Date.now();
+  private staleTicksRejected = 0;
+
   public async switchPrimaryProvider(providerName: string): Promise<boolean> {
     const targetName = providerName.toUpperCase();
     const provider = this.providers.get(targetName) || this.providers.get(providerName);
@@ -151,10 +240,12 @@ export class MarketDataEngine {
     this.activeProvider = provider;
     process.env.PRIMARY_MARKET_DATA_PROVIDER = targetName;
 
-    // Resubscribe all active tokens
-    provider.subscribe(Array.from(this.subscribedTokens), (tick) => {
-      this.broadcastTick(tick);
-    });
+    // Resubscribe all active tokens (callback already registered in initialize)
+    if (provider === this.dhanProvider) {
+      this.dhanProvider.subscribeToTokens(Array.from(this.subscribedTokens));
+    } else {
+      provider.subscribe(Array.from(this.subscribedTokens), (tick) => this.broadcastTick(tick));
+    }
 
     return true;
   }
@@ -195,6 +286,12 @@ export class MarketDataEngine {
 
   public setCachedTick(tick: MarketTick): void {
     if (!tick || !tick.instrumentToken) return;
+    // Reject stale ticks — only advance cache forward in time
+    const existing = this.tickCache.get(tick.instrumentToken);
+    if (existing && existing.timestamp > tick.timestamp) {
+      this.staleTicksRejected++;
+      return;
+    }
     this.tickCache.set(tick.instrumentToken, tick);
     try {
       const { SymbologyNormalizer } = require('./SymbologyNormalizer');
@@ -239,13 +336,34 @@ export class MarketDataEngine {
 
   public subscribe(tokens: string[]): void {
     if (!tokens || tokens.length === 0) return;
-    tokens.forEach(t => this.subscribedTokens.add(t));
+    const newTokens: string[] = [];
+    for (const t of tokens) {
+      this.subscribedTokens.add(t);
+      const count = (this.tokenRefCount.get(t) ?? 0) + 1;
+      this.tokenRefCount.set(t, count);
+      if (count === 1) newTokens.push(t); // first subscriber for this token
+    }
+    if (newTokens.length > 0) {
+      this.dhanProvider.subscribeToTokens(newTokens);
+    }
+  }
 
-    // Dhan only — subscribe new tokens directly
-    this.dhanProvider.subscribe(tokens, (tick) => {
-      this.lastDhanTickTime = Date.now();
-      this.broadcastTick(tick);
-    });
+  public unsubscribe(tokens: string[]): void {
+    if (!tokens || tokens.length === 0) return;
+    const toRemove: string[] = [];
+    for (const t of tokens) {
+      const count = (this.tokenRefCount.get(t) ?? 1) - 1;
+      if (count <= 0) {
+        this.tokenRefCount.delete(t);
+        this.subscribedTokens.delete(t);
+        toRemove.push(t);
+      } else {
+        this.tokenRefCount.set(t, count);
+      }
+    }
+    if (toRemove.length > 0) {
+      this.dhanProvider.unsubscribeFromTokens(toRemove);
+    }
   }
 
   public onTick(callback: TickCallback): void {

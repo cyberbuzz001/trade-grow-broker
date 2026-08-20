@@ -53,6 +53,32 @@ class RedisService {
       console.warn('[Redis] Failed to initialize Redis client. Degraded in-memory mode active.', err.message);
       this.isConnected = false;
     }
+
+    // Sweep expired keys from the in-memory fallback cache every 60s.
+    // Without this, the fallback Map grows without bound in degraded mode because
+    // get() only evicts keys that happen to be read again.
+    this.sweepTimer = setInterval(() => this.sweepExpired(), 60_000);
+    this.sweepTimer.unref?.();
+  }
+
+  private sweepTimer: NodeJS.Timeout | null = null;
+  private static readonly MAX_IN_MEMORY_KEYS = 50_000;
+
+  private sweepExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.inMemoryCache) {
+      if (now > entry.expiresAt) this.inMemoryCache.delete(key);
+    }
+    // Hard ceiling: if still oversized, evict oldest-inserted entries (Map preserves insertion order)
+    if (this.inMemoryCache.size > RedisService.MAX_IN_MEMORY_KEYS) {
+      const excess = this.inMemoryCache.size - RedisService.MAX_IN_MEMORY_KEYS;
+      let removed = 0;
+      for (const key of this.inMemoryCache.keys()) {
+        this.inMemoryCache.delete(key);
+        if (++removed >= excess) break;
+      }
+      console.warn(`[Redis] In-memory cache exceeded ${RedisService.MAX_IN_MEMORY_KEYS} keys; evicted ${removed} oldest entries.`);
+    }
   }
 
   public static getInstance(): RedisService {
@@ -116,47 +142,77 @@ class RedisService {
   }
 
   /**
-   * Pub/Sub: Publish message to Redis channel with in-memory fallback
+   * Pub/Sub: Publish message to Redis channel with in-memory fallback.
+   *
+   * CRITICAL: local subscribers are fired here ONLY when Redis is unavailable.
+   * When Redis IS connected, the message loops back through subClient's 'message'
+   * handler which fires the same callback set — firing here too would double-process
+   * every single market tick (a major source of CPU burn and duplicate fan-out).
    */
   public async publish(channel: string, message: string): Promise<void> {
     if (this.isAvailable()) {
       try {
         await this.client!.publish(channel, message);
+        return; // subClient will deliver to local subscribers — do not double-fire
       } catch (err: any) {
         console.warn(`[Redis] Publish failed for channel ${channel}:`, err.message);
+        // fall through to local delivery so the message is not lost
       }
     }
-    // Trigger local in-memory subscribers regardless
+    // In-memory fallback delivery (Redis down or publish failed)
     const subs = this.localSubscribers.get(channel);
     if (subs) {
-      subs.forEach(cb => cb(message));
+      subs.forEach(cb => {
+        try { cb(message); } catch (_) {}
+      });
     }
   }
 
   /**
-   * Pub/Sub: Subscribe to channel
+   * Pub/Sub: Subscribe to channel.
+   * Subscriptions are tracked so they can be restored if Redis reconnects after
+   * having been unavailable at subscribe() time.
    */
   public async subscribe(channel: string, callback: (message: string) => void): Promise<void> {
     if (!this.localSubscribers.has(channel)) {
       this.localSubscribers.set(channel, new Set());
     }
     this.localSubscribers.get(channel)!.add(callback);
+    this.pendingChannels.add(channel);
 
-    if (this.isAvailable()) {
-      if (!this.subClient) {
-        this.subClient = this.client!.duplicate();
-        this.subClient.on('message', (ch, msg) => {
-          const callbacks = this.localSubscribers.get(ch);
-          if (callbacks) {
-            callbacks.forEach(cb => cb(msg));
-          }
+    await this.ensureRedisSubscription(channel);
+  }
+
+  private pendingChannels = new Set<string>();
+
+  private async ensureRedisSubscription(channel: string): Promise<void> {
+    if (!this.isAvailable()) return;
+
+    if (!this.subClient) {
+      this.subClient = this.client!.duplicate();
+      this.subClient.on('message', (ch, msg) => {
+        const callbacks = this.localSubscribers.get(ch);
+        if (callbacks) {
+          callbacks.forEach(cb => {
+            try { cb(msg); } catch (_) {}
+          });
+        }
+      });
+      this.subClient.on('error', (err) => {
+        console.warn('[Redis] Subscriber client error:', err.message);
+      });
+      // Restore all channel subscriptions after a reconnect
+      this.subClient.on('ready', () => {
+        this.pendingChannels.forEach(ch => {
+          this.subClient!.subscribe(ch).catch(() => {});
         });
-      }
-      try {
-        await this.subClient.subscribe(channel);
-      } catch (err: any) {
-        console.warn(`[Redis] Subscribe failed for channel ${channel}:`, err.message);
-      }
+      });
+    }
+
+    try {
+      await this.subClient.subscribe(channel);
+    } catch (err: any) {
+      console.warn(`[Redis] Subscribe failed for channel ${channel}:`, err.message);
     }
   }
 

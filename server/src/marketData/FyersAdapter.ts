@@ -401,49 +401,18 @@ export class FyersAdapter implements IMarketDataProvider {
         } catch (_) {}
       }
 
-      // If off-market or no live credentials, emit subtle live ticks from reference prices
-      for (const [token, ref] of Object.entries(FyersAdapter.REFERENCE_PRICES)) {
-        const cached = this.tickCache.get(token) || {
-          instrumentToken: token,
-          exchange: token.startsWith('BSE') ? 'BSE' : token.startsWith('MCX') ? 'MCX' : 'NSE',
-          symbol: token.replace(/^(NSE_|BSE_|MCX_)/, ''),
-          ltp: ref.ltp,
-          open: ref.open,
-          high: ref.high,
-          low: ref.low,
-          close: ref.close,
-          volume: 100000,
-          change: Number((ref.ltp - ref.close).toFixed(2)),
-          changePercent: Number((((ref.ltp - ref.close) / ref.close) * 100).toFixed(2)),
-          bid: Number((ref.ltp - 0.05).toFixed(2)),
-          ask: Number((ref.ltp + 0.05).toFixed(2)),
-          bidQty: 100,
-          askQty: 100,
-          timestamp: Date.now(),
-          source: 'fyers'
-        };
-
-        const delta = (Math.random() - 0.49) * (ref.ltp * 0.0003);
-        const ltp = Number((cached.ltp + delta).toFixed(2));
-        const change = Number((ltp - ref.close).toFixed(2));
-        const changePercent = Number(((change / ref.close) * 100).toFixed(2));
-
-        const tick: MarketTick = {
-          ...cached,
-          ltp,
-          high: Math.max(cached.high, ltp),
-          low: Math.min(cached.low, ltp),
-          change,
-          changePercent,
-          bid: Number((ltp - 0.05).toFixed(2)),
-          ask: Number((ltp + 0.05).toFixed(2)),
-          timestamp: Date.now(),
-          source: 'fyers'
-        };
-
-        this.tickCache.set(token, tick);
-        this.callbacks.forEach(cb => cb(tick));
-      }
+      // NO SYNTHETIC TICK EMISSION.
+      //
+      // This block previously ran a random-walk price generator over hardcoded
+      // REFERENCE_PRICES every 2 seconds whenever the real quote fetch failed, emitting
+      // the results through the normal callback path tagged `source: 'fyers'`. Downstream
+      // consumers — the option chain, RMS, P&L, the UI's LIVE badge — had no way to tell
+      // those invented prices from real ones.
+      //
+      // When the provider cannot supply real quotes it is marked unhealthy and emits
+      // nothing; MarketDataEngine.getFeedHealth() then reports STALE/DISCONNECTED and the
+      // UI shows that honestly instead of animating fabricated price movement.
+      this.healthy = false;
     }, 2000);
   }
 
@@ -568,32 +537,12 @@ export class FyersAdapter implements IMarketDataProvider {
       }
     }
 
-    // High-fidelity fallback candle synthesis anchored to current live LTP
-    const volatility = anchorLtp * 0.0008;
-    const candles: Candle[] = [];
-    const now = Math.floor(Date.now() / 1000);
-    const intervalSec = timeframe === '1m' ? 60 : timeframe === '5m' ? 300 :
-                        timeframe === '15m' ? 900 : timeframe === '1h' ? 3600 : 86400;
-
-    let currentClose = anchorLtp;
-    for (let i = count; i >= 0; i--) {
-      const candleTime = now - (i * intervalSec);
-      const isLast = (i === 0);
-
-      const close = isLast ? anchorLtp : Number(currentClose.toFixed(2));
-      const openDelta = (Math.random() - 0.49) * volatility * 2;
-      const open = isLast
-        ? Number((anchorLtp - (Math.random() * volatility)).toFixed(2))
-        : Number((close - openDelta).toFixed(2));
-
-      const high = Number((Math.max(open, close) + Math.random() * volatility).toFixed(2));
-      const low  = Number((Math.min(open, close) - Math.random() * volatility).toFixed(2));
-
-      candles.push({ time: candleTime, open, high, low, close, volume: 20000 });
-      currentClose = open;
-    }
-
-    return candles;
+    // NO SYNTHETIC FALLBACK — see the equivalent note in DhanAdapter.getHistoricalCandles().
+    // Random-walk candles "anchored to live LTP" still constitute invented price history:
+    // every open/high/low and every volume figure was fabricated, and nothing downstream
+    // could distinguish them from real exchange data.
+    console.warn(`[FyersAdapter] No historical candles available for ${instrumentToken} (${timeframe}); returning empty series.`);
+    return [];
   }
 
   public async getOptionChain(symbol: string, expiry: string): Promise<OptionChainItem[]> {

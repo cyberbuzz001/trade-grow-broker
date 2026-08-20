@@ -251,11 +251,14 @@ export class AngelOneAdapter implements IMarketDataProvider {
         const ceLtp = (row.ce?.ltp && row.ce.ltp > 0) ? row.ce.ltp : Math.max(0.05, Number(ceBsPrice.toFixed(2)));
         const peLtp = (row.pe?.ltp && row.pe.ltp > 0) ? row.pe.ltp : Math.max(0.05, Number(peBsPrice.toFixed(2)));
 
-        // Use NSE OI when available, otherwise use WS oi field, then synthetic
-        const ceOi = nseData?.ceOi || row.ce?.oi || Math.floor(Math.random() * 1800000) + 300000;
-        const peOi = nseData?.peOi || row.pe?.oi || Math.floor(Math.random() * 1600000) + 250000;
-        const ceVol = row.ce?.volume || Math.floor(Math.random() * 250000) + 60000;
-        const peVol = row.pe?.volume || Math.floor(Math.random() * 220000) + 50000;
+        // OI / volume come from NSE, else the live WS field, else 0.
+        // Randomised OI and volume were previously invented here — traders read OI and
+        // volume as conviction signals, so fabricating them is actively misleading.
+        // 0 renders as "--" in the UI, which is truthful about the data being unavailable.
+        const ceOi = nseData?.ceOi || row.ce?.oi || 0;
+        const peOi = nseData?.peOi || row.pe?.oi || 0;
+        const ceVol = row.ce?.volume || 0;
+        const peVol = row.pe?.volume || 0;
 
         rows.push({
           strikePrice: strike,

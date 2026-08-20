@@ -5,16 +5,24 @@ import { MarketDataEngine } from '../marketData/MarketDataEngine';
 import { SymbologyNormalizer } from '../marketData/SymbologyNormalizer';
 import { getJwtSecret } from '../middleware/auth';
 import { adminEventBus, AdminEvent } from '../utils/adminEventBus';
-import { optionChainBroadcaster } from '../marketData/OptionChainBroadcasterService';
+import { optionChainBroadcaster, chainKey } from '../marketData/OptionChainBroadcasterService';
 
 export interface ExtendedWebSocket extends WebSocket {
   isAlive?: boolean;
   userId?: string;
   userRole?: string;
   subscriptions?: Set<string>;
+  /** Option-chain view keys (symbol|expiry|strikeRange) this socket holds a ref on. */
   optionChainSymbols?: Set<string>;
   adminWatchedUsers?: Set<string>;
+  /** Inbound message rate-limit window state. */
+  rateWindowStart?: number;
+  messagesInWindow?: number;
 }
+
+/** Inbound message guards — a market-data client never legitimately needs more than this. */
+const MAX_WS_MESSAGE_BYTES = 64 * 1024;
+const MAX_WS_MESSAGES_PER_SEC = 40;
 
 // Inverted Subscription Index for O(1) tick dispatch
 class TokenSubscriptionIndex {
@@ -61,8 +69,14 @@ export function getWebSocketMetrics() {
   };
 }
 
+let wssRef: WebSocketServer | null = null;
+export function getConnectedClientCount(): number {
+  return wssRef ? wssRef.clients.size : 0;
+}
+
 export function setupWebSocketServer(httpServer: Server): WebSocketServer {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  wssRef = wss;
 
   console.log('[WebSocket] High-Performance Gateway running on /ws');
 
@@ -105,6 +119,31 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
 
     ws.on('message', (message: Buffer) => {
       try {
+        // ── Per-connection abuse guards (Phase 18) ────────────────────────
+        // The socket accepts unauthenticated connections so public market data works
+        // without login. That means an anonymous client can drive SUBSCRIBE and
+        // SUBSCRIBE_OPTION_CHAIN, both of which cost real upstream work, so inbound
+        // messages must be bounded in both size and rate.
+        if (message.length > MAX_WS_MESSAGE_BYTES) {
+          ws.send(JSON.stringify({ type: 'ERROR', code: 'MESSAGE_TOO_LARGE' }));
+          return;
+        }
+
+        const nowMs = Date.now();
+        if (nowMs - (ws.rateWindowStart ?? 0) > 1000) {
+          ws.rateWindowStart = nowMs;
+          ws.messagesInWindow = 0;
+        }
+        ws.messagesInWindow = (ws.messagesInWindow ?? 0) + 1;
+        if (ws.messagesInWindow > MAX_WS_MESSAGES_PER_SEC) {
+          if (ws.messagesInWindow === MAX_WS_MESSAGES_PER_SEC + 1) {
+            ws.send(JSON.stringify({ type: 'ERROR', code: 'RATE_LIMITED', message: 'Too many messages; slow down.' }));
+          }
+          // Persistent floods get disconnected rather than merely throttled.
+          if (ws.messagesInWindow > MAX_WS_MESSAGES_PER_SEC * 10) ws.terminate();
+          return;
+        }
+
         const data = JSON.parse(message.toString());
 
         if (data.action === 'SUBSCRIBE' && Array.isArray(data.tokens)) {
@@ -127,32 +166,99 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
 
           // Forward token subscriptions to MarketDataEngine so market provider emits live ticks
           if (tokensToAdd.length > 0) {
-            MarketDataEngine.getInstance().subscribe(tokensToAdd);
+            const engine = MarketDataEngine.getInstance();
+            engine.subscribe(tokensToAdd);
+
+            // Snapshot-then-stream: immediately return whatever is already cached for these
+            // tokens so the UI paints real values before the next provider tick arrives.
+            const seen = new Set<string>();
+            const snapshot = [];
+            for (const t of tokensToAdd) {
+              const tick = engine.getCachedTick(String(t).trim());
+              if (tick && !seen.has(tick.instrumentToken)) {
+                seen.add(tick.instrumentToken);
+                snapshot.push(tick);
+              }
+            }
+            if (snapshot.length > 0 && ws.readyState === WebSocket.OPEN) {
+              try {
+                ws.send(JSON.stringify({ type: 'TICK_SNAPSHOT', data: snapshot }));
+              } catch (_) {}
+            }
           }
         } else if (data.action === 'UNSUBSCRIBE' && Array.isArray(data.tokens)) {
+          const unsubTokens: string[] = [];
           data.tokens.forEach((t: string) => {
             if (!t) return;
             const clean = t.trim();
             ws.subscriptions?.delete(clean);
             subscriptionIndex.remove(clean, ws);
+            unsubTokens.push(clean);
             const aliases = SymbologyNormalizer.normalizeToken(clean);
             aliases.forEach(alias => {
               ws.subscriptions?.delete(alias);
               subscriptionIndex.remove(alias, ws);
+              unsubTokens.push(alias);
             });
           });
+          if (unsubTokens.length > 0) {
+            MarketDataEngine.getInstance().unsubscribe(unsubTokens);
+          }
 
         // ── Real-Time Option Chain Subscriptions (Replaces Frontend Polling) ──
         } else if (data.action === 'SUBSCRIBE_OPTION_CHAIN' && data.symbol) {
           const cleanSym = String(data.symbol).toUpperCase().replace(/^(NSE_|BSE_)/, '').trim();
-          ws.optionChainSymbols?.add(cleanSym);
-          optionChainBroadcaster.addSymbol(cleanSym);
-          ws.send(JSON.stringify({ type: 'OPTION_CHAIN_SUBSCRIBED', symbol: cleanSym }));
+          const reqExpiry = typeof data.expiry === 'string' ? data.expiry.trim() : '';
+          const reqRange = ['5', '10', '20', 'ALL'].includes(String(data.strikeRange))
+            ? String(data.strikeRange)
+            : '10';
+
+          const key = chainKey({ symbol: cleanSym, expiry: reqExpiry, strikeRange: reqRange });
+
+          // A socket may only hold one ref per view; re-sending SUBSCRIBE for a view it
+          // already holds must not inflate the ref-count and pin the view forever.
+          if (!ws.optionChainSymbols?.has(key)) {
+            const MAX_CHAIN_VIEWS_PER_SOCKET = 8;
+            if ((ws.optionChainSymbols?.size ?? 0) >= MAX_CHAIN_VIEWS_PER_SOCKET) {
+              ws.send(JSON.stringify({
+                type: 'ERROR', code: 'TOO_MANY_CHAIN_VIEWS',
+                message: `A connection may watch at most ${MAX_CHAIN_VIEWS_PER_SOCKET} option chain views.`
+              }));
+            } else if (optionChainBroadcaster.addView({ symbol: cleanSym, expiry: reqExpiry, strikeRange: reqRange })) {
+              ws.optionChainSymbols?.add(key);
+              ws.send(JSON.stringify({
+                type: 'OPTION_CHAIN_SUBSCRIBED',
+                symbol: cleanSym, expiry: reqExpiry, strikeRange: reqRange, subscriptionKey: key
+              }));
+
+              // Phase 14 — snapshot-then-stream: deliver the last computed chain immediately
+              // so the user never stares at an empty table waiting for the next cycle.
+              const cachedSnapshot = optionChainBroadcaster.getLastSnapshot(key);
+              if (cachedSnapshot) {
+                try {
+                  ws.send(JSON.stringify({ type: 'OPTION_CHAIN_SNAPSHOT', data: cachedSnapshot }));
+                } catch (_) {}
+              }
+            } else {
+              ws.send(JSON.stringify({
+                type: 'ERROR', code: 'CHAIN_CAPACITY',
+                message: 'Server is at option chain capacity. Please try again shortly.'
+              }));
+            }
+          }
 
         } else if (data.action === 'UNSUBSCRIBE_OPTION_CHAIN' && data.symbol) {
           const cleanSym = String(data.symbol).toUpperCase().replace(/^(NSE_|BSE_)/, '').trim();
-          ws.optionChainSymbols?.delete(cleanSym);
-          optionChainBroadcaster.removeSymbol(cleanSym);
+          const reqExpiry = typeof data.expiry === 'string' ? data.expiry.trim() : '';
+          const reqRange = ['5', '10', '20', 'ALL'].includes(String(data.strikeRange))
+            ? String(data.strikeRange)
+            : '10';
+          const key = chainKey({ symbol: cleanSym, expiry: reqExpiry, strikeRange: reqRange });
+
+          // Only release a ref-count this socket actually holds
+          if (ws.optionChainSymbols?.delete(key)) {
+            optionChainBroadcaster.removeView(key);
+          }
 
         // ── ADMIN-ONLY: Subscribe to a customer's real-time events ──────────
         } else if (data.action === 'ADMIN_SUBSCRIBE' && data.userId) {
@@ -178,8 +284,12 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     });
 
     ws.on('close', () => {
-      // Release option chain broadcaster subscriber counts
-      ws.optionChainSymbols?.forEach(sym => optionChainBroadcaster.removeSymbol(sym));
+      // Release option chain broadcaster view ref-counts held by this socket
+      ws.optionChainSymbols?.forEach(key => optionChainBroadcaster.removeView(key));
+      // Decrement token ref-counts so Dhan unsubscribes tokens no client needs anymore
+      if (ws.subscriptions && ws.subscriptions.size > 0) {
+        MarketDataEngine.getInstance().unsubscribe(Array.from(ws.subscriptions));
+      }
       // Clean up subscriptions from inverted index to prevent memory leak
       subscriptionIndex.removeAll(ws);
       ws.subscriptions?.clear();
@@ -187,10 +297,23 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
       ws.adminWatchedUsers?.clear();
     });
 
-    // Send initial snapshot of all cached ticks
-    const cachedTicks = MarketDataEngine.getInstance().getAllCachedTicks();
+    // Send initial snapshot for this client's default subscriptions only.
+    // Previously this dumped the ENTIRE tick cache — which stores every instrument under
+    // several symbology aliases — so each connecting client received thousands of
+    // duplicated tick objects, a multi-megabyte frame during market hours.
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'TICK_SNAPSHOT', data: cachedTicks }));
+      const engine = MarketDataEngine.getInstance();
+      const seen = new Set<string>();
+      const snapshot = [];
+      for (const token of defaultTokens) {
+        const tick = engine.getCachedTick(token);
+        if (tick && !seen.has(tick.instrumentToken)) {
+          seen.add(tick.instrumentToken);
+          snapshot.push(tick);
+        }
+      }
+      ws.send(JSON.stringify({ type: 'TICK_SNAPSHOT', data: snapshot }));
+      ws.send(JSON.stringify({ type: 'MARKET_STATUS', data: engine.getFeedHealth() }));
     }
   });
 
@@ -233,18 +356,34 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
   });
 
   // ── Server-Side Option Chain Matrix Broadcast Fan-Out ────────────────────
+  // One computation per distinct (symbol, expiry, strikeRange) view is serialised once
+  // and delivered to every client watching exactly that view.
   optionChainBroadcaster.on('snapshot', (snapshot) => {
     const payload = JSON.stringify({ type: 'OPTION_CHAIN_SNAPSHOT', data: snapshot });
     wss.clients.forEach((client: ExtendedWebSocket) => {
       if (
         client.readyState === WebSocket.OPEN &&
-        (client.optionChainSymbols?.has(snapshot.underlying) || client.optionChainSymbols?.has('ALL'))
+        client.optionChainSymbols?.has(snapshot.subscriptionKey)
       ) {
         try {
           if (client.bufferedAmount <= 512 * 1024) {
             client.send(payload);
           }
         } catch (_) {}
+      }
+    });
+  });
+
+  // Notify watchers when a view is dropped after repeated failures, so the UI can
+  // surface an error instead of silently freezing on the last good snapshot.
+  optionChainBroadcaster.on('view_failed', ({ key, error }: { key: string; error: string }) => {
+    const payload = JSON.stringify({
+      type: 'OPTION_CHAIN_ERROR', subscriptionKey: key, message: error
+    });
+    wss.clients.forEach((client: ExtendedWebSocket) => {
+      if (client.readyState === WebSocket.OPEN && client.optionChainSymbols?.has(key)) {
+        client.optionChainSymbols.delete(key);
+        try { client.send(payload); } catch (_) {}
       }
     });
   });
@@ -286,8 +425,31 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     });
   }, 30000);
 
+  // ── Feed Status Broadcast (Phase 6: stale-data detection) ────────────────
+  // Clients render LIVE / STALE / CLOSED / DISCONNECTED so old prices are never
+  // silently presented as live prices. Only re-broadcast when the status changes
+  // or every 15s, to avoid needless frames.
+  let lastStatusPayload = '';
+  let lastStatusSentAt = 0;
+  const statusInterval = setInterval(() => {
+    const health = MarketDataEngine.getInstance().getFeedHealth();
+    const payload = JSON.stringify({ type: 'MARKET_STATUS', data: health });
+    const now = Date.now();
+    const changed = health.status !== lastStatusPayload;
+    if (!changed && now - lastStatusSentAt < 15000) return;
+    lastStatusPayload = health.status;
+    lastStatusSentAt = now;
+
+    wss.clients.forEach((client: ExtendedWebSocket) => {
+      if (client.readyState === WebSocket.OPEN && client.bufferedAmount <= 512 * 1024) {
+        try { client.send(payload); } catch (_) {}
+      }
+    });
+  }, 5000);
+
   wss.on('close', () => {
     clearInterval(pingInterval);
+    clearInterval(statusInterval);
     optionChainBroadcaster.stop();
   });
 

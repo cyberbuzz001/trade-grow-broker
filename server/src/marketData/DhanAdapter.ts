@@ -96,6 +96,16 @@ export class DhanAdapter implements IMarketDataProvider {
     return this.healthy && (this.lastTickTime === 0 || Date.now() - this.lastTickTime < 45000);
   }
 
+  /** True when the provider WebSocket is open. Used for feed-status reporting. */
+  public isConnected(): boolean {
+    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  /** Number of distinct instrument tokens currently subscribed on the shared provider socket. */
+  public getSubscribedTokenCount(): number {
+    return this.subscribedTokens.size;
+  }
+
   public async initialize(): Promise<void> {
     console.log(`[DhanAdapter] Initializing Dhan HQ API v2 Adapter (ClientId: ${this.clientId})...`);
     SafetyLock.assertSimulationOnly('DhanAdapter.initialize');
@@ -396,8 +406,8 @@ export class DhanAdapter implements IMarketDataProvider {
         volume: volume > 0 ? volume : (existing ? existing.volume : 50000),
         change,
         changePercent,
-        bid: Number((ltp - 0.05).toFixed(2)),
-        ask: Number((ltp + 0.05).toFixed(2)),
+        bid: 0,
+        ask: 0,
         bidQty: 100,
         askQty: 100,
         source: 'dhan',
@@ -544,27 +554,69 @@ export class DhanAdapter implements IMarketDataProvider {
     return null;
   }
 
-  public subscribe(instrumentTokens: string[], callback: TickCallback): void {
-    SafetyLock.assertSimulationOnly('DhanAdapter.subscribe');
+  /**
+   * Register a global tick callback (call ONCE from MarketDataEngine.initialize).
+   * Separated from token subscription so adding new tokens does not register new callbacks.
+   */
+  public registerCallback(callback: TickCallback): void {
     this.callbacks.add(callback);
+  }
 
-    const newTokensToSub: string[] = [];
+  /**
+   * Subscribe to additional instrument tokens without registering new callbacks.
+   * Safe to call many times — deduplicates tokens before sending to Dhan WebSocket.
+   */
+  public subscribeToTokens(instrumentTokens: string[]): void {
+    SafetyLock.assertSimulationOnly('DhanAdapter.subscribeToTokens');
+    const newTokens: string[] = [];
     for (const token of instrumentTokens) {
       if (!this.subscribedTokens.has(token)) {
         this.subscribedTokens.add(token);
-        newTokensToSub.push(token);
+        newTokens.push(token);
       }
     }
-
-    if (newTokensToSub.length > 0) {
-      this.sendSubscription(newTokensToSub);
+    if (newTokens.length > 0) {
+      this.sendSubscription(newTokens);
     }
   }
 
-  public unsubscribe(instrumentTokens: string[]): void {
+  /**
+   * Unsubscribe tokens from Dhan WebSocket feed.
+   */
+  public unsubscribeFromTokens(instrumentTokens: string[]): void {
+    const toRemove: string[] = [];
     for (const token of instrumentTokens) {
-      this.subscribedTokens.delete(token);
+      if (this.subscribedTokens.has(token)) {
+        this.subscribedTokens.delete(token);
+        toRemove.push(token);
+      }
     }
+    if (toRemove.length > 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const list: Array<{ ExchangeSegment: string; SecurityId: string }> = [];
+      for (const t of toRemove) {
+        const mapping = this.resolveSecurityMapping(t);
+        if (mapping) list.push({ ExchangeSegment: mapping.segment, SecurityId: mapping.securityId });
+      }
+      if (list.length > 0) {
+        try {
+          this.ws.send(JSON.stringify({
+            RequestCode: 16, // Dhan unsubscribe code
+            InstrumentCount: list.length,
+            InstrumentList: list
+          }));
+        } catch (_) {}
+      }
+    }
+  }
+
+  /** @deprecated Use registerCallback() + subscribeToTokens() separately */
+  public subscribe(instrumentTokens: string[], callback: TickCallback): void {
+    this.registerCallback(callback);
+    this.subscribeToTokens(instrumentTokens);
+  }
+
+  public unsubscribe(instrumentTokens: string[]): void {
+    this.unsubscribeFromTokens(instrumentTokens);
   }
 
   public async getQuote(instrumentToken: string): Promise<MarketTick | null> {
@@ -668,38 +720,17 @@ export class DhanAdapter implements IMarketDataProvider {
       }
     }
 
-    // Synthetic Fallback Generator (Option & Equity Aware)
-    const { MarketDataEngine } = require('./MarketDataEngine');
-    const cachedLiveTick = MarketDataEngine.getInstance().getCachedTick(instrumentToken);
-    const quote = cachedLiveTick || await this.getQuote(instrumentToken);
-    const isOption = instrumentToken.includes('_CE') || instrumentToken.includes('_PE') || instrumentToken.includes('BFO_') || instrumentToken.includes('NFO_');
-    const basePrice = quote && quote.ltp > 0 ? quote.ltp : (isOption ? 185.50 : 24500);
-
-    const candles: Candle[] = [];
-    const stepSecs = timeframe === '1D' ? 86400 : timeframe === '15m' || timeframe === '15M' ? 900 : timeframe === '5m' || timeframe === '5M' ? 300 : 60;
-    const startTime = Math.floor(Date.now() / 1000) - count * stepSecs;
-
-    let currPrice = basePrice * 0.95;
-    for (let i = 0; i < count; i++) {
-      const isLast = i === count - 1;
-      const open = currPrice;
-      const variation = isOption ? 0.015 : 0.003;
-      const high = Math.max(open, open * (1 + Math.random() * variation));
-      const low = Math.min(open, open * (1 - Math.random() * variation));
-      const close = isLast ? basePrice : (low + Math.random() * (high - low));
-      currPrice = close;
-
-      candles.push({
-        time: startTime + i * stepSecs,
-        open: Number(open.toFixed(2)),
-        high: Number(Math.max(open, close, high).toFixed(2)),
-        low: Number(Math.min(open, close, low).toFixed(2)),
-        close: Number(close.toFixed(2)),
-        volume: Math.floor(Math.random() * 2000) + 50
-      });
-    }
-
-    return candles;
+    // NO SYNTHETIC FALLBACK.
+    //
+    // This previously generated a full random-walk OHLC series (Math.random() around a
+    // hardcoded 185.50 / 24500 base) whenever the Dhan historical API failed. That renders
+    // a chart which looks completely real but is entirely invented — unacceptable on a
+    // trading platform where users make decisions from it, and indistinguishable from
+    // real data downstream.
+    //
+    // Returning an empty series lets the UI honestly render "historical data unavailable".
+    console.warn(`[DhanAdapter] No historical candles available for ${instrumentToken} (${timeframe}); returning empty series.`);
+    return [];
   }
 
   private static expiryListCache = new LRU<string, { timestamp: number; expiries: string[] }>({

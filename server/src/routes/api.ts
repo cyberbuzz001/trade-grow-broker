@@ -131,6 +131,35 @@ router.get('/health/dependencies', async (req: Request, res: Response) => {
   });
 });
 
+/**
+ * Market-data pipeline metrics (Phase 16).
+ * Surfaces the numbers that actually predict server load: how many provider
+ * connections exist, how many instruments are subscribed upstream, tick throughput,
+ * and how many distinct option-chain views are being computed.
+ */
+router.get('/health/pipeline', async (req: Request, res: Response) => {
+  const { getWebSocketMetrics, getConnectedClientCount } = await import('../websocket/server');
+  const { optionChainBroadcaster } = await import('../marketData/OptionChainBroadcasterService');
+  const engine = MarketDataEngine.getInstance();
+  const memory = process.memoryUsage();
+
+  res.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    feed: engine.getFeedHealth(),
+    pipeline: engine.getPipelineMetrics(),
+    optionChain: optionChainBroadcaster.getMetrics(),
+    websocket: { ...getWebSocketMetrics(), connectedClients: getConnectedClientCount() },
+    process: {
+      uptimeSeconds: Math.floor(process.uptime()),
+      memoryRssMB: Number((memory.rss / 1024 / 1024).toFixed(2)),
+      heapUsedMB: Number((memory.heapUsed / 1024 / 1024).toFixed(2)),
+      heapTotalMB: Number((memory.heapTotal / 1024 / 1024).toFixed(2)),
+      externalMB: Number((memory.external / 1024 / 1024).toFixed(2))
+    }
+  });
+});
+
 router.get('/health/instruments', (req, res) => {
   const status = InstrumentMasterService.getInstance().getHealthStatus();
   res.status(status.isReady ? 200 : 503).json({ success: true, ...status });

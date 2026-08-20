@@ -121,14 +121,18 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
     fetchExpiries();
   }, [symbol, expiryType]);
 
-  // Subscribe to real-time server-side option chain broadcast over WebSocket (No client polling!)
-  useSubscribeOptionChain(symbol);
+  // Subscribe to the real-time server-side broadcast for EXACTLY the view on screen
+  // (symbol + expiry + strike range). No client polling.
+  const chainSubKey = useSubscribeOptionChain(symbol, expiry, strikeRange);
 
-  // Listen to live option chain snapshots pushed down WebSocket
+  // Listen to live option chain snapshots pushed down WebSocket.
+  // Snapshots are matched on the full subscription key: previously any snapshot for the
+  // symbol was applied, so a user viewing a 20-strike range or a non-default expiry had
+  // their table overwritten every 4s by the server's default 10-strike/nearest-expiry view.
   useEffect(() => {
     const handleSnapshot = (e: any) => {
       const snap = e.detail;
-      if (!snap || snap.underlying !== symbol) return;
+      if (!snap || snap.subscriptionKey !== chainSubKey) return;
       if (Array.isArray(snap.chain) && snap.chain.length > 0) {
         setChain(snap.chain);
         if (snap.spotPrice) setSpotPrice(snap.spotPrice);
@@ -139,7 +143,7 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
     };
     window.addEventListener('market:option_chain_snapshot' as any, handleSnapshot);
     return () => window.removeEventListener('market:option_chain_snapshot' as any, handleSnapshot);
-  }, [symbol]);
+  }, [chainSubKey]);
 
   // Fetch Option Chain Data (Initial single fetch on load/param change)
   const fetchOptionChain = useCallback(() => {
@@ -165,6 +169,15 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
         setFetchError(err.message || 'Failed to fetch option chain');
         setLoading(false);
       });
+  }, [symbol, expiry, strikeRange]);
+
+  // Clear the previous view's rows the moment the user switches index/expiry/range.
+  // Without this the old index's strikes stay on screen (and stay subscribed) until the
+  // next snapshot arrives, briefly showing one index's prices under another's header.
+  useEffect(() => {
+    setChain([]);
+    setAtmStrike(0);
+    setLoading(true);
   }, [symbol, expiry, strikeRange]);
 
   // Single initial load on parameter change (Polling loop completely removed in favor of WebSocket)

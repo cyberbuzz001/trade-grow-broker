@@ -1,4 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+// NOTE: this suite imported describe/it/expect from 'vitest', which is not a dependency of
+// this project — the whole file failed to compile and never ran. The runner is Jest, which
+// provides these as globals.
 import { ClientCreationService } from '../server/src/services/ClientCreationService';
 import { query, execute } from '../server/src/db/schema';
 

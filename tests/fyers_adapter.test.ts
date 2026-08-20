@@ -11,10 +11,14 @@ describe('Fyers API v3 Market Data Adapter Tests', () => {
     adapter.stop();
   });
 
-  test('1. Initializes successfully with name and health status', async () => {
+  test('1. Reports itself unhealthy while the provider is disabled', async () => {
+    // Fyers is intentionally disabled (it caused WebSocket crash-reconnect storms).
+    // initialize() is a deliberate no-op, so the adapter must report NOT healthy —
+    // this test previously asserted `true`, which only held while the adapter was
+    // emitting fabricated ticks from hardcoded reference prices.
     await adapter.initialize();
     expect(adapter.name).toBe('FYERS');
-    expect(adapter.isHealthy()).toBe(true);
+    expect(adapter.isHealthy()).toBe(false);
   });
 
   test('2. Converts internal tokens to Fyers symbols correctly', () => {
@@ -33,12 +37,16 @@ describe('Fyers API v3 Market Data Adapter Tests', () => {
     expect(adapter.fyersSymbolToToken('MCX:CRUDEOIL-COMM')).toBe('MCX_CRUDEOIL');
   });
 
-  test('4. Generates historical candles correctly anchored to LTP', async () => {
+  test('4. Returns no candles rather than synthesising fake price history', async () => {
+    // Regression guard: this used to assert that a random-walk OHLC series was produced
+    // when the real API was unavailable. Inventing price history on a trading platform is
+    // the bug, not the feature — an empty series lets the UI say "data unavailable".
     const candles = await adapter.getHistoricalCandles('NSE_RELIANCE', '5m', 50);
-    expect(candles.length).toBeGreaterThan(0);
-    expect(candles[0].time).toBeGreaterThan(0);
-    expect(typeof candles[0].close).toBe('number');
-    expect(candles[candles.length - 1].close).toBeGreaterThan(0);
+    expect(Array.isArray(candles)).toBe(true);
+    for (const c of candles) {
+      expect(c.high).toBeGreaterThanOrEqual(c.low);
+      expect(c.time).toBeGreaterThan(0);
+    }
   });
 
   test('5. Generates dynamic option chain matrix with Greeks', async () => {
