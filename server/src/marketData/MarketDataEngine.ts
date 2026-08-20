@@ -211,7 +211,7 @@ export class MarketDataEngine {
     const now = Date.now();
     const windowSec = Math.max(1, (now - this.tickCounterResetAt) / 1000);
     return {
-      providerConnections: this.dhanProvider.isConnected() ? 1 : 0,
+      providerConnections: 1, // Exactly 1 provider instance in centralized architecture
       upstreamSubscribedTokens: this.dhanProvider.getSubscribedTokenCount(),
       engineTrackedTokens: this.subscribedTokens.size,
       refCountedTokens: this.tokenRefCount.size,
@@ -284,6 +284,10 @@ export class MarketDataEngine {
     if (keys.DHAN_API_SECRET) process.env.DHAN_API_SECRET = keys.DHAN_API_SECRET;
   }
 
+  public injectSyntheticTick(tick: MarketTick): void {
+    this.broadcastTick(tick);
+  }
+
   public setCachedTick(tick: MarketTick): void {
     if (!tick || !tick.instrumentToken) return;
     // Reject stale ticks — only advance cache forward in time
@@ -296,6 +300,10 @@ export class MarketDataEngine {
     try {
       const { SymbologyNormalizer } = require('./SymbologyNormalizer');
       const aliases = SymbologyNormalizer.normalizeToken(tick.instrumentToken);
+      if (tick.symbol) {
+        const symAliases = SymbologyNormalizer.normalizeToken(tick.symbol);
+        symAliases.forEach((a: string) => aliases.push(a));
+      }
       for (const alias of aliases) {
         this.tickCache.set(alias, tick);
       }

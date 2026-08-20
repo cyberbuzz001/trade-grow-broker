@@ -113,7 +113,14 @@ export class OptionChainBroadcasterService extends EventEmitter {
     }
   }
 
-  public getMetrics(): Record<string, unknown> {
+  public getMetrics(): {
+    totalSubscribers: number;
+    activeViewCount: number;
+    activeViews: string[];
+    cachedSnapshots: number;
+    running: boolean;
+    intervalMs: number;
+  } {
     let totalSubscribers = 0;
     this.viewRefCount.forEach(c => { totalSubscribers += c; });
     return {

@@ -23,7 +23,7 @@ totpSecret = "AV7KF7BEJBOOCVIS53TZZB2VEU"
 totp = generate_totp(totpSecret)
 print(f"Generated TOTP: {totp}")
 
-url = "https://smartapi.angelbroking.com/rest/secure/angelbroking/user/v1/loginByPassword"
+url = "https://apiconnect.angelone.in/rest/auth/angelbroking/user/v1/loginByPassword"
 headers = {
     "Content-Type": "application/json",
     "Accept": "application/json",
