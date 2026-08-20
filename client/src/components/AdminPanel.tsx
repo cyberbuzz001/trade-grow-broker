@@ -18,14 +18,15 @@ import { AuditLogViewer } from './admin/AuditLogViewer';
 import { MarketDataAdmin } from './admin/MarketDataAdmin';
 import { LinkPeAdminManagement } from './admin/LinkPeAdminManagement';
 import { PermissionsDashboard } from './admin/PermissionsDashboard';
-import { QrCode as QrCodeIcon, ShieldCheck } from 'lucide-react';
+import { SupportTicketsAdmin } from './admin/SupportTicketsAdmin';
+import { QrCode as QrCodeIcon, ShieldCheck, Headset } from 'lucide-react';
 
 interface AdminPanelProps {
   token: string;
 }
 
 type AdminPage =
-  | 'DASHBOARD' | 'CUSTOMERS' | 'CUSTOMER_360' | 'PERMISSIONS' | 'KYC' | 'ORDERS'
+  | 'DASHBOARD' | 'CUSTOMERS' | 'CUSTOMER_360' | 'PERMISSIONS' | 'KYC' | 'SUPPORT_TICKETS' | 'ORDERS'
   | 'RISK' | 'KILL_SWITCH' | 'BROKER' | 'FUNDS' | 'LINKPE_UPI' | 'LEDGER' | 'SYSTEM' | 'AUDIT' | 'MARKET_DATA';
 
 interface NavItem {
@@ -46,6 +47,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
     { key: 'CUSTOMERS', label: 'Customers', icon: <Users className="w-4 h-4" />, section: 'OPERATIONS' },
     { key: 'PERMISSIONS', label: 'Roles & Permissions', icon: <ShieldCheck className="w-4 h-4 text-blue-400" />, section: 'OPERATIONS', badge: 'RBAC' },
     { key: 'KYC', label: 'KYC Queue', icon: <FileCheck className="w-4 h-4" />, section: 'OPERATIONS' },
+    { key: 'SUPPORT_TICKETS', label: 'Support Tickets', icon: <Headset className="w-4 h-4 text-amber-400" />, section: 'OPERATIONS', badge: 'Help' },
     { key: 'ORDERS', label: 'Order Monitor', icon: <Activity className="w-4 h-4" />, section: 'TRADING' },
     { key: 'RISK', label: 'Risk Command Center', icon: <ShieldAlert className="w-4 h-4" />, section: 'RISK' },
     { key: 'KILL_SWITCH', label: 'Kill Switch', icon: <Power className="w-4 h-4" />, section: 'RISK', badge: '⚠' },
@@ -77,6 +79,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
       case 'CUSTOMER_360': return selectedCustomerId ? <Customer360 token={token} customerId={selectedCustomerId} onBack={handleBackFromCustomer} /> : null;
       case 'PERMISSIONS': return <PermissionsDashboard token={token} />;
       case 'KYC': return <KYCQueue token={token} />;
+      case 'SUPPORT_TICKETS': return <SupportTicketsAdmin token={token} />;
       case 'ORDERS': return <OrderMonitor token={token} />;
       case 'RISK': return <RiskCommandCenter token={token} />;
       case 'KILL_SWITCH': return <KillSwitch token={token} />;

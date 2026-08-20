@@ -2828,6 +2828,145 @@ router.post('/permissions/save-user-permissions', authenticateToken, checkRole([
 });
 
 // ============================================================
+// 32. ADMIN 24x7 CUSTOMER SUPPORT TICKETS MANAGEMENT
+// ============================================================
+router.get('/support/tickets', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const statusFilter = req.query.status as string || '';
+    const priorityFilter = req.query.priority as string || '';
+    const categoryFilter = req.query.category as string || '';
+    const search = req.query.search as string || '';
+
+    let whereClause = 'WHERE 1=1';
+    const params: any[] = [];
+    let pIdx = 1;
+
+    if (statusFilter) {
+      whereClause += ` AND st.status = $${pIdx}`;
+      params.push(statusFilter);
+      pIdx++;
+    }
+
+    if (priorityFilter) {
+      whereClause += ` AND st.priority = $${pIdx}`;
+      params.push(priorityFilter);
+      pIdx++;
+    }
+
+    if (categoryFilter) {
+      whereClause += ` AND st.category = $${pIdx}`;
+      params.push(categoryFilter);
+      pIdx++;
+    }
+
+    if (search) {
+      whereClause += ` AND (u.username ILIKE $${pIdx} OR u.email ILIKE $${pIdx} OR st.subject ILIKE $${pIdx} OR st.description ILIKE $${pIdx} OR st.id ILIKE $${pIdx})`;
+      params.push(`%${search}%`);
+      pIdx++;
+    }
+
+    const [tickets, countsRow] = await Promise.all([
+      query<any>(
+        `SELECT st.*, 
+                u.username, u.email, u.full_name, u.phone_number, u.role as user_role,
+                (SELECT bank_account_number FROM kyc_applications WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) as bank_account_number
+         FROM support_tickets st
+         JOIN users u ON st.user_id = u.id
+         ${whereClause}
+         ORDER BY 
+           CASE st.priority 
+             WHEN 'URGENT' THEN 1 
+             WHEN 'HIGH' THEN 2 
+             WHEN 'MEDIUM' THEN 3 
+             ELSE 4 
+           END,
+           st.created_at DESC LIMIT 200`,
+        params
+      ),
+      queryOne<any>(
+        `SELECT 
+           COUNT(*) as total,
+           COUNT(*) FILTER (WHERE status = 'OPEN') as open,
+           COUNT(*) FILTER (WHERE status = 'IN_PROGRESS') as in_progress,
+           COUNT(*) FILTER (WHERE status = 'RESOLVED') as resolved,
+           COUNT(*) FILTER (WHERE status = 'CLOSED') as closed,
+           COUNT(*) FILTER (WHERE priority = 'URGENT' AND status IN ('OPEN', 'IN_PROGRESS')) as urgent
+         FROM support_tickets`
+      )
+    ]);
+
+    res.json({
+      success: true,
+      tickets,
+      stats: {
+        total: parseInt(countsRow?.total || '0', 10),
+        open: parseInt(countsRow?.open || '0', 10),
+        inProgress: parseInt(countsRow?.in_progress || '0', 10),
+        resolved: parseInt(countsRow?.resolved || '0', 10),
+        closed: parseInt(countsRow?.closed || '0', 10),
+        urgent: parseInt(countsRow?.urgent || '0', 10),
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/support/tickets/:id/status', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { status, adminNotes } = req.body;
+
+    if (!status || !['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(status)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Valid status (OPEN, IN_PROGRESS, RESOLVED, CLOSED) is required' } });
+      return;
+    }
+
+    const ticket = await queryOne<any>('SELECT * FROM support_tickets WHERE id = $1', [id]);
+    if (!ticket) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Ticket not found' } });
+      return;
+    }
+
+    await execute(
+      `UPDATE support_tickets 
+       SET status = $1, 
+           admin_notes = COALESCE($2, admin_notes),
+           updated_at = NOW() 
+       WHERE id = $3`,
+      [status, adminNotes !== undefined ? adminNotes : null, id]
+    );
+
+    await logAuditAction(
+      req.user!.userId, req.user!.role,
+      'UPDATE_SUPPORT_TICKET_STATUS', 'SUPPORT_TICKET', id,
+      { oldStatus: ticket.status }, { newStatus: status, adminNotes }, getClientIp(req)
+    );
+
+    res.json({ success: true, message: `Support ticket marked as ${status}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+router.post('/support/tickets/:id/priority', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { priority } = req.body;
+
+    if (!priority || !['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(priority)) {
+      res.status(400).json({ success: false, error: { code: 'INVALID_INPUT', message: 'Valid priority (LOW, MEDIUM, HIGH, URGENT) is required' } });
+      return;
+    }
+
+    await execute('UPDATE support_tickets SET priority = $1, updated_at = NOW() WHERE id = $2', [priority, id]);
+    res.json({ success: true, message: `Priority updated to ${priority}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// ============================================================
 // 31. EMIT POSITION/TRADE EVENTS FROM EXECUTION ENGINE
 // Helper: called from ExecutionEngine after trade execution
 // ============================================================
