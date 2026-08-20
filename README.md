@@ -1,4 +1,4 @@
-# Stocksharp Production Brokerage Simulation Platform
+# Trade GrowX Production Brokerage Simulation Platform
 
 Production-ready multi-user brokerage simulation & paper trading platform with real-time WebSocket market data streaming, option chain analytics, and RMS validation.
 
