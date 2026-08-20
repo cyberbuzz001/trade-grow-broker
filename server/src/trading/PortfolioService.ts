@@ -166,9 +166,13 @@ export class PortfolioService {
         if (side === 'BUY') {
           buyQty = quantity;
           buyPrice = price;
+          sellQty = 0;
+          sellPrice = 0;
         } else {
           sellQty = quantity;
           sellPrice = price;
+          buyQty = 0;
+          buyPrice = 0;
         }
       }
 

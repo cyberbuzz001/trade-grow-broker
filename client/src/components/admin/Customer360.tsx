@@ -681,7 +681,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">Virtual Cash Balance</span>
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Cash Balance</span>
                 <div className="text-xl font-bold font-mono text-emerald-400 mt-1">₹{walletCash.toLocaleString('en-IN')}</div>
               </div>
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">

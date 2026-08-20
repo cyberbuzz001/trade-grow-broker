@@ -1032,7 +1032,7 @@ router.post('/funds/request', authenticateToken, async (req: AuthenticatedReques
     res.json({
       success: true,
       requestId,
-      message: `Virtual ${requestType.toLowerCase()} request for ₹${reqAmount.toLocaleString('en-IN')} submitted. Pending Admin approval.`
+      message: `${requestType === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'} request for ₹${reqAmount.toLocaleString('en-IN')} submitted. Pending Admin approval.`
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });

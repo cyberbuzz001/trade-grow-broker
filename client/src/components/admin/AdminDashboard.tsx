@@ -205,7 +205,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token }) => {
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Total Virtual Funds', value: `₹${kpis.financial.totalFunds.toLocaleString('en-IN')}`, color: 'text-emerald-400', desc: 'Pool Capital' },
+              { label: 'Total Account Funds', value: `₹${kpis.financial.totalFunds.toLocaleString('en-IN')}`, color: 'text-emerald-400', desc: 'Pool Capital' },
               { label: 'Margin Utilized', value: `₹${kpis.financial.marginUtilized.toLocaleString('en-IN')}`, color: 'text-amber-400', desc: 'Blocked Margin' },
               { label: 'Brokerage Revenue', value: `₹${kpis.financial.brokerage.toLocaleString('en-IN')}`, color: 'text-indigo-400', desc: 'Zero Fee Active' },
               { label: 'Pending Withdrawals', value: kpis.financial.pendingWithdrawals, color: 'text-rose-400', desc: 'Fund Requests' },

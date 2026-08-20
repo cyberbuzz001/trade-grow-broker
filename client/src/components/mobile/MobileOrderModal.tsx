@@ -317,7 +317,7 @@ export const MobileOrderModal: React.FC<MobileOrderModalProps> = ({
           <div className="py-12 text-center space-y-4">
             <Loader2 className="w-10 h-10 text-emerald-500 animate-spin mx-auto" />
             <h3 className="text-base font-bold text-[var(--text-main)]">Executing simulated order...</h3>
-            <p className="text-xs text-[var(--text-muted)]">Routing to TradeGrow virtual matching engine</p>
+            <p className="text-xs text-[var(--text-muted)]">Routing to TradeGrow matching engine</p>
           </div>
         ) : step === 'SUCCESS' ? (
           /* SUCCESS STATE */
