@@ -202,15 +202,13 @@ export class InstrumentMasterService {
 
       // 1. By SecurityId e.g. "35000"
       this.dhanLookupMap.set(securityId, rec);
-      this.dhanLookupMap.set(`${exchange}_${securityId}`, rec);
 
-      // 2. By Token e.g. "NFO_35000"
-      this.dhanLookupMap.set(`${segPrefix}_${securityId}`, rec);
+      // 2. By Trading Symbol e.g. "BANKNIFTY-Aug2026-72600-CE"
+      if (tradingSymbol) {
+        this.dhanLookupMap.set(tradingSymbol, rec);
+      }
 
-      // 3. By Trading Symbol e.g. "BANKNIFTY-Aug2026-72600-CE"
-      this.dhanLookupMap.set(tradingSymbol, rec);
-
-      // 4. By Option format e.g. "NFO_BANKNIFTY_72600_CE" or "NFO_NIFTY_24500_CE"
+      // 3. By Option format e.g. "NFO_BANKNIFTY_72600_CE" or "NFO_NIFTY_24500_CE"
       if ((optionType === 'CE' || optionType === 'PE') && strikePrice > 0 && rec.symbolName) {
         const cleanSym = rec.symbolName.replace(/^(NSE_|BSE_|NFO_|BFO_)/, '');
         const optKey = `${segPrefix}_${cleanSym}_${strikePrice}_${optionType}`;
@@ -222,15 +220,12 @@ export class InstrumentMasterService {
         if (expiryDate) {
           this.dhanLookupMap.set(`${optKey}_${expiryDate}`, rec);
         }
-
-        // Also index under compact format e.g. "NSE_NIFTY24500CE"
-        const compactKey = `${exchange}_${cleanSym}${strikePrice}${optionType}`;
-        if (!this.dhanLookupMap.has(compactKey)) {
-          this.dhanLookupMap.set(compactKey, rec);
-        }
       } else if (segmentCode === 'I' || segmentCode === 'E') {
         const cleanSym = rec.symbolName.replace(/^(NSE_|BSE_)/, '');
         this.dhanLookupMap.set(`${exchange}_${cleanSym}`, rec);
+        if (!this.dhanLookupMap.has(cleanSym)) {
+          this.dhanLookupMap.set(cleanSym, rec);
+        }
       }
     }
 

@@ -197,6 +197,8 @@ export class FyersAdapter implements IMarketDataProvider {
     return clean;
   }
 
+  private reconnectAttempts = 0;
+
   /**
    * Connect to Fyers v3 Data WebSocket
    */
@@ -204,6 +206,11 @@ export class FyersAdapter implements IMarketDataProvider {
     if (!this.appId || !this.accessToken) {
       console.warn('[FyersAdapter] Cannot connect WebSocket: Missing AppId or Access Token');
       return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
 
     if (this.ws) {
@@ -228,6 +235,7 @@ export class FyersAdapter implements IMarketDataProvider {
       this.ws.on('open', () => {
         console.log('[FyersAdapter] ✅ Connected to Fyers Data Socket WebSocket Server!');
         this.healthy = true;
+        this.reconnectAttempts = 0;
         this.lastTickTime = Date.now();
 
         // Subscribe to initial default tokens
@@ -255,16 +263,21 @@ export class FyersAdapter implements IMarketDataProvider {
       });
 
       this.ws.on('close', (code, reason) => {
-        console.warn(`[FyersAdapter] WebSocket closed (code=${code}, reason=${reason?.toString() || 'None'}). Reconnecting in 5s...`);
         this.healthy = false;
         if (this.heartbeatTimer) {
           clearInterval(this.heartbeatTimer);
           this.heartbeatTimer = null;
         }
-        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+
+        const backoffDelay = Math.min(60000, 5000 * Math.pow(1.5, Math.min(this.reconnectAttempts++, 6)));
+        console.warn(`[FyersAdapter] WebSocket closed (code=${code}, reason=${reason?.toString() || 'None'}). Reconnecting in ${(backoffDelay / 1000).toFixed(0)}s...`);
         this.reconnectTimer = setTimeout(() => {
           this.connectWebSocket();
-        }, 5000);
+        }, backoffDelay);
       });
 
     } catch (err: any) {

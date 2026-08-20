@@ -133,6 +133,7 @@ services:
       REDIS_PORT:                   "6379"
       # CORS — set to your actual domain
       ALLOWED_ORIGINS:              ${ALLOWED_ORIGINS:-http://localhost:5000}
+      NODE_OPTIONS:                 "--max-old-space-size=6144"
     ports:
       - "5000:5000"
     depends_on:
@@ -154,9 +155,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6g
+          memory: 8g
         reservations:
-          memory: 1g
+          memory: 2g
     logging:
       driver: "json-file"
       options:
