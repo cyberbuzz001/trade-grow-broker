@@ -5,12 +5,14 @@ import { MarketDataEngine } from '../marketData/MarketDataEngine';
 import { SymbologyNormalizer } from '../marketData/SymbologyNormalizer';
 import { getJwtSecret } from '../middleware/auth';
 import { adminEventBus, AdminEvent } from '../utils/adminEventBus';
+import { optionChainBroadcaster } from '../marketData/OptionChainBroadcasterService';
 
 export interface ExtendedWebSocket extends WebSocket {
   isAlive?: boolean;
   userId?: string;
   userRole?: string;
   subscriptions?: Set<string>;
+  optionChainSymbols?: Set<string>;
   adminWatchedUsers?: Set<string>;
 }
 
@@ -64,11 +66,15 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
 
   console.log('[WebSocket] High-Performance Gateway running on /ws');
 
+  // Start background server-side option chain broadcast (4s intervals)
+  optionChainBroadcaster.start(4000);
+
   const defaultTokens = ['NSE_NIFTY50', 'NSE_BANKNIFTY', 'NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK'];
 
   wss.on('connection', (ws: ExtendedWebSocket, req) => {
     ws.isAlive = true;
     ws.subscriptions = new Set();
+    ws.optionChainSymbols = new Set();
     ws.adminWatchedUsers = new Set();
 
     // Register default subscriptions in index
@@ -136,6 +142,18 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
             });
           });
 
+        // ── Real-Time Option Chain Subscriptions (Replaces Frontend Polling) ──
+        } else if (data.action === 'SUBSCRIBE_OPTION_CHAIN' && data.symbol) {
+          const cleanSym = String(data.symbol).toUpperCase().replace(/^(NSE_|BSE_)/, '').trim();
+          ws.optionChainSymbols?.add(cleanSym);
+          optionChainBroadcaster.addSymbol(cleanSym);
+          ws.send(JSON.stringify({ type: 'OPTION_CHAIN_SUBSCRIBED', symbol: cleanSym }));
+
+        } else if (data.action === 'UNSUBSCRIBE_OPTION_CHAIN' && data.symbol) {
+          const cleanSym = String(data.symbol).toUpperCase().replace(/^(NSE_|BSE_)/, '').trim();
+          ws.optionChainSymbols?.delete(cleanSym);
+          optionChainBroadcaster.removeSymbol(cleanSym);
+
         // ── ADMIN-ONLY: Subscribe to a customer's real-time events ──────────
         } else if (data.action === 'ADMIN_SUBSCRIBE' && data.userId) {
           const ADMIN_ROLES = ['SUPER_ADMIN','ADMIN','MANAGER','RISK_MANAGER','FINANCE_MANAGER','KYC_OFFICER','READ_ONLY_AUDITOR'];
@@ -160,9 +178,12 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     });
 
     ws.on('close', () => {
+      // Release option chain broadcaster subscriber counts
+      ws.optionChainSymbols?.forEach(sym => optionChainBroadcaster.removeSymbol(sym));
       // Clean up subscriptions from inverted index to prevent memory leak
       subscriptionIndex.removeAll(ws);
       ws.subscriptions?.clear();
+      ws.optionChainSymbols?.clear();
       ws.adminWatchedUsers?.clear();
     });
 
@@ -211,6 +232,23 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     });
   });
 
+  // ── Server-Side Option Chain Matrix Broadcast Fan-Out ────────────────────
+  optionChainBroadcaster.on('snapshot', (snapshot) => {
+    const payload = JSON.stringify({ type: 'OPTION_CHAIN_SNAPSHOT', data: snapshot });
+    wss.clients.forEach((client: ExtendedWebSocket) => {
+      if (
+        client.readyState === WebSocket.OPEN &&
+        (client.optionChainSymbols?.has(snapshot.underlying) || client.optionChainSymbols?.has('ALL'))
+      ) {
+        try {
+          if (client.bufferedAmount <= 512 * 1024) {
+            client.send(payload);
+          }
+        } catch (_) {}
+      }
+    });
+  });
+
   // ── Admin Event Bus → WebSocket Fan-Out ─────────────────────────────────
   adminEventBus.onAllEvents((event: AdminEvent) => {
     const payload = JSON.stringify({
@@ -248,7 +286,10 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer {
     });
   }, 30000);
 
-  wss.on('close', () => clearInterval(pingInterval));
+  wss.on('close', () => {
+    clearInterval(pingInterval);
+    optionChainBroadcaster.stop();
+  });
 
   return wss;
 }

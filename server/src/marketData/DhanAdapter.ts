@@ -5,6 +5,8 @@ import { SafetyLock } from '../services/SafetyLock';
 import { OptionChainEngine } from './OptionChainEngine';
 import { getTokenExpiryMinutes, isTokenExpiringSoon } from '../utils/dhanTokenRefresh';
 import { sendTelegramAlert } from '../utils/telegramAlert';
+import LRU from 'lru-cache';
+import { CircuitBreaker } from '../utils/CircuitBreaker';
 
 export class DhanAdapter implements IMarketDataProvider {
   public readonly name = 'DHAN';
@@ -23,8 +25,17 @@ export class DhanAdapter implements IMarketDataProvider {
   private baseUrl = 'https://api.dhan.co';
   private wsUrl = 'wss://api-feed.dhan.co';
 
-  // Common Dhan Security IDs mapping
-  private static DHAN_SECURITY_MAP: Record<string, { segment: string; securityId: string }> = {
+  // Circuit breaker with 3s timeout, 50% failure rate threshold, 15s reset cooldown
+  private static circuitBreaker = new CircuitBreaker({
+    name: 'DhanAdapter',
+    timeoutMs: 3000,
+    errorThresholdPercentage: 50,
+    resetTimeoutMs: 15000,
+    volumeThreshold: 5
+  });
+
+  // Base static security mapping
+  private static staticSecurityMap: Record<string, { segment: string; securityId: string }> = {
     'NSE_NIFTY50': { segment: 'IDX_I', securityId: '13' },
     'NSE_BANKNIFTY': { segment: 'IDX_I', securityId: '25' },
     'BSE_SENSEX': { segment: 'IDX_I', securityId: '51' },
@@ -38,11 +49,43 @@ export class DhanAdapter implements IMarketDataProvider {
     'NSE_TATAMOTORS': { segment: 'NSE_EQ', securityId: '3456' },
   };
 
+  // LRU cache for dynamic option strikes (max 2,000 entries)
+  private static dynamicSecurityMap = new LRU<string, { segment: string; securityId: string }>({
+    max: 2000
+  });
+
+  public static addDynamicSecurityMapping(token: string, mapping: { segment: string; securityId: string }): void {
+    DhanAdapter.dynamicSecurityMap.set(token, mapping);
+  }
+
+  public static getSecurityMapping(token: string): { segment: string; securityId: string } | undefined {
+    return DhanAdapter.staticSecurityMap[token] || DhanAdapter.dynamicSecurityMap.get(token);
+  }
+
+  // Backwards compatibility proxy for any direct DhanAdapter.DHAN_SECURITY_MAP[key] calls
+  public static DHAN_SECURITY_MAP: Record<string, { segment: string; securityId: string }> = new Proxy({} as any, {
+    get: (_, prop: string) => DhanAdapter.getSecurityMapping(prop),
+    set: (_, prop: string, value: { segment: string; securityId: string }) => {
+      DhanAdapter.addDynamicSecurityMapping(prop, value);
+      return true;
+    },
+    has: (_, prop: string) => Boolean(DhanAdapter.getSecurityMapping(prop)),
+    ownKeys: () => {
+      const dynamicKeys: string[] = (DhanAdapter.dynamicSecurityMap.keys() as any) || [];
+      const keys = new Set<string>([...Object.keys(DhanAdapter.staticSecurityMap), ...dynamicKeys]);
+      return Array.from(keys);
+    },
+    getOwnPropertyDescriptor: (_, prop: string) => {
+      const val = DhanAdapter.getSecurityMapping(prop);
+      return val ? { configurable: true, enumerable: true, value: val, writable: true } : undefined;
+    }
+  });
+
   constructor() {
-    this.clientId = process.env.DHAN_CLIENT_ID || '1113019677';
-    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg3MTM5Njc5LCJpYXQiOjE3ODcwNTMyNzksInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.uK1dGY00l5RNevgxy43BX0L9Rk-yG81iNbHwz9doaCYqtuQPiCOcfQNy5w0IJGiK2C5gg-LQrSGNVkzjhts7gQ';
-    this.apiKey = process.env.DHAN_API_KEY || '21483ef7';
-    this.apiSecret = process.env.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09';
+    this.clientId = process.env.DHAN_CLIENT_ID || '';
+    this.accessToken = process.env.DHAN_ACCESS_TOKEN || '';
+    this.apiKey = process.env.DHAN_API_KEY || '';
+    this.apiSecret = process.env.DHAN_API_SECRET || '';
   }
 
   private optionChainData: any = null;
@@ -443,7 +486,7 @@ export class DhanAdapter implements IMarketDataProvider {
       const scrip = InstrumentMasterService.getInstance().getDhanScripByToken(cleanToken);
       if (scrip) {
         const mapping = { segment: scrip.segment, securityId: scrip.securityId };
-        DhanAdapter.DHAN_SECURITY_MAP[cleanToken] = mapping;
+        DhanAdapter.addDynamicSecurityMapping(cleanToken, mapping);
         return mapping;
       }
 
@@ -457,7 +500,7 @@ export class DhanAdapter implements IMarketDataProvider {
         if (secId) {
           const seg = (underlying === 'SENSEX' || optMatch[1] === 'BFO') ? 'BSE_FNO' : 'NSE_FNO';
           const mapping = { segment: seg, securityId: secId };
-          DhanAdapter.DHAN_SECURITY_MAP[cleanToken] = mapping;
+          DhanAdapter.addDynamicSecurityMapping(cleanToken, mapping);
           return mapping;
         }
       }
@@ -659,53 +702,66 @@ export class DhanAdapter implements IMarketDataProvider {
     return candles;
   }
 
-  private static expiryListCache: Map<string, { timestamp: number; expiries: string[] }> = new Map();
+  private static expiryListCache = new LRU<string, { timestamp: number; expiries: string[] }>({
+    max: 50,
+    ttl: 60000
+  });
 
   public async getExpiryList(symbol: string): Promise<string[]> {
     const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
-    if (cleanSym !== 'SENSEX' && cleanSym !== 'NIFTY') {
+    const SUPPORTED_SCRIPS: Record<string, number> = {
+      'NIFTY': 13, 'BANKNIFTY': 25, 'FINNIFTY': 27, 'MIDCPNIFTY': 33, 'SENSEX': 51
+    };
+    if (!SUPPORTED_SCRIPS[cleanSym]) {
       return [];
     }
 
     const cached = DhanAdapter.expiryListCache.get(cleanSym);
-    if (cached && Date.now() - cached.timestamp < 60000) {
+    if (cached && Date.now() - cached.timestamp < 60000 && cached.expiries.length > 0) {
       return cached.expiries;
     }
 
     const underlyingSeg = 'IDX_I';
-    const underlyingScrip = cleanSym === 'SENSEX' ? 51 : 13;
+    const underlyingScrip = SUPPORTED_SCRIPS[cleanSym];
 
-    try {
-      const res = await fetch(`${this.baseUrl}/v2/optionchain/expirylist`, {
-        method: 'POST',
-        headers: {
-          'access-token': this.accessToken,
-          'client-id': this.clientId,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ UnderlyingScrip: underlyingScrip, UnderlyingSeg: underlyingSeg })
-      });
+    return DhanAdapter.circuitBreaker.execute(
+      async () => {
+        const res = await fetch(`${this.baseUrl}/v2/optionchain/expirylist`, {
+          method: 'POST',
+          headers: {
+            'access-token': this.accessToken,
+            'client-id': this.clientId,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ UnderlyingScrip: underlyingScrip, UnderlyingSeg: underlyingSeg }),
+          signal: AbortSignal.timeout(3000)
+        });
 
-      if (res.ok) {
-        const json: any = await res.json();
-        const expiries: string[] = json.data && Array.isArray(json.data) ? json.data : [];
-        if (expiries.length > 0) {
-          DhanAdapter.expiryListCache.set(cleanSym, { timestamp: Date.now(), expiries });
-          return expiries;
+        if (res.ok) {
+          const json: any = await res.json();
+          const expiries: string[] = json.data && Array.isArray(json.data) ? json.data : [];
+          if (expiries.length > 0) {
+            DhanAdapter.expiryListCache.set(cleanSym, { timestamp: Date.now(), expiries });
+            return expiries;
+          }
         }
+        return cached?.expiries || [];
+      },
+      () => {
+        return cached?.expiries || [];
       }
-    } catch (_) {}
-
-    return [];
+    );
   }
 
-  private static optionChainCache: Map<string, { timestamp: number; rows: OptionChainItem[] }> = new Map();
+  private static optionChainCache = new LRU<string, { timestamp: number; rows: OptionChainItem[] }>({
+    max: 100,
+    ttl: 30000
+  });
 
   public async getOptionChain(symbol: string, expiry?: string): Promise<OptionChainItem[]> {
     SafetyLock.assertSimulationOnly('DhanAdapter.getOptionChain');
 
     const cleanSym = (symbol || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '');
-    // Dhan supports NIFTY, BANKNIFTY, FINNIFTY and SENSEX indices
     const SUPPORTED_SYMS: Record<string, number> = {
       'NIFTY': 13, 'BANKNIFTY': 25, 'FINNIFTY': 27, 'MIDCPNIFTY': 33, 'SENSEX': 51
     };
@@ -728,185 +784,185 @@ export class DhanAdapter implements IMarketDataProvider {
     const cacheKey = `${cleanSym}_${targetExpiry}`;
 
     const cached = DhanAdapter.optionChainCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 15000) {
+    // 30-second memory cache to respect Dhan API rate limits
+    if (cached && Date.now() - cached.timestamp < 30000 && cached.rows.length > 0) {
       return cached.rows;
     }
 
-    try {
-      const url = `${this.baseUrl}/v2/optionchain`;
-      const payload = {
-        UnderlyingScrip: underlyingScrip,
-        UnderlyingSeg: underlyingSeg,
-        Expiry: targetExpiry
-      };
+    return DhanAdapter.circuitBreaker.execute(
+      async () => {
+        const url = `${this.baseUrl}/v2/optionchain`;
+        const payload = {
+          UnderlyingScrip: underlyingScrip,
+          UnderlyingSeg: underlyingSeg,
+          Expiry: targetExpiry
+        };
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'access-token': this.accessToken,
-          'client-id': this.clientId,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10000) // 10s timeout to prevent nginx 504s
-      });
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'access-token': this.accessToken,
+            'client-id': this.clientId,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(3000)
+        });
 
-      if (res.ok) {
-        const json: any = await res.json();
-        if (json.data && json.data.oc && Object.keys(json.data.oc).length > 0) {
-          const spot = Number(json.data.last_price || json.data.spot_price || 0);
-          const oc = json.data.oc || {};
+        if (res.ok) {
+          const json: any = await res.json();
+          if (json.data && json.data.oc && Object.keys(json.data.oc).length > 0) {
+            const spot = Number(json.data.last_price || json.data.spot_price || 0);
+            const oc = json.data.oc || {};
 
-          const rows: OptionChainItem[] = [];
-          const { MarketDataEngine } = require('./MarketDataEngine');
-          const engine = MarketDataEngine.getInstance();
+            const rows: OptionChainItem[] = [];
+            const { MarketDataEngine } = require('./MarketDataEngine');
+            const engine = MarketDataEngine.getInstance();
 
-          if (spot > 0) {
-            const spotToken = cleanSym === 'SENSEX' ? 'BSE_SENSEX' : `NSE_${cleanSym}`;
-            engine.setCachedTick({
-              instrumentToken: spotToken,
-              exchange: cleanSym === 'SENSEX' ? 'BSE' : 'NSE',
-              symbol: cleanSym,
-              tradingSymbol: cleanSym === 'SENSEX' ? 'BSE SENSEX' : `NSE ${cleanSym}`,
-              ltp: spot,
-              open: spot,
-              high: spot * 1.002,
-              low: spot * 0.998,
-              close: spot,
-              change: 0,
-              changePercent: 0,
-              volume: 5000000,
-              source: 'dhan_feed',
-              isSynthetic: false,
-              timestamp: Date.now()
-            });
-            this.tickCache.set(spotToken, engine.getCachedTick(spotToken)!);
-          }
-
-          const optPrefix = cleanSym === 'SENSEX' ? 'BFO' : 'NFO';
-          const optSeg = cleanSym === 'SENSEX' ? 'BSE_FNO' : 'NSE_FNO';
-
-          for (const [strikeStr, strikeData] of Object.entries<any>(oc)) {
-            const strikePrice = parseFloat(strikeStr);
-            const ceData = strikeData.ce || {};
-            const peData = strikeData.pe || {};
-
-            const ceSecurityId = String(ceData.security_id || '');
-            const peSecurityId = String(peData.security_id || '');
-
-            const ceToken = `${optPrefix}_${cleanSym}_${strikePrice}_CE`;
-            const peToken = `${optPrefix}_${cleanSym}_${strikePrice}_PE`;
-
-            if (ceSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[ceToken] = { segment: optSeg, securityId: ceSecurityId };
-              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${ceSecurityId}`] = { segment: optSeg, securityId: ceSecurityId };
-            }
-            if (peSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[peToken] = { segment: optSeg, securityId: peSecurityId };
-              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${peSecurityId}`] = { segment: optSeg, securityId: peSecurityId };
-            }
-
-            const ceLtp = Number(ceData.last_price ?? ceData.ltp ?? 0);
-            const peLtp = Number(peData.last_price ?? peData.ltp ?? 0);
-
-            const ceGreeks = ceData.greeks || {};
-            const peGreeks = peData.greeks || {};
-
-            if (ceLtp > 0) {
+            if (spot > 0) {
+              const spotToken = cleanSym === 'SENSEX' ? 'BSE_SENSEX' : `NSE_${cleanSym}`;
               engine.setCachedTick({
-                instrumentToken: ceToken,
+                instrumentToken: spotToken,
                 exchange: cleanSym === 'SENSEX' ? 'BSE' : 'NSE',
-                symbol: `${cleanSym}${strikePrice}CE`,
-                ltp: ceLtp,
-                open: Number(ceData.open || ceLtp),
-                high: Number(ceData.high || ceLtp),
-                low: Number(ceData.low || ceLtp),
-                close: Number(ceData.close || ceLtp),
-                volume: Number(ceData.volume || 0),
-                change: Number(ceData.change || 0),
+                symbol: cleanSym,
+                tradingSymbol: cleanSym === 'SENSEX' ? 'BSE SENSEX' : `NSE ${cleanSym}`,
+                ltp: spot,
+                open: spot,
+                high: spot * 1.002,
+                low: spot * 0.998,
+                close: spot,
+                change: 0,
                 changePercent: 0,
-                bid: Number(ceData.top_bid_price || ceData.bid || ceLtp * 0.995),
-                ask: Number(ceData.top_ask_price || ceData.ask || ceLtp * 1.005),
+                volume: 5000000,
                 source: 'dhan_feed',
                 isSynthetic: false,
                 timestamp: Date.now()
               });
+              this.tickCache.set(spotToken, engine.getCachedTick(spotToken)!);
             }
 
-            if (peLtp > 0) {
-              engine.setCachedTick({
-                instrumentToken: peToken,
-                exchange: cleanSym === 'SENSEX' ? 'BSE' : 'NSE',
-                symbol: `${cleanSym}${strikePrice}PE`,
-                ltp: peLtp,
-                open: Number(peData.open || peLtp),
-                high: Number(peData.high || peLtp),
-                low: Number(peData.low || peLtp),
-                close: Number(peData.close || peLtp),
-                volume: Number(peData.volume || 0),
-                change: Number(peData.change || 0),
-                changePercent: 0,
-                bid: Number(peData.top_bid_price || peData.bid || peLtp * 0.995),
-                ask: Number(peData.top_ask_price || peData.ask || peLtp * 1.005),
-                source: 'dhan_feed',
-                isSynthetic: false,
-                timestamp: Date.now()
-              });
-            }
+            const optPrefix = cleanSym === 'SENSEX' ? 'BFO' : 'NFO';
+            const optSeg = cleanSym === 'SENSEX' ? 'BSE_FNO' : 'NSE_FNO';
 
-            rows.push({
-              strikePrice,
-              expiry: targetExpiry,
-              ce: {
-                instrumentToken: ceToken,
-                ltp: ceLtp,
-                bid: Number(ceData.top_bid_price || ceData.bid || 0),
-                ask: Number(ceData.top_ask_price || ceData.ask || 0),
-                change: Number(ceData.change || 0),
-                volume: Number(ceData.volume || 0),
-                openInterest: Number(ceData.oi || ceData.open_interest || 0),
-                iv: Number(ceData.implied_volatility || ceData.iv || 11.4),
-                delta: Number(ceGreeks.delta || 0.5),
-                gamma: Number(ceGreeks.gamma || 0.001),
-                theta: Number(ceGreeks.theta || -10),
-                vega: Number(ceGreeks.vega || 5),
-              },
-              pe: {
-                instrumentToken: peToken,
-                ltp: peLtp,
-                bid: Number(peData.top_bid_price || peData.bid || 0),
-                ask: Number(peData.top_ask_price || peData.ask || 0),
-                change: Number(peData.change || 0),
-                volume: Number(peData.volume || 0),
-                openInterest: Number(peData.oi || peData.open_interest || 0),
-                iv: Number(peData.implied_volatility || peData.iv || 10.4),
-                delta: Number(peGreeks.delta || -0.5),
-                gamma: Number(peGreeks.gamma || 0.001),
-                theta: Number(peGreeks.theta || -10),
-                vega: Number(peGreeks.vega || 5),
+            for (const [strikeStr, strikeData] of Object.entries<any>(oc)) {
+              const strikePrice = parseFloat(strikeStr);
+              const ceData = strikeData.ce || {};
+              const peData = strikeData.pe || {};
+
+              const ceSecurityId = String(ceData.security_id || '');
+              const peSecurityId = String(peData.security_id || '');
+
+              const ceToken = `${optPrefix}_${cleanSym}_${strikePrice}_CE`;
+              const peToken = `${optPrefix}_${cleanSym}_${strikePrice}_PE`;
+
+              if (ceSecurityId) {
+                DhanAdapter.addDynamicSecurityMapping(ceToken, { segment: optSeg, securityId: ceSecurityId });
               }
-            });
-          }
+              if (peSecurityId) {
+                DhanAdapter.addDynamicSecurityMapping(peToken, { segment: optSeg, securityId: peSecurityId });
+              }
 
-          if (rows.length > 0) {
-            const sorted = rows.sort((a, b) => a.strikePrice - b.strikePrice);
-            DhanAdapter.optionChainCache.set(cacheKey, { timestamp: Date.now(), rows: sorted });
-            return sorted;
+              const ceLtp = Number(ceData.last_price ?? ceData.ltp ?? 0);
+              const peLtp = Number(peData.last_price ?? peData.ltp ?? 0);
+
+              const ceGreeks = ceData.greeks || {};
+              const peGreeks = peData.greeks || {};
+
+              if (ceLtp > 0) {
+                engine.setCachedTick({
+                  instrumentToken: ceToken,
+                  exchange: cleanSym === 'SENSEX' ? 'BSE' : 'NSE',
+                  symbol: `${cleanSym}${strikePrice}CE`,
+                  ltp: ceLtp,
+                  open: Number(ceData.open || ceLtp),
+                  high: Number(ceData.high || ceLtp),
+                  low: Number(ceData.low || ceLtp),
+                  close: Number(ceData.close || ceLtp),
+                  volume: Number(ceData.volume || 0),
+                  change: Number(ceData.change || 0),
+                  changePercent: 0,
+                  bid: Number(ceData.top_bid_price || ceData.bid || ceLtp * 0.995),
+                  ask: Number(ceData.top_ask_price || ceData.ask || ceLtp * 1.005),
+                  source: 'dhan_feed',
+                  isSynthetic: false,
+                  timestamp: Date.now()
+                });
+              }
+
+              if (peLtp > 0) {
+                engine.setCachedTick({
+                  instrumentToken: peToken,
+                  exchange: cleanSym === 'SENSEX' ? 'BSE' : 'NSE',
+                  symbol: `${cleanSym}${strikePrice}PE`,
+                  ltp: peLtp,
+                  open: Number(peData.open || peLtp),
+                  high: Number(peData.high || peLtp),
+                  low: Number(peData.low || peLtp),
+                  close: Number(peData.close || peLtp),
+                  volume: Number(peData.volume || 0),
+                  change: Number(peData.change || 0),
+                  changePercent: 0,
+                  bid: Number(peData.top_bid_price || peData.bid || peLtp * 0.995),
+                  ask: Number(peData.top_ask_price || peData.ask || peLtp * 1.005),
+                  source: 'dhan_feed',
+                  isSynthetic: false,
+                  timestamp: Date.now()
+                });
+              }
+
+              rows.push({
+                strikePrice,
+                expiry: targetExpiry,
+                ce: {
+                  instrumentToken: ceToken,
+                  ltp: ceLtp,
+                  bid: Number(ceData.top_bid_price || ceData.bid || 0),
+                  ask: Number(ceData.top_ask_price || ceData.ask || 0),
+                  change: Number(ceData.change || 0),
+                  volume: Number(ceData.volume || 0),
+                  openInterest: Number(ceData.oi || ceData.open_interest || 0),
+                  iv: Number(ceData.implied_volatility || ceData.iv || 11.4),
+                  delta: Number(ceGreeks.delta || 0.5),
+                  gamma: Number(ceGreeks.gamma || 0.001),
+                  theta: Number(ceGreeks.theta || -10),
+                  vega: Number(ceGreeks.vega || 5),
+                },
+                pe: {
+                  instrumentToken: peToken,
+                  ltp: peLtp,
+                  bid: Number(peData.top_bid_price || peData.bid || 0),
+                  ask: Number(peData.top_ask_price || peData.ask || 0),
+                  change: Number(peData.change || 0),
+                  volume: Number(peData.volume || 0),
+                  openInterest: Number(peData.oi || peData.open_interest || 0),
+                  iv: Number(peData.implied_volatility || peData.iv || 10.4),
+                  delta: Number(peGreeks.delta || -0.5),
+                  gamma: Number(peGreeks.gamma || 0.001),
+                  theta: Number(peGreeks.theta || -10),
+                  vega: Number(peGreeks.vega || 5),
+                }
+              });
+            }
+
+            if (rows.length > 0) {
+              const sorted = rows.sort((a, b) => a.strikePrice - b.strikePrice);
+              DhanAdapter.optionChainCache.set(cacheKey, { timestamp: Date.now(), rows: sorted });
+              return sorted;
+            }
+          }
+        } else if (res.status === 429) {
+          console.warn(`[DhanAdapter] Rate-limited (429) on ${cleanSym} option chain.`);
+          if (cached && cached.rows && cached.rows.length > 0) {
+            return cached.rows;
           }
         }
-      } else {
-        const errorText = await res.text();
-        console.warn(`[DhanAdapter] Live Option Chain HTTP ${res.status}:`, errorText.substring(0, 200));
+        return cached?.rows || [];
+      },
+      (err: Error) => {
+        console.warn(`[DhanAdapter] Upstream fallback for ${cleanSym} option chain (${err.message})`);
+        return cached?.rows || [];
       }
-    } catch (err: any) {
-      console.warn(`[DhanAdapter] Live Option Chain API error for ${cleanSym}:`, err.message);
-    }
-
-    if (cached && cached.rows && cached.rows.length > 0) {
-      return cached.rows;
-    }
-
-    return [];
+    );
   }
 
   /**

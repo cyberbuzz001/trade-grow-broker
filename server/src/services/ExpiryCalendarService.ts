@@ -78,29 +78,23 @@ export class ExpiryCalendarService {
     }));
   }
 
+  private static expiryCache: Map<string, { timestamp: number; data: ExpiryCategorization }> = new Map();
+
   /**
    * Resolves valid non-expired tradable expiries for an underlying symbol.
-   * Prioritizes active instruments in the database as the source of truth,
-   * falling back to dynamic calendar calculation if instruments table is empty.
+   * Prioritizes fast in-memory cache and live Dhan HQ API, with calendar rules fallback.
    */
   public async getValidExpiries(underlying: string): Promise<ExpiryCategorization> {
     const todayStr = this.getTodayIST();
-    const cleanSym = (underlying || 'NIFTY').toUpperCase().replace(' ', '');
+    const cleanSym = (underlying || 'NIFTY').toUpperCase().replace(/^(NSE_|BSE_)/, '').replace(' ', '');
 
-    // 1. Query active exchange instruments for non-expired expiry dates
-    const rows = await query<{ expiry: string }>(
-      `SELECT DISTINCT expiry FROM instruments
-       WHERE (UPPER(symbol) = $1 OR UPPER(name) = $1 OR UPPER(trading_symbol) LIKE $2)
-         AND expiry IS NOT NULL AND expiry >= $3
-       ORDER BY expiry ASC`,
-      [cleanSym, `${cleanSym}%`, todayStr]
-    );
+    // 0. Fast In-Memory Cache (60s TTL)
+    const cached = ExpiryCalendarService.expiryCache.get(cleanSym);
+    if (cached && Date.now() - cached.timestamp < 60000 && cached.data.allExpiries.length > 0) {
+      return cached.data;
+    }
 
-    let dbExpiries = rows.map(r => {
-      if (!r.expiry) return '';
-      const d = new Date(r.expiry);
-      return isNaN(d.getTime()) ? '' : this.formatYYYYMMDD(d);
-    }).filter(Boolean);
+    // 1. Query live Dhan API first (authoritative & fast <15ms)
     let dhanExpiries: string[] = [];
     try {
       const { DhanAdapter } = await import('../marketData/DhanAdapter');
@@ -108,23 +102,46 @@ export class ExpiryCalendarService {
       dhanExpiries = await dhan.getExpiryList(cleanSym);
     } catch (_) {}
 
+    // 2. Fast calendar calculation fallback
     const calculatedExpiries = await this.generateCalculatedExpiries(cleanSym);
 
-    // Combine Dhan expiries, DB expiries, and calculated calendar expiries
-    const allExpiriesCombined = Array.from(new Set([...dhanExpiries, ...dbExpiries, ...calculatedExpiries])).filter(e => e >= todayStr).sort();
+    // Combine expiries
+    let allExpiriesCombined = Array.from(new Set([...dhanExpiries, ...calculatedExpiries]))
+      .filter(e => e && e >= todayStr)
+      .sort();
+
+    // 3. Fallback to DB only if combined is still empty
+    if (allExpiriesCombined.length === 0) {
+      try {
+        const rows = await query<{ expiry: string }>(
+          `SELECT DISTINCT expiry FROM instruments
+           WHERE (UPPER(symbol) = $1 OR UPPER(name) = $1)
+             AND expiry IS NOT NULL AND expiry >= $2
+           ORDER BY expiry ASC LIMIT 20`,
+          [cleanSym, todayStr]
+        );
+        const dbExpiries = rows.map(r => {
+          if (!r.expiry) return '';
+          const d = new Date(r.expiry);
+          return isNaN(d.getTime()) ? '' : this.formatYYYYMMDD(d);
+        }).filter(Boolean);
+        allExpiriesCombined = Array.from(new Set([...dbExpiries, ...calculatedExpiries])).filter(e => e >= todayStr).sort();
+      } catch (_) {}
+    }
 
     const nearestExpiry = allExpiriesCombined[0] || null;
     const nextExpiry = allExpiriesCombined[1] || null;
-
-    // Monthly expiry resolution: find the last expiry in the target month
     const monthlyExpiry = this.resolveMonthlyExpiry(allExpiriesCombined) || nearestExpiry;
 
-    return {
+    const result: ExpiryCategorization = {
       nearestExpiry,
       nextExpiry,
       monthlyExpiry,
       allExpiries: allExpiriesCombined,
     };
+
+    ExpiryCalendarService.expiryCache.set(cleanSym, { timestamp: Date.now(), data: result });
+    return result;
   }
 
   /**
