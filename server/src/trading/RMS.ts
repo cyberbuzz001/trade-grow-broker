@@ -140,13 +140,21 @@ export class RMS {
     let strike = 0;
     let underlying = order.symbol;
 
+    const optRegex = /(?:^(?:NFO|BFO|NSE|BSE)_)?([A-Z]+)[_\s\d-]*?(\d+(?:\.\d+)?)[_\s]*(CE|PE)$/i;
+    const symMatch = (order.symbol || '').match(optRegex) || (order.instrumentToken || '').match(optRegex);
+    if (symMatch) {
+      underlying = symMatch[1].toUpperCase();
+      strike = parseFloat(symMatch[2]);
+      optionType = symMatch[3].toUpperCase() as 'CE' | 'PE';
+    }
+
     if (instrument) {
-      optionType = instrument.option_type || (order.symbol.endsWith('CE') ? 'CE' : order.symbol.endsWith('PE') ? 'PE' : 'XX');
-      strike = parseFloat(instrument.strike || '0');
-      underlying = instrument.name || instrument.symbol;
-    } else if (order.symbol.endsWith('CE')) {
+      optionType = instrument.option_type || optionType;
+      strike = parseFloat(instrument.strike || '0') || strike;
+      underlying = instrument.name || underlying;
+    } else if (order.symbol.toUpperCase().endsWith('CE')) {
       optionType = 'CE';
-    } else if (order.symbol.endsWith('PE')) {
+    } else if (order.symbol.toUpperCase().endsWith('PE')) {
       optionType = 'PE';
     }
 
@@ -167,7 +175,20 @@ export class RMS {
     // If order is purely position reduction/square-off, required additional margin is 0
     const requiredMargin = isSquareOff ? 0 : marginQuote.requiredMargin;
 
-    // 7. Check CNC holdings for delivery sell
+    // 7. Defense-in-Depth Sanity Check: Reject implausibly low margins for derivative selling
+    if (!isSquareOff && order.side === 'SELL' && (optionType === 'CE' || optionType === 'PE')) {
+      const minPerLot = 500;
+      if (requiredMargin < minPerLot) {
+        console.error(`[RMS:SECURITY_ALERT] 🚨 Margin bypass attempt or parser failure detected! User: ${order.userId}, Symbol: ${order.symbol}, Qty: ${order.quantity}, ComputedMargin: ₹${requiredMargin}`);
+        return {
+          passed: false,
+          reason: 'ORDER_REJECTED: RMS_SAFETY_FLOOR_VIOLATION — Computed margin is below safety floor requirements',
+          requiredMargin
+        };
+      }
+    }
+
+    // 8. Check CNC holdings for delivery sell
     if (order.side === 'SELL' && order.productType === 'CNC') {
       const holding = await queryOne<any>(
         'SELECT quantity FROM holdings WHERE user_id = $1 AND symbol = $2',
@@ -184,7 +205,7 @@ export class RMS {
       return { passed: true, requiredMargin: 0 };
     }
 
-    // 8. Check Virtual Buying Power
+    // 9. Check Virtual Buying Power
     if (!isSquareOff && !marginQuote.canPlaceOrder) {
       return {
         passed: false,

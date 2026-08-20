@@ -23,51 +23,12 @@ let fyersRenewalInterval: NodeJS.Timeout | null = null;
 /**
  * Checks and auto-renews Fyers Access Token automatically in the background
  */
+/**
+ * Fyers auto-renewal is DISABLED — Fyers provider is not used.
+ */
 function startFyersAutoRenewalCheck() {
-  const renewIfConfigured = async () => {
-    const totpSecret = process.env.FYERS_TOTP_SECRET;
-    const pin = process.env.FYERS_PIN;
-    const fyId = process.env.FYERS_CLIENT_ID;
-
-    if (totpSecret && pin && fyId) {
-      const currentToken = process.env.FYERS_ACCESS_TOKEN;
-      let needsRenewal = !currentToken;
-
-      if (currentToken) {
-        try {
-          const parts = currentToken.split('.');
-          if (parts.length >= 2) {
-            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-            const expTime = payload.exp * 1000;
-            const minutesLeft = Math.round((expTime - Date.now()) / 60000);
-            if (minutesLeft < 120) {
-              needsRenewal = true;
-              console.log(`[CronJobs] 🔄 Fyers token expiring in ${minutesLeft} minutes. Triggering automatic renewal...`);
-            }
-          }
-        } catch {
-          needsRenewal = true;
-        }
-      }
-
-      if (needsRenewal) {
-        console.log('[CronJobs] 🚀 Automatically generating/renewing Fyers Access Token...');
-        const result = await autoGenerateFyersToken(fyId);
-        if (result.success) {
-          console.log('[CronJobs] ✅ Fyers Access Token auto-renewed successfully!');
-        } else {
-          console.warn('[CronJobs] ⚠️ Fyers auto-renewal failed:', result.message);
-        }
-      }
-    }
-  };
-
-  // Run on startup
-  renewIfConfigured();
-
-  // Check every hour
-  fyersRenewalInterval = setInterval(renewIfConfigured, 60 * 60 * 1000);
-  console.log('[CronJobs] 🔄 Fyers automated token renewal monitor started (hourly check).');
+  // DISABLED: Fyers is not used. Removing this prevents crash-reconnect storms on startup.
+  console.log('[CronJobs] ℹ️  Fyers auto-renewal skipped — Fyers provider is disabled.');
 }
 
 /**

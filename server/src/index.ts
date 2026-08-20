@@ -20,7 +20,6 @@ import adminApiRouter from './routes/adminApi';
 import { SafetyLock } from './services/SafetyLock';
 import { startCronJobs, stopCronJobs } from './utils/cronJobs';
 import { setDhanAdapterRef } from './utils/dhanTokenRefresh';
-import { setFyersAdapterRef } from './utils/fyersTokenRefresh';
 
 // Technical Assertion Lock on Server Startup
 SafetyLock.assertSimulationOnly('ServerStartup');
@@ -144,20 +143,14 @@ async function startServer() {
 
         await MarketDataEngine.getInstance().initialize();
 
-        // Start Price Feed Reconciliation Monitor
+        // NSE scraper & AccuracyCheck DISABLED — Dhan provides all data
+        // import('./services/ReconciliationMonitorService') — keep monitor but at 5 min interval
         import('./services/ReconciliationMonitorService')
-          .then(({ reconciliationMonitor }) => reconciliationMonitor.start(60000))
+          .then(({ reconciliationMonitor }) => reconciliationMonitor.start(300000))
           .catch((err) => console.error('[Startup] Failed to start ReconciliationMonitorService:', err.message));
 
-        // Start NSE Live Index & Dual-Feed Spot Guard
-        import('./marketData/NseOptionChainService')
-          .then(({ nseOptionChainService }) => nseOptionChainService.start())
-          .catch((err) => console.error('[Startup] Failed to start NseOptionChainService:', err.message));
-
-        // Start Automated Option Chain Pricing Accuracy Check
-        import('./services/AccuracyCheckService')
-          .then(({ accuracyCheckService }) => accuracyCheckService.start())
-          .catch((err) => console.error('[Startup] Failed to start AccuracyCheckService:', err.message));
+        // AccuracyCheckService DISABLED — comparing model vs Dhan data directly
+        // NseOptionChainService DISABLED — NSE scraper blocked (HTTP 404), Dhan handles option chain
 
         ExecutionEngine.start();
         setupWebSocketServer(server);
@@ -172,13 +165,15 @@ async function startServer() {
           console.warn('[Startup] ⚠️ DhanAdapter not found — cron jobs not started.');
         }
 
-        const fyersProvider = (engine as any).providers?.get('FYERS');
-        if (fyersProvider) {
-          setFyersAdapterRef(fyersProvider);
-          console.log('[Startup] ✅ FyersAdapter reference registered for token hot-swapping.');
-        }
+        // Start Memory Watchdog (60s interval)
+        const { memoryWatchdog } = await import('./services/MemoryWatchdogService');
+        memoryWatchdog.start(60000);
 
-        console.log('[Startup] ✅ All background market data engines & WebSocket services initialized cleanly.');
+        // Start Post-Trade Margin Reconciliation Sweep (1 hr interval)
+        const { marginReconciliationJob } = await import('./services/MarginReconciliationJob');
+        marginReconciliationJob.start(3600000);
+
+        console.log('[Startup] ✅ All background market data engines, watchdog & WebSocket services initialized cleanly.');
       } catch (bgErr: any) {
         console.error('[Startup Background Warning]', bgErr.message || bgErr);
       }

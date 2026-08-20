@@ -12,6 +12,8 @@ export interface MarketSocketContextType {
   reconnectCount: number;
   subscribe: (tokens: string[]) => void;
   unsubscribe: (tokens: string[]) => void;
+  subscribeOptionChain: (symbol: string) => void;
+  unsubscribeOptionChain: (symbol: string) => void;
 }
 
 const MarketSocketContext = createContext<MarketSocketContextType | null>(null);
@@ -99,6 +101,26 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
         wsRef.current.send(JSON.stringify({ action: 'UNSUBSCRIBE', tokens }));
       } catch (err) {
         console.error('[MarketSocket] Failed to send UNSUBSCRIBE', err);
+      }
+    }
+  }, []);
+
+  const subscribeOptionChain = useCallback((symbol: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && symbol) {
+      try {
+        wsRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_OPTION_CHAIN', symbol }));
+      } catch (err) {
+        console.error('[MarketSocket] Failed to send SUBSCRIBE_OPTION_CHAIN', err);
+      }
+    }
+  }, []);
+
+  const unsubscribeOptionChain = useCallback((symbol: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && symbol) {
+      try {
+        wsRef.current.send(JSON.stringify({ action: 'UNSUBSCRIBE_OPTION_CHAIN', symbol }));
+      } catch (err) {
+        console.error('[MarketSocket] Failed to send UNSUBSCRIBE_OPTION_CHAIN', err);
       }
     }
   }, []);
@@ -198,43 +220,26 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
           const message = JSON.parse(event.data);
           const storeTick = (t: MarketTick) => {
             if (!t || !t.instrumentToken) return;
+
+            // Always store by the canonical instrumentToken
             pendingTicksRef.current.set(t.instrumentToken, t);
 
-            const symsToProcess: string[] = [];
-            if (t.instrumentToken) symsToProcess.push(t.instrumentToken.trim());
-            if (t.symbol) symsToProcess.push(t.symbol.trim());
-            if ((t as any).tradingSymbol) symsToProcess.push((t as any).tradingSymbol.trim());
+            // Also store by symbol so lookups by both key formats work
+            if (t.symbol && t.symbol !== t.instrumentToken) {
+              pendingTicksRef.current.set(t.symbol.trim(), t);
+            }
+            if ((t as any).tradingSymbol && (t as any).tradingSymbol !== t.instrumentToken) {
+              pendingTicksRef.current.set(((t as any).tradingSymbol as string).trim(), t);
+            }
 
-            symsToProcess.forEach(rawSym => {
-              pendingTicksRef.current.set(rawSym, t);
-              pendingTicksRef.current.set(`NSE_${rawSym}`, t);
-              pendingTicksRef.current.set(`MCX_${rawSym}`, t);
-              pendingTicksRef.current.set(`BSE_${rawSym}`, t);
-              pendingTicksRef.current.set(`NFO_${rawSym}`, t);
-              pendingTicksRef.current.set(`BFO_${rawSym}`, t);
-
-              // Compact format e.g. NIFTY24500CE or BANKNIFTY72600PE or SENSEX78400CE
-              const mCompact = rawSym.match(/^([A-Z0-9]+?)(?:_)?(\d+(?:\.\d+)?)(?:_)?(CE|PE)$/i);
-              if (mCompact) {
-                const underlying = mCompact[1].toUpperCase().replace(/^(NFO_|BFO_|NSE_|BSE_)/, '');
-                const strike = mCompact[2];
-                const optType = mCompact[3].toUpperCase();
-                const segPrefix = underlying === 'SENSEX' ? 'BFO' : 'NFO';
-                pendingTicksRef.current.set(`${segPrefix}_${underlying}_${strike}_${optType}`, t);
-                pendingTicksRef.current.set(`${underlying}_${strike}_${optType}`, t);
-              }
-
-              // Trading symbol format e.g. BANKNIFTY-Aug2026-72600-CE
-              const mTrading = rawSym.match(/^([A-Z0-9]+)-[A-Za-z0-9]+-(\d+(?:\.\d+)?)-(CE|PE)$/i);
-              if (mTrading) {
-                const underlying = mTrading[1].toUpperCase();
-                const strike = mTrading[2];
-                const optType = mTrading[3].toUpperCase();
-                const segPrefix = underlying === 'SENSEX' ? 'BFO' : 'NFO';
-                pendingTicksRef.current.set(`${segPrefix}_${underlying}_${strike}_${optType}`, t);
-                pendingTicksRef.current.set(`${underlying}_${strike}_${optType}`, t);
-              }
-            });
+            // For option contracts (NFO_NIFTY_24500_CE / BFO_SENSEX_78000_CE) also store
+            // the bare segment-free version so OptionChainView.freshnessMap lookups hit.
+            const token = t.instrumentToken;
+            const mFull = token.match(/^(NFO|BFO)_([A-Z0-9]+)_(\d+(?:\.\d+)?)_(CE|PE)$/);
+            if (mFull) {
+              const [, , underlying, strike, optType] = mFull;
+              pendingTicksRef.current.set(`${underlying}_${strike}_${optType}`, t);
+            }
           };
 
           if (message.type === 'TICK_SNAPSHOT' && Array.isArray(message.data)) {
@@ -243,6 +248,8 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
           } else if (message.type === 'MARKET_TICK' && message.data) {
             storeTick(message.data as MarketTick);
             scheduleBatchUpdate();
+          } else if (message.type === 'OPTION_CHAIN_SNAPSHOT' && message.data) {
+            window.dispatchEvent(new CustomEvent('market:option_chain_snapshot', { detail: message.data }));
           }
         } catch (_) {}
       };
@@ -291,6 +298,8 @@ export const MarketSocketProvider: React.FC<MarketSocketProviderProps> = ({ chil
         reconnectCount,
         subscribe,
         unsubscribe,
+        subscribeOptionChain,
+        unsubscribeOptionChain,
       },
     },
     children
@@ -318,4 +327,16 @@ export function useSubscribeTokens(tokens: string[]) {
       unsubscribe(tokenList);
     };
   }, [tokensKey, subscribe, unsubscribe]);
+}
+
+export function useSubscribeOptionChain(symbol: string) {
+  const { subscribeOptionChain, unsubscribeOptionChain } = useMarketSocket();
+
+  useEffect(() => {
+    if (!symbol) return;
+    subscribeOptionChain(symbol);
+    return () => {
+      unsubscribeOptionChain(symbol);
+    };
+  }, [symbol, subscribeOptionChain, unsubscribeOptionChain]);
 }

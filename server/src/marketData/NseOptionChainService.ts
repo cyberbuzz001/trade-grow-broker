@@ -52,8 +52,8 @@ export class NseOptionChainService extends EventEmitter {
   private guardTimer: NodeJS.Timeout | null = null;
   private cache: Record<string, NseChainSummary> = {};
   private guardSpotCache: Map<string, { price: number; timestamp: number }> = new Map();
-  private readonly REFRESH_INTERVAL = 30_000; // 30 seconds
-  private readonly GUARD_POLL_INTERVAL = 30_000; // 30 seconds
+  private readonly REFRESH_INTERVAL = 180_000; // 3 minutes (was 30s — NSE throttles aggressively)
+  private readonly GUARD_POLL_INTERVAL = 180_000; // 3 minutes
   private readonly COOKIE_TTL = 300_000; // 5 minutes
 
   public start(): void {
@@ -233,28 +233,13 @@ export class NseOptionChainService extends EventEmitter {
   }
 
   private generateFallbackSummary(symbol: string): NseChainSummary {
-    const spotToken = symbol === 'BANKNIFTY' ? 'NSE_BANKNIFTY' : symbol === 'FINNIFTY' ? 'NSE_FINNIFTY' : 'NSE_NIFTY50';
-    const guard = this.guardSpotCache.get(spotToken);
-    const spot = guard?.price ?? (symbol === 'BANKNIFTY' ? 52200 : symbol === 'FINNIFTY' ? 23500 : 24563);
-    const step = symbol === 'BANKNIFTY' ? 100 : 50;
-    const atmStrike = Math.round(spot / step) * step;
-
-    const strikewise: Record<number, NseStrikeData> = {};
-    for (let i = -10; i <= 10; i++) {
-      const strike = atmStrike + (i * step);
-      strikewise[strike] = {
-        strikePrice: strike,
-        expiryDate: new Date().toISOString().split('T')[0],
-        CE: { openInterest: 1250000 - Math.abs(i) * 50000, changeinOpenInterest: 15000, impliedVolatility: 13.5, lastPrice: 120, totalTradedVolume: 450000, change: 2.5, pChange: 2.1 },
-        PE: { openInterest: 1180000 - Math.abs(i) * 50000, changeinOpenInterest: 12000, impliedVolatility: 13.8, lastPrice: 115, totalTradedVolume: 420000, change: -1.8, pChange: -1.5 }
-      };
-    }
-
+    // Return an empty summary — do not fabricate OI, IV, or volume data.
+    // OptionChainEngine will display 0 for these fields until real NSE data arrives.
     return {
-      pcr: 0.94,
-      maxPain: atmStrike,
-      atmStrike,
-      strikewise,
+      pcr: 0,
+      maxPain: 0,
+      atmStrike: 0,
+      strikewise: {},
       updatedAt: Date.now()
     };
   }
@@ -423,31 +408,12 @@ export class NseOptionChainService extends EventEmitter {
         }
       }
       
-      // Dynamic Fallback for BSE_SENSEX (BSE Index quote)
+      // Sync SENSEX guard cache from live engine tick if available
       const cachedSensex = engine.getCachedTick('BSE_SENSEX') || engine.getCachedTick('SENSEX');
       if (cachedSensex && cachedSensex.ltp > 0) {
         this.guardSpotCache.set('BSE_SENSEX', { price: cachedSensex.ltp, timestamp: cachedSensex.timestamp || Date.now() });
-      } else if (!this.guardSpotCache.has('BSE_SENSEX')) {
-        const defaultSensexLtp = 78250.00;
-        this.guardSpotCache.set('BSE_SENSEX', { price: defaultSensexLtp, timestamp: Date.now() });
-        engine.setCachedTick({
-          instrumentToken: 'BSE_SENSEX',
-          exchange: 'BSE',
-          symbol: 'SENSEX',
-          tradingSymbol: 'BSE SENSEX',
-          ltp: defaultSensexLtp,
-          open: Number((defaultSensexLtp * 0.998).toFixed(2)),
-          high: Number((defaultSensexLtp * 1.003).toFixed(2)),
-          low: Number((defaultSensexLtp * 0.995).toFixed(2)),
-          close: Number((defaultSensexLtp - 150).toFixed(2)),
-          change: 150.00,
-          changePercent: 0.19,
-          volume: 3500000,
-          source: 'guard_feed',
-          isSynthetic: false,
-          timestamp: Date.now()
-        });
       }
+      // Do NOT inject hardcoded SENSEX prices — wait for a real Dhan WebSocket tick.
     } catch (_) {}
   }
 

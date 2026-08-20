@@ -189,8 +189,8 @@ export class OptionChainEngine {
             theta: item.ce?.theta ?? Number(ceGreeks.theta.toFixed(2)),
             vega: item.ce?.vega ?? Number(ceGreeks.vega.toFixed(2)),
             classification: item.strikePrice < spotPrice ? 'ITM' : isATM ? 'ATM' : 'OTM',
-            openInterest: item.ce?.openInterest || Math.floor(Math.random() * 500000) + 100000,
-            volume: item.ce?.volume || Math.floor(Math.random() * 100000) + 20000,
+            openInterest: item.ce?.openInterest ?? 0,
+            volume: item.ce?.volume ?? 0,
           },
           pe: {
             ...item.pe,
@@ -201,18 +201,16 @@ export class OptionChainEngine {
             theta: item.pe?.theta ?? Number(peGreeks.theta.toFixed(2)),
             vega: item.pe?.vega ?? Number(peGreeks.vega.toFixed(2)),
             classification: item.strikePrice > spotPrice ? 'ITM' : isATM ? 'ATM' : 'OTM',
-            openInterest: item.pe?.openInterest || Math.floor(Math.random() * 500000) + 100000,
-            volume: item.pe?.volume || Math.floor(Math.random() * 100000) + 20000,
+            openInterest: item.pe?.openInterest ?? 0,
+            volume: item.pe?.volume ?? 0,
           }
         };
       });
     };
 
-    // Tier 1: Try Dhan HQ REST option chain
+    // Tier 1: Try Dhan HQ REST option chain (use singleton engine, not a new DhanAdapter instance)
     try {
-      const { DhanAdapter } = await import('./DhanAdapter');
-      const dhanAdapter = new DhanAdapter();
-      const dhanChain = await dhanAdapter.getOptionChain(underlying, expiry);
+      const dhanChain = await MarketDataEngine.getInstance().getOptionChain(underlying, expiry);
       if (dhanChain && dhanChain.length > 0) {
         const filteredDhanChain = filterAndSanitizeChain(dhanChain);
         let totalCallOI = 0;
@@ -346,6 +344,9 @@ export class OptionChainEngine {
       const ceClassification = strike < spotPrice ? 'ITM' : isATM ? 'ATM' : 'OTM';
       const peClassification = strike > spotPrice ? 'ITM' : isATM ? 'ATM' : 'OTM';
 
+      // Enrich with NSE OI data if available
+      const nseOi = nseOptionChainService.getOiForStrike(underlying, strike);
+
       return {
         strikePrice: strike,
         expiry,
@@ -354,13 +355,13 @@ export class OptionChainEngine {
           instrumentToken: ceInstToken,
           tradingSymbol: ceInst?.trading_symbol || `${underlying}${strike}CE`,
           ltp: ceLtp,
-          bid: Number((ceLtp * 0.995).toFixed(2)),
-          ask: Number((ceLtp * 1.005).toFixed(2)),
-          change: ceTick ? ceTick.change : Number(((Math.random() - 0.45) * 4).toFixed(2)),
-          volume: ceTick ? ceTick.volume : Math.floor(Math.random() * 450000) + 120000,
-          openInterest: Math.floor(Math.random() * 2500000) + 500000,
-          openInterestChange: Math.floor((Math.random() - 0.4) * 80000),
-          iv: Number(ceGreeks.iv.toFixed(1)),
+          bid: ceTick?.bid ?? 0,
+          ask: ceTick?.ask ?? 0,
+          change: ceTick ? ceTick.change : 0,
+          volume: ceTick ? ceTick.volume : 0,
+          openInterest: nseOi.ceOi || (ceTick as any)?.openInterest || 0,
+          openInterestChange: 0,
+          iv: nseOi.ceIv > 0 ? Number(nseOi.ceIv.toFixed(1)) : Number(ceGreeks.iv.toFixed(1)),
           delta: Number(ceGreeks.delta.toFixed(2)),
           gamma: Number(ceGreeks.gamma.toFixed(4)),
           theta: Number(ceGreeks.theta.toFixed(2)),
@@ -373,13 +374,13 @@ export class OptionChainEngine {
           instrumentToken: peInstToken,
           tradingSymbol: peInst?.trading_symbol || `${underlying}${strike}PE`,
           ltp: peLtp,
-          bid: Number((peLtp * 0.995).toFixed(2)),
-          ask: Number((peLtp * 1.005).toFixed(2)),
-          change: peTick ? peTick.change : Number(((Math.random() - 0.45) * 4).toFixed(2)),
-          volume: peTick ? peTick.volume : Math.floor(Math.random() * 420000) + 100000,
-          openInterest: Math.floor(Math.random() * 2200000) + 400000,
-          openInterestChange: Math.floor((Math.random() - 0.4) * 75000),
-          iv: Number(peGreeks.iv.toFixed(1)),
+          bid: peTick?.bid ?? 0,
+          ask: peTick?.ask ?? 0,
+          change: peTick ? peTick.change : 0,
+          volume: peTick ? peTick.volume : 0,
+          openInterest: nseOi.peOi || (peTick as any)?.openInterest || 0,
+          openInterestChange: 0,
+          iv: nseOi.peIv > 0 ? Number(nseOi.peIv.toFixed(1)) : Number(peGreeks.iv.toFixed(1)),
           delta: Number(peGreeks.delta.toFixed(2)),
           gamma: Number(peGreeks.gamma.toFixed(4)),
           theta: Number(peGreeks.theta.toFixed(2)),

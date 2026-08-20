@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { OptionChainItem, MarketTick } from '../types';
 import { OrderPreviewModal, OrderPreviewDetails } from './OrderPreviewModal';
 import { OptionStrategyBuilder } from './OptionStrategyBuilder';
-import { Calendar, Search, Activity, Layers, ArrowUpRight, ArrowDownRight, X, SlidersHorizontal, ChevronDown, Plus, TrendingUp } from 'lucide-react';
-import { useSubscribeTokens } from '../hooks/useMarketSocket';
+import { Calendar, Search, Activity, Layers, ArrowUpRight, ArrowDownRight, X, SlidersHorizontal, ChevronDown, Plus, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { useSubscribeTokens, useSubscribeOptionChain } from '../hooks/useMarketSocket';
 import { useTickFreshness, useMultiTickFreshness } from '../hooks/useTickFreshness';
 import { getSpotToken } from './SpotPriceTicker';
 import { OptionChainRow } from './OptionChainRow';
@@ -29,12 +29,13 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
   const [activeLtpKey, setActiveLtpKey] = useState<string | null>(null);
 
   const [chain, setChain] = useState<OptionChainItem[]>([]);
-  const [spotPrice, setSpotPrice] = useState<number>(77350.00);
-  const [spotChange, setSpotChange] = useState<number>(-392.36);
-  const [spotChangePct, setSpotChangePct] = useState<number>(-0.50);
-  const [atmStrike, setAtmStrike] = useState<number>(77300);
-  const [lotSize, setLotSize] = useState<number>(20);
+  const [spotPrice, setSpotPrice] = useState<number>(0);
+  const [spotChange, setSpotChange] = useState<number>(0);
+  const [spotChangePct, setSpotChangePct] = useState<number>(0);
+  const [atmStrike, setAtmStrike] = useState<number>(0);
+  const [lotSize, setLotSize] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Strike Chart Modal State
   const [selectedChartContract, setSelectedChartContract] = useState<SelectedOptionContract | null>(null);
@@ -120,30 +121,55 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
     fetchExpiries();
   }, [symbol, expiryType]);
 
-  // Fetch Option Chain Data
+  // Subscribe to real-time server-side option chain broadcast over WebSocket (No client polling!)
+  useSubscribeOptionChain(symbol);
+
+  // Listen to live option chain snapshots pushed down WebSocket
+  useEffect(() => {
+    const handleSnapshot = (e: any) => {
+      const snap = e.detail;
+      if (!snap || snap.underlying !== symbol) return;
+      if (Array.isArray(snap.chain) && snap.chain.length > 0) {
+        setChain(snap.chain);
+        if (snap.spotPrice) setSpotPrice(snap.spotPrice);
+        if (snap.lotSize) setLotSize(snap.lotSize);
+        setFetchError(null);
+        setLoading(false);
+      }
+    };
+    window.addEventListener('market:option_chain_snapshot' as any, handleSnapshot);
+    return () => window.removeEventListener('market:option_chain_snapshot' as any, handleSnapshot);
+  }, [symbol]);
+
+  // Fetch Option Chain Data (Initial single fetch on load/param change)
   const fetchOptionChain = useCallback(() => {
+    setLoading(true);
+    setFetchError(null);
     const queryParams = new URLSearchParams({ symbol, strikeRange });
     if (expiry) queryParams.append('expiry', expiry);
 
     fetch(`/api/v1/market/option-chain?${queryParams.toString()}`)
       .then(r => r.json())
       .then(data => {
-        if (data.success) {
-          setChain(data.chain || []);
-          setSpotPrice(data.spotPrice || 24331.70);
-          setLotSize(data.lotSize || 65);
+        if (data.success && Array.isArray(data.chain) && data.chain.length > 0) {
+          setChain(data.chain);
+          if (data.spotPrice && data.spotPrice > 0) setSpotPrice(data.spotPrice);
+          if (data.lotSize && data.lotSize > 0) setLotSize(data.lotSize);
+          setFetchError(null);
+        } else if (!data.success) {
+          setFetchError(data.error || 'Live option chain unavailable');
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => {
+        setFetchError(err.message || 'Failed to fetch option chain');
+        setLoading(false);
+      });
   }, [symbol, expiry, strikeRange]);
 
-  // Load option chain on symbol/expiry/strikeRange change and refresh every 1.5 seconds
-  // Live LTP updates arrive instantly via WebSocket ticks through useSubscribeTokens() above.
+  // Single initial load on parameter change (Polling loop completely removed in favor of WebSocket)
   useEffect(() => {
     fetchOptionChain();
-    const interval = setInterval(fetchOptionChain, 1500);
-    return () => clearInterval(interval);
   }, [fetchOptionChain]);
 
   // Handle Order Placement Trigger
@@ -203,15 +229,15 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
           {/* Index Tabs */}
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: 'NIFTY', name: 'NIFTY 50', ex: 'NSE', token: 'NSE_NIFTY50', price: 24331.70, chg: -64.15, chgPct: -0.26 },
-              { id: 'SENSEX', name: 'BSE SENSEX', ex: 'BSE', token: 'BSE_SENSEX', price: 77787.60, chg: -292.36, chgPct: -0.37 },
-              { id: 'BANKNIFTY', name: 'BANK NIFTY', ex: 'NSE', token: 'NSE_BANKNIFTY', price: 57600.00, chg: +120.40, chgPct: +0.21 },
-              { id: 'FINNIFTY', name: 'FIN NIFTY', ex: 'NSE', token: 'NSE_FINNIFTY', price: 25800.00, chg: +45.10, chgPct: +0.18 },
+              { id: 'NIFTY', name: 'NIFTY 50', ex: 'NSE', token: 'NSE_NIFTY50' },
+              { id: 'SENSEX', name: 'BSE SENSEX', ex: 'BSE', token: 'BSE_SENSEX' },
+              { id: 'BANKNIFTY', name: 'BANK NIFTY', ex: 'NSE', token: 'NSE_BANKNIFTY' },
+              { id: 'FINNIFTY', name: 'FIN NIFTY', ex: 'NSE', token: 'NSE_FINNIFTY' },
             ].map(item => {
               const isActive = symbol === item.id;
-              const indexTick = spotFreshness.tick && isActive ? spotFreshness.tick : (freshnessMap.get(item.token)?.tick);
-              const displayPrice = isActive ? liveSpotLtp : (indexTick?.ltp && indexTick.ltp > 0 ? indexTick.ltp : item.price);
-              const displayChgPct = isActive ? liveSpotChangePct : (indexTick?.changePercent !== undefined ? indexTick.changePercent : item.chgPct);
+              const indexTick = isActive ? spotFreshness.tick : (freshnessMap.get(item.token)?.tick);
+              const displayPrice = indexTick?.ltp && indexTick.ltp > 0 ? indexTick.ltp : (isActive ? liveSpotLtp : 0);
+              const displayChgPct = indexTick?.changePercent !== undefined ? indexTick.changePercent : (isActive ? liveSpotChangePct : 0);
               const isPos = displayChgPct >= 0;
 
               return (
@@ -234,11 +260,15 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
                       <span className="text-[9px] bg-slate-800 text-slate-400 px-1 rounded">{item.ex}</span>
                     </div>
                     <div className="flex items-center gap-1 font-mono text-[11px] tabular-nums">
-                      <span className="text-white font-bold">₹{displayPrice.toFixed(2)}</span>
-                      <span className={`flex items-center text-[10px] font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isPos ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                        {isPos ? '+' : ''}{displayChgPct.toFixed(2)}%
+                      <span className="text-white font-bold">
+                        {displayPrice > 0 ? `₹${displayPrice.toFixed(2)}` : <span className="text-slate-500">--</span>}
                       </span>
+                      {displayPrice > 0 && (
+                        <span className={`flex items-center text-[10px] font-semibold ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isPos ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                          {isPos ? '+' : ''}{displayChgPct.toFixed(2)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                 </button>
@@ -313,11 +343,17 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
               )}
             </div>
 
-            {/* ATM IV Stat Badge */}
-            <div className="hidden sm:flex items-center gap-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl text-slate-400 font-mono">
-              <span>ATM IV</span>
-              <span className="text-white font-bold">9.71</span>
-            </div>
+            {/* ATM IV Stat Badge — computed from live chain data */}
+            {(() => {
+              const atmRow = chain.find(r => r.strikePrice === atmStrike);
+              const atmIv = atmRow?.ce?.iv ?? atmRow?.pe?.iv;
+              return atmIv && atmIv > 0 ? (
+                <div className="hidden sm:flex items-center gap-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl text-slate-400 font-mono">
+                  <span>ATM IV</span>
+                  <span className="text-white font-bold">{atmIv.toFixed(2)}</span>
+                </div>
+              ) : null;
+            })()}
           </div>
 
           {/* Mode Switcher Tabs (LTP & OI / OI / Greeks) */}
@@ -374,9 +410,31 @@ export const OptionChainView: React.FC<OptionChainProps> = ({ token, onRefreshWa
         </div>
       )}
 
-      {/* ── MAIN OPTION CHAIN TABLE ─────────────────────────────────── */}
-      <div ref={tableRef} className="bg-slate-900/95 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-xl">
-        <div className="overflow-x-auto">
+      {/* Fallback Banner for Outages / Upstream Delays */}
+      {((filteredChain.length === 0 && !loading) || fetchError) && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 my-1 text-center flex flex-col items-center justify-center gap-2 backdrop-blur-md">
+          <div className="flex items-center gap-2 text-amber-400 font-semibold text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>Live option chain data temporarily unavailable for {symbol} ({expiry || 'Nearest'}).</span>
+          </div>
+          <p className="text-xs text-slate-400 max-w-lg">
+            {fetchError ? `Provider Status: ${fetchError}. ` : ''}
+            The server-side WebSocket stream is attempting reconnection. Click retry or switch expiry.
+          </p>
+          <button
+            onClick={fetchOptionChain}
+            className="mt-1 px-4 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry Fetch
+          </button>
+        </div>
+      )}
+
+      {/* ── MAIN OPTION MATRIX TABLE CONTAINER ─────────────────────────── */}
+      <div 
+        ref={tableRef}
+        className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-xl relative"
+      >  <div className="overflow-x-auto">
           
           {/* DESKTOP TABLE VIEW */}
           <table className="w-full text-xs text-center border-collapse num-font tabular-nums hidden md:table">

@@ -1,6 +1,7 @@
 import { query, queryOne } from '../db/schema';
 import { VirtualWalletLedger } from '../trading/VirtualWalletLedger';
 import { MarketDataEngine } from '../marketData/MarketDataEngine';
+import LRU from 'lru-cache';
 
 export interface MarginQuoteRequest {
   userId: string;
@@ -121,7 +122,20 @@ export class MarginEngineService {
         exposureMargin = marginParams.exposureMarginRate * spotPrice * qty;
         additionalMargin = marginParams.additionalMarginRate * spotPrice * qty;
 
-        requiredMargin = spanMargin + exposureMargin + additionalMargin + charges.total;
+        const rawRequiredMargin = spanMargin + exposureMargin + additionalMargin + charges.total;
+
+        // ── DEFENSE-IN-DEPTH SANITY FLOOR GUARD ──────────────────────────────
+        // Option writing requires substantial capital. Floor prevents regex/spot bugs from bypassing RMS.
+        // Safety Floor: Min ₹500 per lot and at least 5% of contract nominal value.
+        const estimatedLots = Math.max(1, Math.round(qty / (req.underlying.includes('SENSEX') ? 20 : req.underlying.includes('BANK') ? 30 : req.underlying.includes('MIDCP') ? 120 : 65)));
+        const absoluteFloor = Math.max(500 * estimatedLots, 0.05 * spotPrice * qty);
+
+        if (rawRequiredMargin < absoluteFloor) {
+          console.warn(`[MarginEngine] 🛡️ RMS Sanity Floor Activated for ${req.underlying} Short Option (Raw: ₹${rawRequiredMargin.toFixed(2)}, Floor: ₹${absoluteFloor.toFixed(2)})`);
+          requiredMargin = absoluteFloor + charges.total;
+        } else {
+          requiredMargin = rawRequiredMargin;
+        }
       }
     } else {
       // EQUITY / FUTURES
@@ -262,18 +276,30 @@ export class MarginEngineService {
   }
 
   private getSpotPrice(underlying: string, token?: string): number {
-    if (token) {
-      const tick = MarketDataEngine.getInstance().getCachedTick(token);
-      if (tick && tick.ltp > 0) return tick.ltp;
-    }
-    const clean = underlying.toUpperCase();
-    if (clean.includes('BANK')) return 52200;
-    if (clean.includes('SENSEX')) return 80000;
-    return 24500;
+    const clean = (underlying || '').toUpperCase().replace(/^(NSE_|BSE_|NFO_|BFO_)/, '').trim();
+    let spotToken = 'NSE_NIFTY50';
+    if (clean.includes('SENSEX')) spotToken = 'BSE_SENSEX';
+    else if (clean.includes('BANK')) spotToken = 'NSE_BANKNIFTY';
+    else if (clean.includes('FIN')) spotToken = 'NSE_FINNIFTY';
+    else if (clean.includes('MIDCP')) spotToken = 'NSE_MIDCPNIFTY';
+    else if (clean.includes('NIFTY')) spotToken = 'NSE_NIFTY50';
+    else if (clean.length > 0 && !clean.includes(' ') && !clean.includes('_')) spotToken = `NSE_${clean}`;
+
+    const tick = MarketDataEngine.getInstance().getCachedTick(spotToken);
+    if (tick && tick.ltp > 0) return tick.ltp;
+
+    if (clean.includes('SENSEX')) return 77520;
+    if (clean.includes('BANK')) return 57600;
+    if (clean.includes('FIN')) return 26000;
+    if (clean.includes('MIDCP')) return 13200;
+    return 24250;
   }
 
   private cachedStatutoryConfig: { config: any; expiresAt: number } | null = null;
-  private cachedMarginParams = new Map<string, { params: any; expiresAt: number }>();
+  private cachedMarginParams = new LRU<string, { params: any; expiresAt: number }>({
+    max: 500,
+    ttl: 60000
+  });
 
   private async getMarginParams(underlying: string, exchange: string): Promise<any> {
     const clean = underlying.toUpperCase();
