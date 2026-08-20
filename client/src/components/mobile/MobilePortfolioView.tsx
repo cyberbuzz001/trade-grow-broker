@@ -156,14 +156,15 @@ export const MobilePortfolioView: React.FC<MobilePortfolioViewProps> = ({
       const avgPrice = parseFloat(pos.averagePrice || pos.average_price || 0);
       const ltp = getLiveLtp(pos);
       const uPnl = netQty > 0 ? (ltp - avgPrice) * netQty : absQty * (avgPrice - ltp);
-      const rPnl = parseFloat(pos.realizedPnl || pos.realized_pnl || 0);
-      return acc + uPnl + rPnl;
+      return acc + uPnl;
     }, 0);
   }, [openPositions, ticks]);
 
   const closedTradesPnl = useMemo(() => {
-    return closedTrades.reduce((acc, ct) => acc + parseFloat(ct.netPnl || ct.realizedPnl || 0), 0);
-  }, [closedTrades]);
+    return positions.length > 0
+      ? positions.reduce((acc, p) => acc + parseFloat(p.realizedPnl || p.realized_pnl || 0), 0)
+      : closedTrades.reduce((acc, ct) => acc + parseFloat(ct.netPnl || ct.realizedPnl || 0), 0);
+  }, [positions, closedTrades]);
 
   const totalCombinedPnl = positionsPnl + closedTradesPnl;
 

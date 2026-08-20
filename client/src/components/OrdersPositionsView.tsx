@@ -464,8 +464,9 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
     return acc + uPnl;
   }, 0);
 
-  const totalRealizedPnl = closedTrades.reduce((acc, ct) => acc + (ct.netPnl || 0), 0) +
-    positions.reduce((acc, p) => acc + parseFloat(p.realizedPnl || p.realized_pnl || 0), 0);
+  const totalRealizedPnl = positions.length > 0
+    ? positions.reduce((acc, p) => acc + parseFloat(p.realizedPnl || p.realized_pnl || 0), 0)
+    : closedTrades.reduce((acc, ct) => acc + (ct.netPnl || 0), 0);
 
   const totalPositionPnl = totalUnrealizedPnl + totalRealizedPnl;
 

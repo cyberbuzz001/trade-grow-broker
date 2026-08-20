@@ -728,7 +728,7 @@ export class DhanAdapter implements IMarketDataProvider {
     const cacheKey = `${cleanSym}_${targetExpiry}`;
 
     const cached = DhanAdapter.optionChainCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 10000) {
+    if (cached && Date.now() - cached.timestamp < 15000) {
       return cached.rows;
     }
 

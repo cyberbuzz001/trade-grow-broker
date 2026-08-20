@@ -356,11 +356,27 @@ export class PortfolioService {
       if (!tick) {
         const mNifty = symbol.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
         if (mNifty) {
-          tick = engine.getCachedTick(`NFO_NIFTY_${mNifty[1]}_${mNifty[2].toUpperCase()}`);
+          tick = engine.getCachedTick(`NFO_NIFTY_${mNifty[1]}_${mNifty[2].toUpperCase()}`) ||
+                 engine.getCachedTick(`NFO_NIFTY${mNifty[1]}${mNifty[2].toUpperCase()}`);
+        }
+        const mBank = symbol.match(/BANKNIFTY\s*(\d+)\s*(CE|PE)/i);
+        if (mBank) {
+          tick = engine.getCachedTick(`NFO_BANKNIFTY_${mBank[1]}_${mBank[2].toUpperCase()}`) ||
+                 engine.getCachedTick(`NFO_BANKNIFTY${mBank[1]}${mBank[2].toUpperCase()}`);
+        }
+        const mFin = symbol.match(/FINNIFTY\s*(\d+)\s*(CE|PE)/i);
+        if (mFin) {
+          tick = engine.getCachedTick(`NFO_FINNIFTY_${mFin[1]}_${mFin[2].toUpperCase()}`) ||
+                 engine.getCachedTick(`NFO_FINNIFTY${mFin[1]}${mFin[2].toUpperCase()}`);
+        }
+        const mMid = symbol.match(/MIDCPNIFTY\s*(\d+)\s*(CE|PE)/i);
+        if (mMid) {
+          tick = engine.getCachedTick(`NFO_MIDCPNIFTY_${mMid[1]}_${mMid[2].toUpperCase()}`);
         }
         const mSensex = symbol.match(/SENSEX\s*(\d+)\s*(CE|PE)/i);
         if (mSensex) {
-          tick = engine.getCachedTick(`BFO_SENSEX_${mSensex[1]}_${mSensex[2].toUpperCase()}`);
+          tick = engine.getCachedTick(`BFO_SENSEX_${mSensex[1]}_${mSensex[2].toUpperCase()}`) ||
+                 engine.getCachedTick(`BFO_SENSEX${mSensex[1]}${mSensex[2].toUpperCase()}`);
         }
       }
 
@@ -368,14 +384,17 @@ export class PortfolioService {
 
       // Fallback: If option position and no direct tick, compute live BS price anchored to live spot tick
       if ((!tick || tick.ltp <= 0) && ltp <= 0) {
-        const mNifty = symbol.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
-        if (mNifty) {
-          const strike = parseFloat(mNifty[1]);
-          const isCall = mNifty[2].toUpperCase() === 'CE';
-          const spotTick = engine.getCachedTick('NSE_NIFTY50');
+        const mOpt = symbol.match(/(NIFTY|BANKNIFTY|FINNIFTY|SENSEX)\s*(\d+)\s*(CE|PE)/i);
+        if (mOpt) {
+          const symName = mOpt[1].toUpperCase();
+          const strike = parseFloat(mOpt[2]);
+          const isCall = mOpt[3].toUpperCase() === 'CE';
+          const spotToken = symName === 'SENSEX' ? 'BSE_SENSEX' : symName === 'BANKNIFTY' ? 'NSE_BANKNIFTY' : symName === 'FINNIFTY' ? 'NSE_FINNIFTY' : 'NSE_NIFTY50';
+          const spotTick = engine.getCachedTick(spotToken);
           if (spotTick && spotTick.ltp > 0) {
             const timeToExpiryYears = 1.0 / 365.0;
-            const bsPrice = GreeksEngine.calculateOptionPrice(spotTick.ltp, strike, timeToExpiryYears, isCall, 0.14);
+            const iv = symName === 'SENSEX' ? 0.16 : symName === 'BANKNIFTY' ? 0.15 : 0.13;
+            const bsPrice = GreeksEngine.calculateOptionPrice(spotTick.ltp, strike, timeToExpiryYears, isCall, iv);
             ltp = Number(bsPrice.toFixed(2));
           }
         }
