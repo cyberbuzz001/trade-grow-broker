@@ -65,49 +65,10 @@ export class ExecutionEngine {
         const STALENESS_THRESHOLD_MS = 30000;
         let isStale = tick ? (Date.now() - tick.timestamp > STALENESS_THRESHOLD_MS) : true;
 
-        // Dynamic Black-Scholes fallback for options when option tick is missing/stale but underlying spot tick is live
-        const symbolUpper = (order.symbol || '').toUpperCase().trim();
-        const mNifty = symbolUpper.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
-        const mSensex = symbolUpper.match(/SENSEX\s*(\d+)\s*(CE|PE)/i);
-
-        if ((!tick || isStale) && (mNifty || mSensex)) {
-          const spotToken = mNifty ? 'NSE_NIFTY50' : 'BSE_SENSEX';
-          const spotTick = engine.getCachedTick(spotToken);
-
-          if (spotTick && spotTick.ltp > 0 && (Date.now() - spotTick.timestamp <= STALENESS_THRESHOLD_MS)) {
-            const strike = parseFloat(mNifty ? mNifty[1] : mSensex![1]);
-            const isCall = (mNifty ? mNifty[2] : mSensex![2]).toUpperCase() === 'CE';
-            const timeToExpiryYears = 1.0 / 365.0; // 1 day to expiry
-            const bsPrice = GreeksEngine.calculateOptionPrice(spotTick.ltp, strike, timeToExpiryYears, isCall, 0.14);
-
-            if (bsPrice > 0) {
-              tick = {
-                instrumentToken: order.instrument_token || order.symbol,
-                exchange: order.exchange || (mNifty ? 'NFO' : 'BFO'),
-                symbol: order.symbol,
-                ltp: Number(bsPrice.toFixed(2)),
-                open: Number(bsPrice.toFixed(2)),
-                high: Number(bsPrice.toFixed(2)),
-                low: Number(bsPrice.toFixed(2)),
-                close: Number(bsPrice.toFixed(2)),
-                volume: 10000,
-                change: 0,
-                changePercent: 0,
-                bid: Number((bsPrice * 0.998).toFixed(2)),
-                ask: Number((bsPrice * 1.002).toFixed(2)),
-                bidQty: 500,
-                askQty: 500,
-                timestamp: spotTick.timestamp
-              };
-              isStale = false;
-            }
-          }
-        }
-
-        // STRICT ACCURACY RULE: If market tick is missing or stale, DO NOT EXECUTE LIMIT ORDERS!
+        // STRICT ACCURACY RULE: Simulated orders must ONLY execute against real, fresh live market ticks!
         if (!tick || isStale) {
           if (process.env.DEBUG_ORDER_ENGINE === 'true') {
-            console.log(`[LIMIT_CHECK] Order ${order.order_id} (${order.symbol}): Waiting for live market tick (tick missing or stale)`);
+            console.log(`[ORDER_ENGINE] Order ${order.order_id} (${order.symbol}): Waiting for real live market tick`);
           }
           continue;
         }
