@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw, X } from 'lucide-react';
+import { DollarSign, CheckCircle, XCircle, Clock, ArrowDownLeft, ArrowUpRight, Lock, ShieldCheck, QrCode, Building, CreditCard, Save, RefreshCw, X, Sliders, AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface FundsDashboardProps { token: string; }
 
@@ -15,6 +15,17 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
   const [adjustAmount, setAdjustAmount] = useState<number>(50000);
   const [adjustReason, setAdjustReason] = useState<string>('Admin Balance Adjustment');
   const [submittingAdjust, setSubmittingAdjust] = useState(false);
+
+  // Partial Approval Modal State
+  const [partialModalReq, setPartialModalReq] = useState<any | null>(null);
+  const [partialAmountInput, setPartialAmountInput] = useState<number>(0);
+  const [partialAdminNote, setPartialAdminNote] = useState<string>('');
+  const [submittingPartial, setSubmittingPartial] = useState(false);
+
+  // Rejection Modal State
+  const [rejectModalReq, setRejectModalReq] = useState<any | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState<string>('Bank details mismatch / Verification required');
+  const [submittingReject, setSubmittingReject] = useState(false);
 
   // Admin Payment Settings State (LinkPe UPI & Bank Receiving Account)
   const [paymentSettings, setPaymentSettings] = useState<{
@@ -138,11 +149,13 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
   };
 
   const handleApprove = async (id: string, requestId: string) => {
+    if (!window.confirm(`Are you sure you want to approve the FULL amount for request ${requestId}?`)) return;
     setActionMsg(null);
     try {
       const res = await fetch(`/api/v1/admin/funds/requests/${id}/approve`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({})
       });
       const data = await res.json();
       if (data.success) {
@@ -156,29 +169,83 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
     }
   };
 
-  const handleReject = async (id: string, requestId: string) => {
-    const reason = window.prompt(`Enter rejection reason for request ${requestId}:`, 'Rejected by Admin');
-    if (reason === null) return;
+  const openPartialModal = (r: any) => {
+    setPartialModalReq(r);
+    const origAmt = parseFloat(r.amount) || 0;
+    setPartialAmountInput(Math.round(origAmt * 0.5)); // Default 50%
+    setPartialAdminNote(`Partial payment processed via ${r.payment_method || 'Bank'}`);
+  };
 
+  const handlePartialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!partialModalReq || !partialAmountInput || partialAmountInput <= 0) return;
+    const origAmt = parseFloat(partialModalReq.amount) || 0;
+    if (partialAmountInput >= origAmt) {
+      alert('Partial amount must be less than the full requested amount. Use "Approve Full" instead.');
+      return;
+    }
+
+    setSubmittingPartial(true);
     setActionMsg(null);
     try {
-      const res = await fetch(`/api/v1/admin/funds/requests/${id}/reject`, {
+      const res = await fetch(`/api/v1/admin/funds/requests/${partialModalReq.id}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ reason })
+        body: JSON.stringify({
+          approvedAmount: partialAmountInput,
+          adminNote: partialAdminNote
+        })
       });
       const data = await res.json();
       if (data.success) {
-        setActionMsg({ type: 'success', text: `Rejected request ${requestId}.` });
+        setActionMsg({ type: 'success', text: data.message || `Partially approved ₹${partialAmountInput.toLocaleString('en-IN')} for ${partialModalReq.request_id}.` });
+        setPartialModalReq(null);
+        fetchFundsData();
+      } else {
+        setActionMsg({ type: 'error', text: data.error?.message || 'Failed to partially approve request.' });
+      }
+    } catch (err: any) {
+      setActionMsg({ type: 'error', text: err.message });
+    } finally {
+      setSubmittingPartial(false);
+    }
+  };
+
+  const openRejectModal = (r: any) => {
+    setRejectModalReq(r);
+    setRejectReasonInput('Bank details mismatch / Verification required');
+  };
+
+  const handleRejectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectModalReq) return;
+
+    setSubmittingReject(true);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`/api/v1/admin/funds/requests/${rejectModalReq.id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: rejectReasonInput })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionMsg({ type: 'success', text: `Rejected request ${rejectModalReq.request_id}.` });
+        setRejectModalReq(null);
         fetchFundsData();
       } else {
         setActionMsg({ type: 'error', text: data.error?.message || 'Failed to reject request.' });
       }
     } catch (err: any) {
       setActionMsg({ type: 'error', text: err.message });
+    } finally {
+      setSubmittingReject(false);
     }
   };
 
@@ -339,10 +406,10 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
           </span>
         </div>
 
-        <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[980px]">
+        <div className="overflow-x-auto border border-slate-800 rounded-xl">
+          <table className="w-full text-left border-collapse min-w-[1080px]">
             <thead>
-              <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-950/60">
+              <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-950/80">
                 <th className="py-2.5 px-3">Req ID</th>
                 <th className="py-2.5 px-3">Client</th>
                 <th className="py-2.5 px-3">Type</th>
@@ -351,16 +418,16 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 <th className="py-2.5 px-3">Reference / Note</th>
                 <th className="py-2.5 px-3">Requested At</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
-                <th className="py-2.5 px-3 text-center min-w-[180px]">Action</th>
+                <th className="py-2.5 px-3 text-center min-w-[260px]">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-800 bg-slate-900/40">
               {requests.map((r: any) => (
-                <tr key={r.id} className="hover:bg-slate-800/40 transition">
+                <tr key={r.id} className="hover:bg-slate-800/50 transition">
                   <td className="py-2.5 px-3 font-mono font-bold text-amber-400 text-[11px]">{r.request_id}</td>
                   <td className="py-2.5 px-3">
                     <div className="font-bold text-white text-xs">{r.username}</div>
-                    <div className="text-[10px] text-slate-400">{r.email}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{r.email}</div>
                   </td>
                   <td className="py-2.5 px-3">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -374,42 +441,56 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                     ₹{parseFloat(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="py-2.5 px-3 text-[11px] text-slate-300 font-mono">{r.payment_method || 'BANK_TRANSFER'}</td>
-                  <td className="py-2.5 px-3 text-[11px] text-slate-400 max-w-[200px] truncate">{r.reference_note || '-'}</td>
-                  <td className="py-2.5 px-3 text-[10px] text-slate-500">{new Date(r.created_at).toLocaleString()}</td>
+                  <td className="py-2.5 px-3 text-[11px] text-slate-400 max-w-[220px] truncate" title={r.reference_note || ''}>
+                    {r.reference_note || '-'}
+                  </td>
+                  <td className="py-2.5 px-3 text-[10px] text-slate-500 font-mono">{new Date(r.created_at).toLocaleString()}</td>
                   <td className="py-2.5 px-3 text-center">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      r.status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      r.status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                      'bg-amber-950 text-amber-300 border border-amber-800'
+                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      r.status === 'APPROVED' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' :
+                      r.status === 'PARTIALLY_APPROVED' ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-700' :
+                      r.status === 'REJECTED' ? 'bg-rose-950/80 text-rose-400 border border-rose-800' :
+                      'bg-amber-950/80 text-amber-300 border border-amber-800 animate-pulse'
                     }`}>
-                      {r.status === 'PENDING' ? 'PENDING APPROVAL' : r.status}
+                      {r.status === 'PENDING' ? 'PENDING' : r.status === 'PARTIALLY_APPROVED' ? 'PARTIAL' : r.status}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-center min-w-[180px]">
+                  <td className="py-2.5 px-3 text-center min-w-[260px]">
                     {r.status === 'PENDING' ? (
-                      <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                         <button
                           onClick={() => handleApprove(r.id, r.request_id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                          className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                          title="Approve full requested amount"
                         >
-                          <CheckCircle className="w-3.5 h-3.5" /> Approve
+                          <CheckCircle className="w-3 h-3" /> Approve
                         </button>
+                        {r.request_type === 'WITHDRAWAL' && (
+                          <button
+                            onClick={() => openPartialModal(r)}
+                            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                            title="Approve partial withdrawal amount"
+                          >
+                            <Sliders className="w-3 h-3" /> Partial
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleReject(r.id, r.request_id)}
-                          className="bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                          onClick={() => openRejectModal(r)}
+                          className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition shadow flex items-center gap-1 shrink-0 cursor-pointer"
+                          title="Reject request with audit note"
                         >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
+                          <XCircle className="w-3 h-3" /> Reject
                         </button>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-slate-500">Processed</span>
+                      <span className="text-[10px] font-mono text-slate-500">Processed</span>
                     )}
                   </td>
                 </tr>
               ))}
               {requests.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-6 text-center text-slate-500">No deposit or withdrawal requests found.</td>
+                  <td colSpan={9} className="py-8 text-center text-slate-500 font-medium">No deposit or withdrawal requests found.</td>
                 </tr>
               )}
             </tbody>
@@ -606,6 +687,159 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
         </div>
       )}
 
+      {/* PARTIAL WITHDRAWAL APPROVAL MODAL */}
+      {partialModalReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Approve Partial Withdrawal</h3>
+                  <p className="text-[10px] text-slate-400">Request: <span className="font-mono text-amber-400 font-bold">{partialModalReq.request_id}</span> ({partialModalReq.username})</p>
+                </div>
+              </div>
+              <button onClick={() => setPartialModalReq(null)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={handlePartialSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono">
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Total Requested:</span>
+                  <span className="text-white font-bold text-sm">₹{parseFloat(partialModalReq.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block">Payment Method:</span>
+                  <span className="text-emerald-400 font-bold text-sm">{partialModalReq.payment_method || 'UPI'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Approved Amount (₹) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-slate-500 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={parseFloat(partialModalReq.amount) - 1}
+                    step="any"
+                    required
+                    value={partialAmountInput || ''}
+                    onChange={e => setPartialAmountInput(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-slate-950 border border-indigo-500/40 focus:border-indigo-500 rounded-xl py-2.5 pl-8 pr-3 text-white font-mono font-bold text-base focus:outline-none"
+                    placeholder="Enter partial amount..."
+                  />
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-400 mt-1.5 font-mono">
+                  <span>Retained in Wallet: <strong className="text-amber-400">₹{Math.max(0, parseFloat(partialModalReq.amount) - (partialAmountInput || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                  <span>Max: ₹{(parseFloat(partialModalReq.amount) - 1).toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Admin Audit Note / UTR Reference</label>
+                <input
+                  type="text"
+                  value={partialAdminNote}
+                  onChange={e => setPartialAdminNote(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs"
+                  placeholder="e.g. Approved tranche 1 payout via IMPS UTR 482910..."
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPartialModalReq(null)}
+                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPartial || !partialAmountInput || partialAmountInput <= 0 || partialAmountInput >= parseFloat(partialModalReq.amount)}
+                  className="w-1/2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {submittingPartial ? 'Processing...' : `Approve ₹${(partialAmountInput || 0).toLocaleString('en-IN')}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* REJECT REQUEST MODAL */}
+      {rejectModalReq && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Reject Fund Request</h3>
+                  <p className="text-[10px] text-slate-400">Request: <span className="font-mono text-amber-400 font-bold">{rejectModalReq.request_id}</span> ({rejectModalReq.username})</p>
+                </div>
+              </div>
+              <button onClick={() => setRejectModalReq(null)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={handleRejectSubmit} className="space-y-4 text-xs">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-xs flex justify-between">
+                <span className="text-slate-400">Requested Amount:</span>
+                <span className="text-rose-400 font-bold text-sm">₹{parseFloat(rejectModalReq.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Rejection Reason *</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={rejectReasonInput}
+                  onChange={e => setRejectReasonInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-rose-500/30 focus:border-rose-500 rounded-xl p-2.5 text-white text-xs focus:outline-none"
+                  placeholder="Enter rejection reason for client..."
+                />
+              </div>
+
+              {/* Quick Preset Badges */}
+              <div className="flex flex-wrap gap-1.5">
+                {['Bank details mismatch', 'Account verification required', 'Duplicate request', 'Turnover criteria pending'].map(tag => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setRejectReasonInput(tag)}
+                    className="text-[10px] bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg border border-slate-800 transition cursor-pointer"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectModalReq(null)}
+                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReject || !rejectReasonInput.trim()}
+                  className="w-1/2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {submittingReject ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* RECONCILE BANK RESERVES MODAL */}
       {showReconcileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
@@ -620,7 +854,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                   <p className="text-[10px] text-slate-400">Audit actual bank balance against total real-money liabilities</p>
                 </div>
               </div>
-              <button onClick={() => setShowReconcileModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><XCircle className="w-4 h-4" /></button>
+              <button onClick={() => setShowReconcileModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
 
             <form onSubmit={handleReconcileSubmit} className="space-y-3 text-xs">

@@ -685,6 +685,8 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
     const reqId = id as string;
     const actorId = req.user!.userId;
     const actorRole = req.user!.role;
+    const customApprovedAmount = req.body?.approvedAmount !== undefined && req.body?.approvedAmount !== null ? parseFloat(req.body.approvedAmount) : null;
+    const adminNote = req.body?.adminNote ? String(req.body.adminNote).trim() : '';
 
     const result = await withTransaction(async (client) => {
       // 1. Lock fund request row FOR UPDATE
@@ -701,7 +703,17 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
         throw new Error(`INVALID_STATUS:Request is already ${request.status}`);
       }
 
-      const amount = parseFloat(request.amount);
+      const originalRequestedAmount = parseFloat(request.amount);
+      const isPartial = customApprovedAmount !== null && customApprovedAmount > 0 && customApprovedAmount < originalRequestedAmount;
+      const amount = isPartial ? customApprovedAmount : originalRequestedAmount;
+
+      if (amount <= 0) {
+        throw new Error('INVALID_AMOUNT:Approved amount must be greater than zero');
+      }
+      if (amount > originalRequestedAmount) {
+        throw new Error(`INVALID_AMOUNT:Approved amount (₹${amount}) cannot exceed requested amount (₹${originalRequestedAmount})`);
+      }
+
       const userId = request.user_id;
 
       if (request.request_type === 'DEPOSIT') {
@@ -709,7 +721,7 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
         if (request.reference_note && request.reference_note.trim().length > 0) {
           const dupRes = await client.query(
             `SELECT id, request_id FROM fund_requests 
-             WHERE payment_method = $1 AND reference_note = $2 AND status = 'APPROVED' AND id != $3 LIMIT 1`,
+             WHERE payment_method = $1 AND reference_note = $2 AND status IN ('APPROVED', 'PARTIALLY_APPROVED') AND id != $3 LIMIT 1`,
             [request.payment_method || 'UPI', request.reference_note.trim(), request.id]
           );
           if (dupRes.rows.length > 0) {
@@ -741,9 +753,10 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
             amount, currentCash, newCash,
             request.request_id, actorId,
             JSON.stringify({ 
-              reason: `Approved Deposit ${request.request_id}`, 
+              reason: isPartial ? `Partially Approved Deposit ${request.request_id} (₹${amount} of ₹${originalRequestedAmount})` : `Approved Deposit ${request.request_id}`, 
               paymentMethod: request.payment_method, 
               referenceNote: request.reference_note,
+              adminNote: adminNote || undefined,
               approvedBy: actorId
             })
           ]
@@ -803,28 +816,41 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
             amount, currentCash, newCash,
             request.request_id, actorId,
             JSON.stringify({ 
-              reason: `Approved Withdrawal Payout ${request.request_id}`, 
+              reason: isPartial ? `Partially Approved Withdrawal ${request.request_id} (₹${amount} of ₹${originalRequestedAmount})` : `Approved Withdrawal Payout ${request.request_id}`, 
               paymentMethod: request.payment_method, 
               referenceNote: request.reference_note,
+              adminNote: adminNote || undefined,
               approvedBy: actorId 
             })
           ]
         );
       }
 
-      // Update fund request status
+      const finalStatus = isPartial ? 'PARTIALLY_APPROVED' : 'APPROVED';
+      const updatedNote = isPartial 
+        ? `${request.reference_note ? request.reference_note + ' | ' : ''}Partially approved ₹${amount.toLocaleString('en-IN')} of ₹${originalRequestedAmount.toLocaleString('en-IN')}${adminNote ? ` (${adminNote})` : ''}`
+        : (adminNote ? `${request.reference_note ? request.reference_note + ' | ' : ''}${adminNote}` : request.reference_note);
+
+      // Update fund request status & amount
       await client.query(
-        `UPDATE fund_requests SET status = 'APPROVED', approved_by = $1, approved_at = NOW(), updated_at = NOW() WHERE id = $2`,
-        [actorId, request.id]
+        `UPDATE fund_requests SET status = $1, amount = $2, reference_note = $3, approved_by = $4, approved_at = NOW(), updated_at = NOW() WHERE id = $5`,
+        [finalStatus, amount, updatedNote, actorId, request.id]
       );
 
-      return { escalated: false, message: `Fund request ${request.request_id} APPROVED and wallet updated.` };
+      return { 
+        escalated: false, 
+        isPartial,
+        approvedAmount: amount,
+        message: isPartial 
+          ? `Fund request ${request.request_id} PARTIALLY APPROVED for ₹${amount.toLocaleString('en-IN')} (Requested: ₹${originalRequestedAmount.toLocaleString('en-IN')}).`
+          : `Fund request ${request.request_id} APPROVED for ₹${amount.toLocaleString('en-IN')} and wallet updated.`
+      };
     });
 
     await logAuditAction(
       actorId, actorRole,
       'APPROVE_FUND_REQUEST', 'FUND_REQUEST', reqId,
-      null, { reqId }, getClientIp(req)
+      null, { reqId, customApprovedAmount, adminNote }, getClientIp(req)
     );
 
     res.json({ success: true, ...result });
