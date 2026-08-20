@@ -181,6 +181,9 @@ export class InstrumentMasterService {
 
       if (!securityId) continue;
       count++;
+      if (count % 2000 === 0) {
+        await new Promise(r => setImmediate(r));
+      }
 
       const segment = segmentCode === 'D' ? (exchange === 'BSE' ? 'BSE_FNO' : 'NSE_FNO') : segmentCode === 'I' ? (exchange === 'BSE' ? 'IDX_I' : 'NSE_INDEX') : (exchange === 'BSE' ? 'BSE_EQ' : 'NSE_EQ');
       const expiryDate = expiryDateStr ? expiryDateStr.split(' ')[0] : '';
