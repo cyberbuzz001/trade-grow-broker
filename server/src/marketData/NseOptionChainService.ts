@@ -198,7 +198,7 @@ export class NseOptionChainService extends EventEmitter {
       const cookies = await this.getCookies();
       const res = await fetch(url, {
         headers: { ...NSE_HEADERS, Cookie: cookies },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (!res.ok) {

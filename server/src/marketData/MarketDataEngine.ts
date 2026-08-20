@@ -150,15 +150,14 @@ export class MarketDataEngine {
   }
 
   /**
-   * 3-Second Auto-Failover Monitor:
-   * Constantly evaluates Dhan stream health. If Dhan goes quiet for >3000ms,
-   * seamlessly promotes Fyers as the active live streamer.
+   * Auto-Failover Monitor (checks every 5 seconds):
+   * Evaluates Dhan stream health. If Dhan goes quiet for >25000ms during market hours,
+   * cleanly toggles failover to Fyers without leaking callbacks.
    */
   private startFailoverMonitor(): void {
     if (this.failoverTimer) clearInterval(this.failoverTimer);
 
     this.failoverTimer = setInterval(() => {
-      // Only monitor during market hours or if off-market live feed is enabled
       const inMarket = MarketDataEngine.isMarketHours() || process.env.ALLOW_OFF_MARKET_LIVE_DATA === 'true';
       if (!inMarket) return;
 
@@ -166,20 +165,13 @@ export class MarketDataEngine {
         const now = Date.now();
         const dhanQuietMs = this.lastDhanTickTime > 0 ? (now - this.lastDhanTickTime) : 0;
 
-        // If Dhan has received initial ticks and has gone quiet > 3000ms
-        if (this.lastDhanTickTime > 0 && dhanQuietMs > 3000 && !this.failoverActive) {
-          console.warn(`[AutoFailover] ⚠️ Dhan tick timeout (${dhanQuietMs}ms > 3000ms threshold). Promoting FYERS as active live streaming provider!`);
+        // If Dhan has received initial ticks and has gone quiet > 25000ms
+        if (this.lastDhanTickTime > 0 && dhanQuietMs > 25000 && !this.failoverActive) {
+          console.warn(`[AutoFailover] ⚠️ Dhan tick timeout (${dhanQuietMs}ms > 25000ms threshold). Promoting FYERS as active live streaming provider!`);
           this.failoverActive = true;
-          // Ensure Fyers is subscribed
-          this.fyersProvider.subscribe(Array.from(this.subscribedTokens), (tick) => {
-            this.lastFyersTickTime = Date.now();
-            if (this.failoverActive) {
-              this.broadcastTick(tick);
-            }
-          });
         }
       }
-    }, 500);
+    }, 5000);
   }
 
   public getActiveProviderName(): string {
