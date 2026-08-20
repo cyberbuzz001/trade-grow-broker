@@ -13,5 +13,6 @@ declare module 'lru-cache' {
     readonly length: number;
     readonly size: number;
   }
+  export default LRU;
   export = LRU;
 }
