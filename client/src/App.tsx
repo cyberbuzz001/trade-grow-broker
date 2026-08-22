@@ -336,7 +336,7 @@ function AppRoot() {
               <Route path="/admin/*" element={
                 <div className="p-2 pb-24">
                   {isStaffUser(user.role) ? (
-                    <AdminPanel token={token} />
+                    <AdminPanel token={token} theme={theme} onToggleTheme={toggleTheme} />
                   ) : (
                     <div className="p-4 text-center text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl border border-rose-500/20 my-8">
                       Admin access restricted to authorized staff accounts.
@@ -500,7 +500,7 @@ function AppRoot() {
             <Route path="/admin/*" element={
               <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
                 {isStaffUser(user.role) ? (
-                  <AdminPanel token={token} />
+                  <AdminPanel token={token} theme={theme} onToggleTheme={toggleTheme} />
                 ) : (
                   <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto my-12 space-y-4 shadow-xl">
                     <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center mx-auto">

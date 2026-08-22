@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, FileCheck, Activity, ShieldAlert, Power,
-  Wifi, DollarSign, BookOpen, Server, FileText, ChevronLeft, ChevronRight
+  Wifi, DollarSign, BookOpen, Server, FileText, ChevronLeft, ChevronRight,
+  Sun, Moon
 } from 'lucide-react';
 import { AdminDashboard } from './admin/AdminDashboard';
 import { CustomerList } from './admin/CustomerList';
@@ -22,6 +23,8 @@ import { QrCode as QrCodeIcon, ShieldCheck } from 'lucide-react';
 
 interface AdminPanelProps {
   token: string;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 type AdminPage =
@@ -36,7 +39,7 @@ interface NavItem {
   badge?: string;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ token, theme, onToggleTheme }) => {
   const [activePage, setActivePage] = useState<AdminPage>('DASHBOARD');
   const [collapsed, setCollapsed] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -94,18 +97,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
   const currentLabel = navItems.find(n => n.key === activePage)?.label || 'Customer 360';
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-[#0a0f1e] overflow-hidden">
-      
+    <div className="flex flex-col md:flex-row h-full bg-[var(--bg-body)] overflow-hidden">
+
       {/* Mobile Top Navigation Pills Bar (< 768px) */}
-      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto p-2 bg-[#0c1222] border-b border-slate-800 shrink-0">
+      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto p-2 bg-[var(--bg-surface)] border-b border-[var(--border-color)] shrink-0">
         {navItems.map(item => (
           <button
             key={item.key}
             onClick={() => setActivePage(item.key)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
               activePage === item.key
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'text-slate-400 bg-slate-800/40 border border-slate-700/30'
+                ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30'
+                : 'text-[var(--text-muted)] bg-[var(--bg-surface-elevated)] border border-[var(--border-color)]'
             }`}
           >
             {item.icon}
@@ -115,18 +118,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
       </div>
 
       {/* Desktop Sidebar Navigation (>= 768px) */}
-      <div className={`hidden md:flex flex-col border-r border-slate-800 bg-[#0c1222] transition-all duration-300 ${collapsed ? 'w-14' : 'w-56'}`}>
+      <div className={`hidden md:flex flex-col border-r border-[var(--border-color)] bg-[var(--bg-surface)] transition-all duration-[var(--duration-normal)] ${collapsed ? 'w-14' : 'w-56'}`}>
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between p-3 border-b border-slate-800">
+        <div className="flex items-center justify-between p-3 border-b border-[var(--border-color)]">
           {!collapsed && (
             <div>
-              <h2 className="text-xs font-bold text-white flex items-center gap-1.5">
+              <h2 className="text-xs font-bold text-[var(--text-main)] flex items-center gap-1.5">
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-500" /> Admin Center
               </h2>
-              <span className="text-[9px] text-slate-500">Brokerage Control Panel</span>
+              <span className="text-[9px] text-[var(--text-muted)]">Brokerage Control Panel</span>
             </div>
           )}
-          <button onClick={() => setCollapsed(!collapsed)} className="p-1 text-slate-500 hover:text-white rounded hover:bg-slate-800">
+          <button onClick={() => setCollapsed(!collapsed)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded hover:bg-[var(--bg-surface-elevated)]">
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
@@ -139,15 +142,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
             return (
               <div key={section} className="mb-1">
                 {!collapsed && (
-                  <span className="text-[9px] text-slate-600 uppercase font-bold tracking-wider px-3 block mb-1 mt-2">{section}</span>
+                  <span className="text-[9px] text-[var(--text-tertiary)] uppercase font-bold tracking-wider px-3 block mb-1 mt-2">{section}</span>
                 )}
                 {items.map(item => (
                   <button key={item.key} onClick={() => setActivePage(item.key)}
                     title={item.label}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-all ${
                       activePage === item.key
-                        ? 'bg-emerald-900/30 text-emerald-400 border-r-2 border-emerald-500 font-bold'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                        ? 'bg-[var(--primary-light)] text-[var(--primary)] border-r-2 border-[var(--primary)] font-bold'
+                        : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)]'
                     } ${collapsed ? 'justify-center px-0' : ''}`}>
                     {item.icon}
                     {!collapsed && <span className="truncate">{item.label}</span>}
@@ -161,8 +164,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
 
         {/* Sidebar Footer */}
         {!collapsed && (
-          <div className="p-3 border-t border-slate-800">
-            <div className="text-[9px] text-slate-600">
+          <div className="p-3 border-t border-[var(--border-color)]">
+            <div className="text-[9px] text-[var(--text-tertiary)]">
               <span className="block">🔒 Core Trading Engine</span>
               <span className="block">Real Money: DISABLED</span>
             </div>
@@ -173,14 +176,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ token }) => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Bar */}
-        <div className="flex items-center justify-between px-3 md:px-5 py-2.5 border-b border-slate-800 bg-[#0c1222]">
+        <div className="flex items-center justify-between px-3 md:px-5 py-2.5 border-b border-[var(--border-color)] bg-[var(--bg-surface)]">
           <div>
-            <h1 className="text-xs md:text-sm font-bold text-white">{currentLabel}</h1>
-            <span className="text-[9px] text-slate-500 hidden sm:inline">Admin Control Center — Brokerage Operations</span>
+            <h1 className="text-xs md:text-sm font-bold text-[var(--text-main)]">{currentLabel}</h1>
+            <span className="text-[9px] text-[var(--text-muted)] hidden sm:inline">Admin Control Center — Brokerage Operations</span>
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Live</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+              <span className="w-2 h-2 rounded-full bg-[var(--gain)] animate-pulse" />
+              <span>Live</span>
+            </div>
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                className="p-1.5 rounded-lg bg-[var(--bg-surface-elevated)] border border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
+                title="Toggle theme"
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
+              </button>
+            )}
           </div>
         </div>
 
