@@ -83,60 +83,32 @@ export class MarketDataEngine {
   }
 
   public async initialize(): Promise<void> {
-    const inMarketHours = MarketDataEngine.isMarketHours();
-    const allowOffMarketLive = process.env.ALLOW_OFF_MARKET_LIVE_DATA === 'true';
-
-    console.log(`[MarketDataEngine] 🚀 Initializing Hybrid Market Data Engine...`);
-    console.log(`[MarketDataEngine] IST Market Hours: ${inMarketHours ? 'OPEN (9:15 AM - 3:30 PM IST)' : 'CLOSED (Off-Market Override: ' + allowOffMarketLive + ')'}`);
+    console.log(`[MarketDataEngine] 🚀 Initializing Dhan-Only Market Data Engine...`);
 
     const defaultTokens = [
       'NSE_NIFTY50', 'NSE_BANKNIFTY', 'BSE_SENSEX', 'NSE_FINNIFTY', 'NSE_MIDCPNIFTY',
       'NSE_RELIANCE', 'NSE_TCS', 'NSE_INFY', 'NSE_HDFCBANK', 'NSE_ICICIBANK', 'NSE_TATAMOTORS',
-      'MCX_CRUDEOIL', 'MCX_GOLD', 'MCX_GOLDM', 'MCX_SILVERM', 'MCX_NATURALGAS', 'MCX_COPPER',
-      'NFO_NIFTY_24500_CE', 'NFO_NIFTY_24500_PE'
     ];
 
     defaultTokens.forEach(t => this.subscribedTokens.add(t));
 
-    // 1. Initialize Dhan (Primary Live Streamer)
+    // Initialize Dhan as the ONLY provider
     try {
       await this.dhanProvider.initialize();
       this.dhanProvider.subscribe(Array.from(this.subscribedTokens), (tick) => {
         this.lastDhanTickTime = Date.now();
-        // If failover was active and Dhan has now recovered for >= 10s, restore Dhan
-        if (this.failoverActive && this.lastDhanTickTime > 0) {
-          console.log('[AutoFailover] ✅ Dhan live stream healthy & recovered. Restoring Dhan as primary live provider.');
-          this.failoverActive = false;
-        }
-
-        if (!this.failoverActive && this.configuredProviderName === 'DHAN') {
-          this.broadcastTick(tick);
-        }
+        this.broadcastTick(tick);
       });
     } catch (err: any) {
       console.warn('[MarketDataEngine] Dhan initialization warning:', err.message);
     }
 
-    // 2. Initialize Fyers (Historical Candles, Greeks & Hot Standby Streamer)
-    try {
-      await this.fyersProvider.initialize();
-      this.fyersProvider.subscribe(Array.from(this.subscribedTokens), (tick) => {
-        this.lastFyersTickTime = Date.now();
-        if (this.failoverActive || this.configuredProviderName === 'FYERS') {
-          this.broadcastTick(tick);
-        }
-      });
-    } catch (err: any) {
-      console.warn('[MarketDataEngine] Fyers initialization warning:', err.message);
-    }
+    // Fyers is DISABLED — it was causing WebSocket crash-reconnect storms
+    // that blocked the Node.js event loop and caused 504 errors.
+    this.activeProvider = this.dhanProvider;
+    this.configuredProviderName = 'DHAN';
 
-    // 3. Set Active Provider Reference
-    this.activeProvider = this.configuredProviderName === 'FYERS' ? this.fyersProvider : this.dhanProvider;
-
-    // 4. Start 3-Second Auto-Failover Monitor
-    this.startFailoverMonitor();
-
-    console.log(`[MarketDataEngine] ✅ Hybrid Engine Ready | Live Ticks: DHAN | Candles & Greeks: FYERS | Failover Guard: ACTIVE (3.0s threshold)`);
+    console.log(`[MarketDataEngine] ✅ Dhan-Only Engine Ready | Live Ticks: DHAN | Option Chain: DHAN | Fyers: DISABLED`);
   }
 
   /**
@@ -282,11 +254,8 @@ export class MarketDataEngine {
     const cached = this.getCachedTick(instrumentToken);
     if (cached) return cached;
 
-    // Try active provider (Dhan/Fyers)
-    let tick = await this.activeProvider.getQuote(instrumentToken);
-    if (!tick && this.activeProvider !== this.fyersProvider) {
-      tick = await this.fyersProvider.getQuote(instrumentToken);
-    }
+    // Dhan only — Fyers is disabled
+    const tick = await this.dhanProvider.getQuote(instrumentToken);
     if (tick) {
       this.setCachedTick(tick);
     }
@@ -301,19 +270,10 @@ export class MarketDataEngine {
     if (!tokens || tokens.length === 0) return;
     tokens.forEach(t => this.subscribedTokens.add(t));
 
-    // Subscribe on both Dhan and Fyers so hot-standby has zero warm-up delay
+    // Dhan only — subscribe new tokens directly
     this.dhanProvider.subscribe(tokens, (tick) => {
       this.lastDhanTickTime = Date.now();
-      if (!this.failoverActive && this.configuredProviderName === 'DHAN') {
-        this.broadcastTick(tick);
-      }
-    });
-
-    this.fyersProvider.subscribe(tokens, (tick) => {
-      this.lastFyersTickTime = Date.now();
-      if (this.failoverActive || this.configuredProviderName === 'FYERS') {
-        this.broadcastTick(tick);
-      }
+      this.broadcastTick(tick);
     });
   }
 
@@ -322,47 +282,16 @@ export class MarketDataEngine {
   }
 
   /**
-   * Feed Splitting: Multi-Timeframe Historical Candles are served by Fyers v3 API
-   * (falling back to Dhan or Mock if needed)
+   * Historical Candles — Dhan only (Fyers disabled)
    */
   public async getHistoricalCandles(instrumentToken: string, timeframe: string, count: number): Promise<Candle[]> {
-    try {
-      // 1. Primary Candle Provider: FYERS v3 (Best historical multi-timeframe resolution)
-      const fyersCandles = await this.fyersProvider.getHistoricalCandles(instrumentToken, timeframe, count);
-      if (fyersCandles && fyersCandles.length > 0) {
-        return fyersCandles;
-      }
-    } catch (err: any) {
-      console.warn(`[MarketDataEngine] Fyers candle fetch failed for ${instrumentToken}: ${err.message}. Falling back to Dhan.`);
-    }
-
-    // 2. Secondary Candle Provider Fallback: Dhan
-    try {
-      const dhanCandles = await this.dhanProvider.getHistoricalCandles(instrumentToken, timeframe, count);
-      if (dhanCandles && dhanCandles.length > 0) {
-        return dhanCandles;
-      }
-    } catch (_) {}
-
-    // 3. Final Fallback: Active Provider
-    return this.activeProvider.getHistoricalCandles(instrumentToken, timeframe, count);
+    return this.dhanProvider.getHistoricalCandles(instrumentToken, timeframe, count);
   }
 
   /**
-   * Feed Splitting: Option Chain & Black-Scholes Greeks are calculated via Fyers / OptionChainEngine
+   * Option Chain — Dhan only (Fyers disabled)
    */
   public async getOptionChain(symbol: string, expiry: string): Promise<OptionChainItem[]> {
-    try {
-      // 1. Primary Option Chain & Greeks Provider: FYERS v3
-      const chain = await this.fyersProvider.getOptionChain(symbol, expiry);
-      if (chain && chain.length > 0) {
-        return chain;
-      }
-    } catch (err: any) {
-      console.warn(`[MarketDataEngine] Fyers option chain failed for ${symbol}: ${err.message}. Falling back to Dhan.`);
-    }
-
-    // 2. Secondary Fallback: Dhan
     return this.dhanProvider.getOptionChain(symbol, expiry);
   }
 

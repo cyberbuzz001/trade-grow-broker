@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import argon2 from 'argon2';
 import rateLimit from 'express-rate-limit';
 import { query, queryOne, execute } from '../db/schema';
-import { authenticateToken, checkRole, AuthenticatedRequest, getJwtSecret, getRefreshSecret } from '../middleware/auth';
+import { authenticateToken, checkRole, checkPermission, AuthenticatedRequest, getJwtSecret, getRefreshSecret } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import {
   RegisterSchema, LoginSchema, SubmitOrderSchema,
@@ -254,7 +254,7 @@ router.post('/auth/login', authLimiter, validateBody(LoginSchema), async (req: R
 
 router.get('/auth/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const wallet = await VirtualWalletLedger.getWallet(req.user!.userId);
-  const uRow = await queryOne<any>('SELECT id, username, email, role, full_name, phone_number, city, address, date_of_birth, is_kyc_completed FROM users WHERE id = $1', [req.user!.userId]);
+  const uRow = await queryOne<any>('SELECT id, username, email, role, full_name, phone_number, city, address, date_of_birth, is_kyc_completed, risk_restriction FROM users WHERE id = $1', [req.user!.userId]);
   const kycApp = await queryOne<any>('SELECT status FROM kyc_applications WHERE user_id = $1', [req.user!.userId]);
   const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
 
@@ -270,9 +270,32 @@ router.get('/auth/me', authenticateToken, async (req: AuthenticatedRequest, res)
     address: uRow?.address || '',
     dateOfBirth: uRow?.date_of_birth || '',
     isKycCompleted: !!isKycOk,
-    kycStatus: kycApp?.status || (isKycOk ? 'APPROVED' : 'NOT_STARTED')
+    kycStatus: kycApp?.status || (isKycOk ? 'APPROVED' : 'NOT_STARTED'),
+    riskRestriction: uRow?.risk_restriction || null
   };
   res.json({ success: true, user, wallet });
+});
+
+// Non-secret risk parameters a client needs to render real (not hardcoded)
+// leverage/cutoff figures on Portfolio → Analytics. Deliberately not gated by
+// checkPermission('RMS_VIEW') like /admin/risk-settings — that endpoint
+// returns the full settings row set (including ones not meant for a client
+// display) to staff only; this returns a fixed, tiny, non-secret subset to
+// any authenticated user, mirroring what the UI already showed as static text.
+router.get('/risk-info', authenticateToken, async (req, res) => {
+  const rows = await query<any>(
+    `SELECT key, value FROM system_settings WHERE key IN ('INTRADAY_LEVERAGE_MULTIPLIER', 'MIS_AUTO_SQUARE_OFF_TIME', 'MIS_AUTO_SQUARE_OFF_ENABLED')`
+  );
+  const byKey: Record<string, string> = {};
+  rows.forEach((r) => { byKey[r.key] = r.value; });
+  res.json({
+    success: true,
+    riskInfo: {
+      intradayLeverageMultiplier: parseFloat(byKey.INTRADAY_LEVERAGE_MULTIPLIER || '5'),
+      misAutoSquareOffTime: byKey.MIS_AUTO_SQUARE_OFF_TIME || '15:15',
+      misAutoSquareOffEnabled: byKey.MIS_AUTO_SQUARE_OFF_ENABLED !== 'false'
+    }
+  });
 });
 
 router.get('/user/profile', authenticateToken, async (req: AuthenticatedRequest, res) => {
@@ -834,10 +857,23 @@ router.get('/market/synthetic-candles', async (req: Request, res: Response) => {
 // ============================================================
 // 4. ORDERS & SIMULATED TRADING API
 // ============================================================
-router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
+async function handleOrderSubmission(req: AuthenticatedRequest, res: Response) {
   try {
     const userId = req.user!.userId;
-    const uRow = await queryOne<any>('SELECT is_kyc_completed, role FROM users WHERE id = $1', [userId]);
+    const uRow = await queryOne<any>('SELECT is_kyc_completed, role, status FROM users WHERE id = $1', [userId]);
+
+    // Account-status re-check at order acceptance — previously only checked
+    // at login, so a suspended/disabled account could keep trading for the
+    // life of its session. Same query already ran here for KYC, so this
+    // costs no additional DB round trip.
+    if (uRow && uRow.status !== 'ACTIVE') {
+      res.status(403).json({
+        success: false,
+        error: { code: 'ACCOUNT_DISABLED', message: 'Account is suspended or disabled' }
+      });
+      return;
+    }
+
     const kycApp = await queryOne<any>('SELECT status FROM kyc_applications WHERE user_id = $1', [userId]);
     const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
 
@@ -871,44 +907,12 @@ router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrder
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
-});
+}
 
-// Alias kept for backward compatibility — delegates to canonical /orders endpoint
-router.post('/orders/place', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), async (req: AuthenticatedRequest, res) => {
-  try {
-    const userId = req.user!.userId;
-    const uRow = await queryOne<any>('SELECT is_kyc_completed, role FROM users WHERE id = $1', [userId]);
-    const kycApp = await queryOne<any>('SELECT status FROM kyc_applications WHERE user_id = $1', [userId]);
-    const isKycOk = uRow?.is_kyc_completed || ['APPROVED', 'SUBMITTED'].includes(kycApp?.status) || ['SUPER_ADMIN', 'ADMIN'].includes(uRow?.role);
+router.post('/orders', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), handleOrderSubmission);
 
-    if (!isKycOk) {
-      res.status(403).json({
-        success: false,
-        error: {
-          code: 'KYC_REQUIRED',
-          message: 'KYC Verification Required: Please complete your KYC details under Profile before placing orders.'
-        }
-      });
-      return;
-    }
-
-    const { instrumentToken, exchange, symbol, side, quantity, price, triggerPrice, orderType, productType } = req.body;
-    const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
-    const result = await OMS.submitOrder({
-      userId: req.user!.userId, instrumentToken, exchange, symbol, side,
-      quantity: parseInt(quantity, 10), price: parseFloat(price || 0),
-      triggerPrice: parseFloat(triggerPrice || 0), orderType, productType,
-      idempotencyKey
-    });
-    if (!result.success) {
-      res.status(400).json({ success: false, error: { code: 'ORDER_REJECTED', message: result.error } });
-      return;
-    }
-    res.json({ success: true, orderId: result.orderId, message: 'Simulated Order Accepted' });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
-  }
-});
+// Alias kept for backward compatibility — delegates to the same handler as /orders
+router.post('/orders/place', authenticateToken, orderLimiter, validateBody(SubmitOrderSchema), handleOrderSubmission);
 
 router.get('/orders', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const limit  = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
@@ -1118,11 +1122,31 @@ router.post('/funds/instant', authenticateToken, async (req: AuthenticatedReques
 router.post('/funds/reset-margin', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.user!.userId;
+
+    // Previously zeroed used_margin/realized_pnl/unrealized_pnl unconditionally
+    // for any authenticated user, with no check for real open exposure — a
+    // user with a live losing position could erase it from their own wallet
+    // figures without ever closing it. Block the reset while anything is open.
+    const [openPosition, pendingOrder] = await Promise.all([
+      queryOne<any>('SELECT id FROM positions WHERE user_id = $1 AND net_qty != 0 LIMIT 1', [userId]),
+      queryOne<any>(`SELECT id FROM orders WHERE user_id = $1 AND status IN ('ACCEPTED','PENDING','EXECUTING') LIMIT 1`, [userId]),
+    ]);
+    if (openPosition || pendingOrder) {
+      res.status(409).json({
+        success: false,
+        error: { code: 'OPEN_EXPOSURE', message: 'Cannot reset balance while positions or orders are open. Close them first.' }
+      });
+      return;
+    }
+
     const defaultCapital = parseFloat(process.env.DEFAULT_VIRTUAL_CAPITAL || '1000000');
     await execute(
-      `UPDATE virtual_wallets SET cash_balance = $1, used_margin = 0, realized_pnl = 0, unrealized_pnl = 0, updated_at = NOW() WHERE user_id = $2`,
+      `UPDATE virtual_wallets SET cash_balance = $1, realized_pnl = 0, unrealized_pnl = 0, updated_at = NOW() WHERE user_id = $2`,
       [defaultCapital, userId]
     );
+    // No open positions/orders were confirmed above, so this resolves to 0 —
+    // routed through the authoritative recompute rather than hardcoding it.
+    await VirtualWalletLedger.recomputeUsedMarginForUser(userId);
     await execute(
       `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
        VALUES ($1, $2, $3, 'MARGIN_RESET', $4, 0, $4, $5, $6, $7)`,
@@ -1287,12 +1311,12 @@ router.get('/admin/audit-logs', authenticateToken, checkRole(['SUPER_ADMIN', 'AD
   res.json({ success: true, logs, pagination: { limit, offset } });
 });
 
-router.get('/admin/risk-settings', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req, res) => {
+router.get('/admin/risk-settings', authenticateToken, checkPermission('RMS_VIEW'), async (req, res) => {
   const settings = await query('SELECT key, value, description, updated_at FROM system_settings WHERE is_secret = FALSE');
   res.json({ success: true, settings });
 });
 
-router.post('/admin/risk-settings', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), validateBody(UpdateRiskSettingSchema), async (req: AuthenticatedRequest, res) => {
+router.post('/admin/risk-settings', authenticateToken, checkPermission('RISK_LIMITS_EDIT'), validateBody(UpdateRiskSettingSchema), async (req: AuthenticatedRequest, res) => {
   const { key, value } = req.body;
 
   // Guard: Never allow disabling safety lock through API
@@ -1551,18 +1575,6 @@ router.get('/funds/my-requests', authenticateToken, async (req: AuthenticatedReq
       [req.user!.userId]
     );
     res.json({ success: true, requests });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.post('/funds/reset-margin', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    await execute(
-      `UPDATE virtual_wallets SET cash_balance = 1000000, used_margin = 0, updated_at = NOW() WHERE user_id = $1`,
-      [req.user!.userId]
-    );
-    res.json({ success: true, message: 'Wallet balance reset to ₹10,00,000 successfully.' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -60,6 +60,25 @@ export class SymbologyNormalizer {
   }
 
   /**
+   * Parses underlying/strike/optionType out of a raw symbol or instrument
+   * token string (e.g. 'NIFTY 24500 CE', 'NFO_NIFTY_24500_CE', 'NIFTY24500CE').
+   * Returns null when the string doesn't match the expected option-symbol
+   * shape (e.g. an equity symbol) — callers should treat that as "not an
+   * option", not fabricate a partial result.
+   */
+  public static parseOptionSymbol(symbol: string): { underlying: string; strike: number; optionType: 'CE' | 'PE' } | null {
+    if (!symbol) return null;
+    const optRegex = /(?:^(?:NFO|BFO|NSE|BSE)_)?([A-Z]+)[_\s\d-]*?(\d+(?:\.\d+)?)[_\s]*(CE|PE)$/i;
+    const match = symbol.match(optRegex);
+    if (!match) return null;
+    return {
+      underlying: match[1].toUpperCase(),
+      strike: parseFloat(match[2]),
+      optionType: match[3].toUpperCase() as 'CE' | 'PE',
+    };
+  }
+
+  /**
    * Generates canonical internal instrument token: NFO_NIFTY_24500_CE or BFO_SENSEX_78400_CE
    */
   public static toInternalToken(underlying: string, strike: number, optionType: 'CE' | 'PE'): string {

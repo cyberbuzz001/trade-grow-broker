@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import argon2 from 'argon2';
-import { authenticateToken, checkRole, AuthenticatedRequest } from '../middleware/auth';
+import { authenticateToken, checkRole, checkPermission, AuthenticatedRequest } from '../middleware/auth';
+import { SYSTEM_PERMISSION_CATEGORIES } from '../config/permissionCatalog';
 import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { logAuditAction } from '../middleware/audit';
 import { VirtualWalletLedger } from '../trading/VirtualWalletLedger';
@@ -14,6 +15,7 @@ import { updateDhanToken, getTokenExpiryMinutes, setDhanAdapterRef } from '../ut
 import { updateFyersToken, setFyersAdapterRef, generateFyersAuthUrl, exchangeAuthCodeForToken } from '../utils/fyersTokenRefresh';
 import { ClientCreationService } from '../services/ClientCreationService';
 import { adminEventBus } from '../utils/adminEventBus';
+import { RmsAutoSquareOffEngine } from '../trading/RmsAutoSquareOffEngine';
 
 
 function getClientIp(req: Request): string {
@@ -72,7 +74,7 @@ router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), as
       queryOne<any>("SELECT COUNT(*) as c FROM risk_events WHERE severity = 'HIGH' AND resolved = FALSE"),
       queryOne<any>("SELECT COUNT(*) as c FROM risk_events WHERE event_type = 'MARGIN_ALERT' AND resolved = FALSE"),
       queryOne<any>("SELECT COUNT(*) as c FROM risk_events WHERE event_type = 'RMS_BLOCK' AND resolved = FALSE"),
-      queryOne<any>("SELECT COUNT(*) as c FROM users WHERE status = 'FROZEN'"),
+      queryOne<any>("SELECT COUNT(*) as c FROM users WHERE status = 'SUSPENDED'"),
     ]);
 
     const dbHealth = await checkDatabaseHealth();
@@ -367,7 +369,9 @@ router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (r
 router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
-  await execute("UPDATE users SET status = 'FROZEN', updated_at = NOW() WHERE id = $1", [targetId]);
+  // 'FROZEN' was never a legal value for users.status (only for virtual_wallets.status) —
+  // this previously violated the users_status_check constraint on every real call.
+  await execute("UPDATE users SET status = 'SUSPENDED', updated_at = NOW() WHERE id = $1", [targetId]);
   await logAuditAction(req.user!.userId, req.user!.role, 'FREEZE_ACCOUNT', 'USER', targetId, null, { reason }, getClientIp(req));
   res.json({ success: true, message: 'Account frozen' });
 });
@@ -520,7 +524,7 @@ router.get('/risk/dashboard', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
     queryOne<any>('SELECT COALESCE(SUM(used_margin), 0) as s FROM virtual_wallets WHERE used_margin > 0'),
     query("SELECT u.id, u.username, u.email, w.cash_balance, w.used_margin FROM users u JOIN virtual_wallets w ON u.id = w.user_id WHERE w.used_margin > w.cash_balance * 0.8 LIMIT 20"),
     query("SELECT * FROM risk_events WHERE event_type = 'MARGIN_ALERT' AND resolved = FALSE ORDER BY created_at DESC LIMIT 50"),
-    query("SELECT u.id, u.username, u.email FROM users u WHERE u.status = 'FROZEN'"),
+    query("SELECT u.id, u.username, u.email FROM users u WHERE u.status = 'SUSPENDED'"),
     query("SELECT * FROM risk_events WHERE event_type = 'RMS_BLOCK' AND resolved = FALSE ORDER BY created_at DESC LIMIT 50")
   ]);
 
@@ -1313,18 +1317,16 @@ router.post('/orders/:orderId/cancel', authenticateToken, checkRole(ADMIN_ROLES)
       return;
     }
 
-    await execute(`UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`, [order.id]);
+    await withTransaction(async (client: any) => {
+      await client.query(`UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`, [order.id]);
+      // Cancelled order drops out of the pending-order margin sum on its own — no separate release calc needed.
+      await VirtualWalletLedger.recomputeUsedMarginForUser(order.user_id, client);
+    });
     await execute(
       `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
        VALUES ($1, $2, $3, 'CANCELLED', $4, 'ADMIN')`,
       ['evt_' + generateUUID(), order.id, order.status, reason || 'Cancelled by Admin']
     );
-
-    const leverageMultiplier = order.product_type === 'MIS' ? 0.20 : 1.0;
-    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10) * leverageMultiplier;
-    if (marginToRelease > 0) {
-      await VirtualWalletLedger.releaseMargin(order.user_id, marginToRelease, order.order_id, 'ADMIN_CANCEL');
-    }
 
     await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_CANCEL_ORDER', 'ORDER', order.id, null, { reason }, getClientIp(req));
 
@@ -1378,17 +1380,15 @@ router.post('/orders/:orderId/reject', authenticateToken, checkRole(ADMIN_ROLES)
       return;
     }
 
-    await execute(`UPDATE orders SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`, [order.id]);
+    await withTransaction(async (client: any) => {
+      await client.query(`UPDATE orders SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`, [order.id]);
+      await VirtualWalletLedger.recomputeUsedMarginForUser(order.user_id, client);
+    });
     await execute(
       `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
        VALUES ($1, $2, $3, 'REJECTED', $4, 'ADMIN')`,
       ['evt_' + generateUUID(), order.id, order.status, reason || 'Rejected by Admin']
     );
-
-    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10);
-    if (marginToRelease > 0) {
-      await VirtualWalletLedger.releaseMargin(order.user_id, marginToRelease, order.order_id, 'ADMIN_REJECT');
-    }
 
     await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_REJECT_ORDER', 'ORDER', order.id, null, { reason }, getClientIp(req));
 
@@ -1465,7 +1465,7 @@ router.post('/positions/:id/edit', authenticateToken, checkRole(ADMIN_ROLES), as
   }
 });
 
-router.post('/positions/:id/square-off', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/positions/:id/square-off', authenticateToken, checkPermission('POSITIONS_FORCE_CLOSE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const positionId = req.params.id as string;
     const { price } = req.body;
@@ -1500,14 +1500,12 @@ router.post('/positions/:id/square-off', authenticateToken, checkRole(ADMIN_ROLE
       );
 
       const tradeVal = exitPrice * exitQty;
-      const blockedMargin = pos.product_type === 'MIS' ? tradeVal * 0.20 : tradeVal;
 
       await VirtualWalletLedger.settleTradeExecutionInTransaction(
         client,
         pos.user_id,
         exitSide,
         tradeVal,
-        blockedMargin,
         res.releasedPositionCapital,
         res.realizedPnlDelta,
         'ADMIN_SQUARE_OFF'
@@ -1517,6 +1515,19 @@ router.post('/positions/:id/square-off', authenticateToken, checkRole(ADMIN_ROLE
     await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_SQUARE_OFF_POSITION', 'POSITION', positionId, null, { exitSide, exitQty, exitPrice }, getClientIp(req));
 
     res.json({ success: true, message: `Position ${pos.symbol} squared off by admin @ ₹${exitPrice}.` });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
+// Manual trigger for the scheduled MIS auto square-off engine — same code
+// path the daily cron job calls, so admins can verify behavior (in
+// SIMULATION mode, or LIVE) without waiting for the configured cutoff time.
+router.post('/rms/auto-square-off/run', authenticateToken, checkPermission('RMS_SQUAREOFF_RUN'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const summary = await RmsAutoSquareOffEngine.run();
+    await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_TRIGGER_RMS_AUTO_SQUARE_OFF', 'SYSTEM', 'rms-engine', null, summary, getClientIp(req));
+    res.json({ success: true, ...summary });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -2527,51 +2538,9 @@ router.post('/customers/:id/kyc/request-reupload', authenticateToken, checkRole(
 // ============================================================
 // 30. PERMISSIONS & ROLE-BASED ACCESS CONTROL (RBAC) DASHBOARD
 // ============================================================
-
-const SYSTEM_PERMISSION_CATEGORIES = [
-  {
-    category: 'Financial Operations',
-    description: 'Wallet credits, withdrawals, direct balance adjustments & reserve management',
-    permissions: [
-      { key: 'DEPOSITS_APPROVE', label: 'Approve Deposits', description: 'Review and approve client UPI, Bank, and Gateway deposit receipts', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER'] },
-      { key: 'WITHDRAWALS_APPROVE', label: 'Approve Withdrawals', description: 'Authorize client withdrawal payout and bank settlement transfers', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER'] },
-      { key: 'DIRECT_BALANCE_ADJUST', label: 'Direct Balance Adjustment', description: 'Manually credit or debit user trading capital with audited ledger entry', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-      { key: 'PAYMENT_GATEWAYS_MANAGE', label: 'Manage Payment Gateways', description: 'Configure LinkPe merchant keys, QR codes, and bank accounts', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-      { key: 'RESERVES_RECONCILE', label: 'Reserve & Solvency Audit', description: 'Audit broker physical bank cash reserves vs user aggregate liabilities', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER'] },
-    ]
-  },
-  {
-    category: 'Trading & Risk Oversight',
-    description: 'Order execution, kill-switches, margin limits, and emergency square-offs',
-    permissions: [
-      { key: 'SIM_ORDER_CANCEL', label: 'Force-Cancel Orders', description: 'Cancel pending and executing simulated equity & derivative orders', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER'] },
-      { key: 'POSITIONS_FORCE_CLOSE', label: 'Force-Liquidate Positions', description: 'Emergency market square-off open positions for margin calls', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER'] },
-      { key: 'RISK_LIMITS_EDIT', label: 'Configure Risk Parameters', description: 'Modify margin multipliers, intraday leverage, and MTM loss limits', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER'] },
-      { key: 'KILL_SWITCH_TRIGGER', label: 'Platform Kill Switch', description: 'Halt all order placements and market execution platform-wide', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER'] },
-    ]
-  },
-  {
-    category: 'Operations & User Management',
-    description: 'Account creation, customer status freezes, KYC approvals, and credentials',
-    permissions: [
-      { key: 'KYC_VERIFY_APPROVE', label: 'Approve KYC Applications', description: 'Verify Aadhaar, PAN, and bank details for trading accounts', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'MANAGER'] },
-      { key: 'KYC_REJECT', label: 'Reject / Request KYC Re-upload', description: 'Reject incomplete documents and trigger customer re-upload requests', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER'] },
-      { key: 'USER_CREATE', label: 'Create New Customer', description: 'Manually provision new client profile and initial simulated capital', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
-      { key: 'USER_LOCK_UNLOCK', label: 'Lock / Freeze Accounts', description: 'Temporarily freeze customer accounts to prevent logins and trading', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER'] },
-      { key: 'USER_RESET_PASSWORD', label: 'Issue Password Resets', description: 'Generate one-time reset credentials for user account recovery', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
-    ]
-  },
-  {
-    category: 'Audit, Feeds & System Security',
-    description: 'Compliance audit trail, PII visibility, exchange feed credentials, and staff RBAC',
-    permissions: [
-      { key: 'VIEW_AUDIT_LOGS', label: 'View Immutable Audit Trail', description: 'Inspect timestamped actor logs for all admin and financial actions', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_MANAGER', 'READ_ONLY_AUDITOR'] },
-      { key: 'VIEW_PII', label: 'View Unmasked PII', description: 'Access unmasked client phone numbers, emails, and KYC documentation', defaultRoles: ['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER'] },
-      { key: 'MARKET_DATA_CONFIG', label: 'Market Data & Feeds Config', description: 'Configure Angel One / Dhan API keys and market data download storage', defaultRoles: ['SUPER_ADMIN', 'ADMIN'] },
-      { key: 'MANAGE_ROLES_PERMISSIONS', label: 'Manage Roles & Permissions', description: 'Assign staff roles and configure user granular permission overrides', defaultRoles: ['SUPER_ADMIN', 'ADMIN'] },
-    ]
-  }
-];
+// SYSTEM_PERMISSION_CATEGORIES relocated to ../config/permissionCatalog
+// (Phase 3) so middleware/auth.ts's checkPermission can import it without a
+// circular dependency on this route file.
 
 // GET: System Permission Definitions & Default Matrix
 router.get('/permissions/matrix', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {

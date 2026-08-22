@@ -18,7 +18,8 @@ import { setupWebSocketServer } from './websocket/server';
 import apiRouter from './routes/api';
 import adminApiRouter from './routes/adminApi';
 import { SafetyLock } from './services/SafetyLock';
-import { startCronJobs, stopCronJobs } from './utils/cronJobs';
+import { startCronJobs, stopCronJobs, startMisAutoSquareOffJob } from './utils/cronJobs';
+import { startRmsLossMonitor } from './trading/RmsLossMonitor';
 import { setDhanAdapterRef } from './utils/dhanTokenRefresh';
 import { setFyersAdapterRef } from './utils/fyersTokenRefresh';
 
@@ -144,23 +145,30 @@ async function startServer() {
 
         await MarketDataEngine.getInstance().initialize();
 
-        // Start Price Feed Reconciliation Monitor
+        // NSE scraper & AccuracyCheck DISABLED — Dhan provides all data
+        // import('./services/ReconciliationMonitorService') — keep monitor but at 5 min interval
         import('./services/ReconciliationMonitorService')
-          .then(({ reconciliationMonitor }) => reconciliationMonitor.start(60000))
+          .then(({ reconciliationMonitor }) => reconciliationMonitor.start(300000))
           .catch((err) => console.error('[Startup] Failed to start ReconciliationMonitorService:', err.message));
 
-        // Start NSE Live Index & Dual-Feed Spot Guard
-        import('./marketData/NseOptionChainService')
-          .then(({ nseOptionChainService }) => nseOptionChainService.start())
-          .catch((err) => console.error('[Startup] Failed to start NseOptionChainService:', err.message));
-
-        // Start Automated Option Chain Pricing Accuracy Check
-        import('./services/AccuracyCheckService')
-          .then(({ accuracyCheckService }) => accuracyCheckService.start())
-          .catch((err) => console.error('[Startup] Failed to start AccuracyCheckService:', err.message));
+        // AccuracyCheckService DISABLED — comparing model vs Dhan data directly
+        // NseOptionChainService DISABLED — NSE scraper blocked (HTTP 404), Dhan handles option chain
 
         ExecutionEngine.start();
         setupWebSocketServer(server);
+
+        // Started unconditionally — deliberately NOT nested inside the
+        // Dhan-adapter check below. EOD risk cleanup must still run even if
+        // the market-data provider failed to initialize; that's exactly when
+        // it matters most.
+        startMisAutoSquareOffJob();
+        console.log('[Startup] ✅ RMS auto square-off scheduler started.');
+
+        // Also unconditional, and for a stronger reason: a Dhan outage is
+        // exactly when volatility/blow-out risk is highest, so this safety
+        // net must not silently go dark along with the feed.
+        startRmsLossMonitor();
+        console.log('[Startup] ✅ RMS continuous loss-tier monitor started.');
 
         const engine = MarketDataEngine.getInstance();
         const dhanProvider = (engine as any).providers?.get('DHAN');
@@ -172,11 +180,8 @@ async function startServer() {
           console.warn('[Startup] ⚠️ DhanAdapter not found — cron jobs not started.');
         }
 
-        const fyersProvider = (engine as any).providers?.get('FYERS');
-        if (fyersProvider) {
-          setFyersAdapterRef(fyersProvider);
-          console.log('[Startup] ✅ FyersAdapter reference registered for token hot-swapping.');
-        }
+        // Fyers is DISABLED — was causing crash-reconnect storms and 504 errors
+        console.log('[Startup] ✅ Fyers provider DISABLED. Running Dhan-only mode.');
 
         console.log('[Startup] ✅ All background market data engines & WebSocket services initialized cleanly.');
       } catch (bgErr: any) {

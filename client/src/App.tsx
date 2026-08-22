@@ -1,60 +1,74 @@
 import React, { useState, useEffect } from 'react';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+  useSearchParams,
+} from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import { User, Wallet, MarketTick, isStaffUser } from './types';
 import { MarketSocketProvider } from './hooks/useMarketSocket';
-import { GrowwHeader } from './components/GrowwHeader';
-import { GrowwSubNav, SubView } from './components/GrowwSubNav';
+import { AppShell } from './components/AppShell';
 import { GrowwExploreView } from './components/GrowwExploreView';
-import { GrowwHoldingsView } from './components/GrowwHoldingsView';
 import { GrowwWatchlistView } from './components/GrowwWatchlistView';
 import { GrowwTerminalView } from './components/GrowwTerminalView';
 import { OptionChainView } from './components/OptionChainView';
 import { OrdersPositionsView } from './components/OrdersPositionsView';
+import { PortfolioHoldingsAnalyticsView } from './components/PortfolioHoldingsAnalyticsView';
 import { AdminPanel } from './components/AdminPanel';
 import { AuthModal } from './components/AuthModal';
 import { GlobalSearchModal } from './components/GlobalSearchModal';
-import { UserProfileModal } from './components/UserProfileModal';
-import { CustomerSupportModal } from './components/CustomerSupportModal';
-import { LinkPeAddFundsModal } from './components/LinkPeAddFundsModal';
-import { McxCommodityView } from './components/McxCommodityView';
-import { PortfolioAnalyticsView } from './components/PortfolioAnalyticsView';
-import { ClientProfileView } from './components/ClientProfileView';
+import { ProfilePage } from './components/ProfilePage';
+import { OrderPreviewModal, OrderPreviewDetails } from './components/OrderPreviewModal';
 
-import { MobileBottomNav } from './components/mobile/MobileBottomNav';
-import { MobileHomeView } from './components/mobile/MobileHomeView';
-import { MobilePortfolioView } from './components/mobile/MobilePortfolioView';
-import { MobileWatchlistView } from './components/mobile/MobileWatchlistView';
-import { MobileProfileView } from './components/mobile/MobileProfileView';
-import { MobileOrderModal } from './components/mobile/MobileOrderModal';
+import { MobileChartModal } from './components/mobile/MobileChartModal';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Route <-> legacy-state mapping.
+//
+// This is Task 1 of the client panel redesign (.design/client-panel-redesign/
+// TASKS.md): introduce real URLs for every page. Deliberately narrow scope —
+// every route below still renders the EXACT SAME child components (desktop
+// vs mobile split included) that the old state-switch rendered; unifying
+// mobile/desktop into one responsive component per page is each page's own
+// later task, not this one. The one small, deliberate behavior change here
+// is noted below (category scoping).
+// ─────────────────────────────────────────────────────────────────────────
+
+const SEARCH_TAB_TO_PATH: Record<string, string> = {
+  EXPLORE: '/', HOLDINGS: '/portfolio/holdings', POSITIONS: '/portfolio/positions',
+  ORDERS: '/portfolio/orders', WATCHLIST: '/watchlist', OPTION_CHAIN: '/option-chain',
+  ADMIN: '/admin', PORTFOLIO: '/portfolio/positions', TERMINAL: '/terminal',
+};
 
 export function App() {
+  return (
+    <BrowserRouter>
+      <AppRoot />
+    </BrowserRouter>
+  );
+}
+
+function AppRoot() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
-  
 
-  // Responsive / Mobile View Mode State
   const [isMobileScreen, setIsMobileScreen] = useState<boolean>(window.innerWidth < 768);
-  const [activeMobileTab, setActiveMobileTab] = useState<'HOME' | 'PORTFOLIO' | 'POSITIONS' | 'WATCHLIST' | 'ORDERS' | 'OPTION_CHAIN' | 'ADMIN' | 'PROFILE'>('HOME');
-  
-  // Mobile Quick Order Modal State
-  const [selectedMobileStock, setSelectedMobileStock] = useState<{ name: string; symbol: string; price: number } | null>(null);
+
+  // Mobile Quick Order state — same OrderPreviewModal every other page uses,
+  // not a separate ad hoc sheet (the old mobile/MobileOrderModal.tsx this
+  // replaced was deleted in the dead-code-removal task).
+  const [mobileOrderDetails, setMobileOrderDetails] = useState<OrderPreviewDetails | null>(null);
+  const [mobileWatchlistChart, setMobileWatchlistChart] = useState<{ symbol: string; token: string; exchange: string } | null>(null);
   const [isMobileOrderModalOpen, setIsMobileOrderModalOpen] = useState<boolean>(false);
 
-  // Desktop Groww Category & Sub-View State
-  const [activeCategory, setActiveCategory] = useState<'STOCKS' | 'FO' | 'MUTUAL_FUNDS' | 'COMMODITIES'>('STOCKS');
-  const [activeSubView, setActiveSubView] = useState<SubView>('EXPLORE');
-  const [isTerminalMode, setIsTerminalMode] = useState<boolean>(false);
-
-  const [terminalToken, setTerminalToken] = useState<string>('NSE_RELIANCE');
-  const [terminalSymbol, setTerminalSymbol] = useState<string>('RELIANCE');
   const [ticks, setTicks] = useState<Map<string, MarketTick>>(new Map());
-  
+
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [profileInitialTab, setProfileInitialTab] = useState<'PROFILE' | 'KYC' | 'FUNDS' | 'PERMISSIONS' | 'SECURITY' | 'SUPPORT' | 'APPEARANCE'>('PROFILE');
-  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
-  const [isLinkPeModalOpen, setIsLinkPeModalOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       return (localStorage.getItem('user_theme') as 'light' | 'dark') || 'light';
@@ -62,6 +76,9 @@ export function App() {
       return 'light';
     }
   });
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Detect Mobile Viewport
   useEffect(() => {
@@ -206,401 +223,346 @@ export function App() {
   };
 
   if (!token || !user) {
-    return <AuthModal onSuccess={(t: string) => setToken(t)} />;
+    return <AuthModal onSuccess={(t: string) => { localStorage.setItem('token', t); setToken(t); }} />;
   }
 
+  // ProfilePage owns real routes now (/profile/:tab) — this just translates the
+  // legacy uppercase tab keys still passed by GrowwExploreView/AppShell call
+  // sites into a route navigation, instead of opening a modal (there is no
+  // longer a profile modal; the old UserProfileModal/LinkPeAddFundsModal/
+  // CustomerSupportModal/ClientProfileView/MobileProfileView files it
+  // superseded were all deleted in the dead-code-removal task).
+  const PROFILE_TAB_TO_PATH: Record<string, string> = {
+    PROFILE: 'account', KYC: 'kyc', BANK: 'bank', SECURITY: 'security',
+    FUNDS: 'funds', SUPPORT: 'support', PERMISSIONS: 'permissions', APPEARANCE: 'appearance',
+  };
+  const goToProfileTab = (tab?: string) => navigate(`/profile/${PROFILE_TAB_TO_PATH[tab || 'PROFILE'] || 'account'}`);
 
-  // ── 2. GOGROW MOBILE APP VIEW (FOR MOBILE VIEWPORTS < 768PX) ────────────────
+  // Quick-order entry points (search result tap, chart BUY/SELL) don't carry
+  // strike/expiry/lots — those fields are simply unused for a plain equity
+  // order, same convention GrowwWatchlistView/OptionChainView already use for
+  // their own non-option OrderPreviewModal calls. Resolves a live tick when
+  // the caller didn't already have one (search results only pass a token).
+  const openMobileQuickOrder = (opts: { symbol: string; price?: number; side?: 'BUY' | 'SELL'; exchange?: string; token?: string }) => {
+    const exchange = opts.exchange || 'NSE';
+    const tickKey = opts.token || `${exchange}_${opts.symbol}`;
+    const livePrice = ticks.get(tickKey)?.ltp || opts.price || 0;
+    setMobileOrderDetails({
+      token: tickKey,
+      symbol: opts.symbol,
+      underlying: opts.symbol,
+      exchange,
+      expiry: '',
+      strike: 0,
+      optionType: 'CE',
+      side: opts.side || 'BUY',
+      lots: 1,
+      lotSize: 1,
+      quantity: 1,
+      price: livePrice,
+      orderType: 'MARKET',
+      productType: 'MIS',
+    });
+    setIsMobileOrderModalOpen(true);
+  };
+
+  // ── MOBILE SHELL (<768px) ──────────────────────────────────────────────
   if (isMobileScreen) {
     return (
       <MarketSocketProvider userToken={token}>
         <div className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] font-sans flex flex-col w-full max-w-full overflow-x-hidden">
-          {/* Mobile View Container */}
           <div className="flex-1 max-w-lg mx-auto w-full">
-            {activeMobileTab === 'HOME' && (
-              <MobileHomeView
-                user={user}
-                wallet={wallet}
-                ticks={ticks}
-                theme={theme}
-                onToggleTheme={toggleTheme}
-                onOpenSearch={() => setIsSearchOpen(true)}
-                onSelectStock={(symbol, name, price) => {
-                  setSelectedMobileStock({ symbol, name, price });
-                  setIsMobileOrderModalOpen(true);
-                }}
-                onOpenQuickOrder={(stock) => {
-                  setSelectedMobileStock({ symbol: stock.symbol, name: stock.name, price: stock.price });
-                  setIsMobileOrderModalOpen(true);
-                }}
-                onOpenOptionChain={() => setActiveMobileTab('OPTION_CHAIN')}
-              />
-            )}
+            <Routes>
+              <Route path="/" element={
+                <div className="px-3 pt-3">
+                  <GrowwExploreView
+                    token={token}
+                    wallet={wallet}
+                    ticks={ticks}
+                    theme={theme}
+                    onOpenSearch={() => setIsSearchOpen(true)}
+                    onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')}
+                    onOpenProfile={goToProfileTab}
+                    onSelectSymbol={(symbol, price) => openMobileQuickOrder({ symbol, price })}
+                  />
+                </div>
+              } />
 
-            {activeMobileTab === 'PORTFOLIO' && (
-              <MobilePortfolioView
-                ticks={ticks}
-                token={token}
-                wallet={wallet}
-                onBack={() => setActiveMobileTab('HOME')}
-                onSelectStock={(symbol, name, price) => {
-                  setSelectedMobileStock({ symbol, name, price });
-                  setIsMobileOrderModalOpen(true);
-                }}
-              />
-            )}
+              <Route path="/portfolio" element={<Navigate to="/portfolio/positions" replace />} />
+              <Route path="/portfolio/positions" element={
+                <div className="p-3">
+                  <OrdersPositionsView token={token} initialTab="POSITIONS" onRefreshWallet={fetchWallet} onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')} riskRestriction={user?.riskRestriction} />
+                </div>
+              } />
+              <Route path="/portfolio/orders" element={
+                <div className="p-3">
+                  <OrdersPositionsView token={token} initialTab="ORDERS" onRefreshWallet={fetchWallet} onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')} riskRestriction={user?.riskRestriction} />
+                </div>
+              } />
+              <Route path="/portfolio/history" element={
+                <div className="p-3">
+                  <OrdersPositionsView token={token} initialTab="TRADE_HISTORY" onRefreshWallet={fetchWallet} onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')} riskRestriction={user?.riskRestriction} />
+                </div>
+              } />
+              <Route path="/portfolio/holdings" element={
+                <div className="p-3">
+                  <PortfolioHoldingsAnalyticsView token={token || ''} wallet={wallet} riskRestriction={user?.riskRestriction} onRefreshWallet={fetchWallet} initialTab="HOLDINGS" />
+                </div>
+              } />
+              <Route path="/portfolio/analytics" element={
+                <div className="p-3">
+                  <PortfolioHoldingsAnalyticsView token={token || ''} wallet={wallet} riskRestriction={user?.riskRestriction} onRefreshWallet={fetchWallet} initialTab="ANALYTICS" />
+                </div>
+              } />
 
-            {activeMobileTab === 'OPTION_CHAIN' && (
-              <div className="p-2 pb-24">
-                <OptionChainView token={token} ticks={ticks} onRefreshWallet={fetchWallet} />
-              </div>
-            )}
+              <Route path="/option-chain" element={
+                <div className="p-2 pb-24">
+                  <OptionChainView token={token} ticks={ticks} onRefreshWallet={fetchWallet} riskRestriction={user?.riskRestriction} />
+                </div>
+              } />
 
-            {activeMobileTab === 'POSITIONS' && (
-              <MobilePortfolioView
-                ticks={ticks}
-                token={token}
-                wallet={wallet}
-                theme={theme}
-                onBack={() => setActiveMobileTab('HOME')}
-                onSelectStock={(symbol, name, price) => {
-                  setSelectedMobileStock({ symbol, name, price });
-                  setIsMobileOrderModalOpen(true);
-                }}
-                onOpenOptionChain={() => setActiveMobileTab('OPTION_CHAIN')}
-              />
-            )}
+              <Route path="/watchlist" element={
+                <div className="p-3 pb-24">
+                  <GrowwWatchlistView
+                    token={token || ''}
+                    ticks={ticks}
+                    onRefreshWallet={fetchWallet}
+                    onSelectSymbolForTerminal={(symbol, chartToken, exchange) => setMobileWatchlistChart({ symbol, token: chartToken, exchange })}
+                    riskRestriction={user?.riskRestriction}
+                  />
+                </div>
+              } />
 
-            {activeMobileTab === 'WATCHLIST' && (
-              <div className="p-3 pb-24">
-                <MobileWatchlistView
-                  token={token || ''}
-                  ticks={ticks}
-                  theme={theme}
-                  onOpenQuickOrder={(stock) => {
-                    setSelectedMobileStock({ symbol: stock.symbol, name: stock.name, price: stock.price });
-                    setIsMobileOrderModalOpen(true);
-                  }}
-                  onOpenOptionChain={() => setActiveMobileTab('OPTION_CHAIN')}
-                />
-              </div>
-            )}
+              <Route path="/admin/*" element={
+                <div className="p-2 pb-24">
+                  {isStaffUser(user.role) ? (
+                    <AdminPanel token={token} />
+                  ) : (
+                    <div className="p-4 text-center text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl border border-rose-500/20 my-8">
+                      Admin access restricted to authorized staff accounts.
+                    </div>
+                  )}
+                </div>
+              } />
 
-            {activeMobileTab === 'ADMIN' && (
-              <div className="p-2 pb-24">
-                {user && ['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'MANAGER', 'DEALER', 'ANALYST'].includes(user.role) ? (
-                  <AdminPanel token={token} />
-                ) : (
-                  <div className="p-4 text-center text-xs text-rose-500 font-bold bg-rose-500/10 rounded-xl border border-rose-500/20 my-8">
-                    Admin access restricted to authorized staff accounts.
-                  </div>
-                )}
-              </div>
-            )}
+              <Route path="/profile" element={<Navigate to="/profile/account" replace />} />
+              <Route path="/profile/:tab" element={
+                <div className="p-3 pb-24">
+                  <ProfilePage user={user} wallet={wallet} token={token} theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} onRefreshWallet={fetchWallet} />
+                </div>
+              } />
 
-            {activeMobileTab === 'PROFILE' && (
-              <MobileProfileView
-                user={user}
-                wallet={wallet}
-                token={token}
-                theme={theme}
-                onToggleTheme={toggleTheme}
-                onBack={() => setActiveMobileTab('HOME')}
-                onLogout={handleLogout}
-                onOpenProfileModal={(tab) => {
-                  setProfileInitialTab(tab || 'PROFILE');
-                  setIsProfileModalOpen(true);
-                }}
-                onOpenSupportModal={() => setIsSupportModalOpen(true)}
-                onOpenAdmin={() => setActiveMobileTab('ADMIN')}
-                onRefreshWallet={fetchWallet}
-              />
-            )}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
 
-          {/* GoGrow Mobile Bottom Navigation Bar */}
-          <MobileBottomNav
-            activeTab={activeMobileTab}
-            onSelectTab={(tab) => setActiveMobileTab(tab)}
-            isAdmin={Boolean(user && isStaffUser(user.role))}
+          <AppShell
+            user={user}
+            walletBalance={wallet?.cashBalance || 0}
+            ticks={ticks}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onOpenSearch={() => setIsSearchOpen(true)}
+            onOpenWalletModal={() => goToProfileTab('FUNDS')}
+            onLogout={handleLogout}
           />
 
-          {/* Mobile Order Confirmation Modal */}
-          {selectedMobileStock && (
-            <MobileOrderModal
-              isOpen={isMobileOrderModalOpen}
-              onClose={() => setIsMobileOrderModalOpen(false)}
-              stockName={selectedMobileStock.name}
-              stockSymbol={selectedMobileStock.symbol}
-              stockPrice={selectedMobileStock.price}
-              token={token}
-              onConfirmSuccess={() => fetchWallet()}
+          <OrderPreviewModal
+            isOpen={isMobileOrderModalOpen}
+            onClose={() => setIsMobileOrderModalOpen(false)}
+            onConfirm={() => fetchWallet()}
+            details={mobileOrderDetails}
+            userToken={token || ''}
+            sideEditable
+            riskRestriction={user?.riskRestriction}
+          />
+
+          {mobileWatchlistChart && (
+            <MobileChartModal
+              isOpen={Boolean(mobileWatchlistChart)}
+              onClose={() => setMobileWatchlistChart(null)}
+              symbol={mobileWatchlistChart.symbol}
+              token={mobileWatchlistChart.token}
+              exchange={mobileWatchlistChart.exchange}
+              latestTick={ticks.get(mobileWatchlistChart.token)}
+              theme={theme}
+              onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')}
+              onOpenOrderModal={(side, price) => openMobileQuickOrder({ symbol: mobileWatchlistChart.symbol, exchange: mobileWatchlistChart.exchange, token: mobileWatchlistChart.token, price, side })}
             />
           )}
 
-          {/* Global Search Modal */}
           <GlobalSearchModal
             isOpen={isSearchOpen}
             onClose={() => setIsSearchOpen(false)}
             userRole={user?.role}
             onSelectSymbol={(selectedToken, selectedSymbol) => {
-              setSelectedMobileStock({ name: selectedSymbol, symbol: selectedToken, price: 297.64 });
-              setIsMobileOrderModalOpen(true);
+              openMobileQuickOrder({ symbol: selectedSymbol, token: selectedToken });
             }}
             onSelectTab={() => {}}
-          />
-
-          {user && (
-            <UserProfileModal
-              user={user}
-              wallet={wallet}
-              isOpen={isProfileModalOpen}
-              initialTab={profileInitialTab}
-              onClose={() => setIsProfileModalOpen(false)}
-              onLogout={handleLogout}
-              onRefreshWallet={fetchWallet}
-              theme={theme}
-              onToggleTheme={toggleTheme}
-            />
-          )}
-
-          <CustomerSupportModal
-            token={token}
-            isOpen={isSupportModalOpen}
-            onClose={() => setIsSupportModalOpen(false)}
           />
         </div>
       </MarketSocketProvider>
     );
   }
 
-  // ── 2. DESKTOP GROWW DASHBOARD & WEB TERMINAL VIEW ────────────────────────
+  // ── DESKTOP SHELL (>=768px) ────────────────────────────────────────────
+  const isTerminalMode = location.pathname === '/terminal';
+
   return (
     <MarketSocketProvider userToken={token}>
       <div className="min-h-screen bg-[var(--bg-body)] text-[var(--text-main)] flex flex-col font-sans">
-        
-        {/* 1. GROWW BRAND HEADER */}
-        <GrowwHeader
+
+        <AppShell
           user={user}
           walletBalance={wallet?.cashBalance || 0}
-          activeCategory={activeCategory}
-          onCategorySelect={setActiveCategory}
-          onOpenSearch={() => setIsSearchOpen(true)}
-          onLogout={handleLogout}
-          theme={theme}
-          onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-          onOpenWalletModal={() => {
-            setIsLinkPeModalOpen(true);
-          }}
-          onNavigateView={(v) => {
-            setIsTerminalMode(false);
-            setActiveSubView(v);
-          }}
-          onOpenSupport={() => setIsSupportModalOpen(true)}
-          onOpenProfileModal={(tab) => {
-            setProfileInitialTab(tab || 'PROFILE');
-            setIsProfileModalOpen(true);
-          }}
-        />
-
-        {/* 2. GROWW SUB-NAV & TICKER BAR */}
-        <GrowwSubNav
-          activeView={activeSubView}
-          onSelectView={(v) => {
-            setIsTerminalMode(false);
-            setActiveSubView(v);
-          }}
-          isTerminalMode={isTerminalMode}
-          onToggleTerminal={() => setIsTerminalMode(!isTerminalMode)}
-          onSelectIndexChart={(symbol, token) => {
-            setTerminalSymbol(symbol);
-            setTerminalToken(token);
-            setIsTerminalMode(true);
-          }}
-          onSelectIndexOptionChain={() => {
-            setIsTerminalMode(false);
-            setActiveSubView('OPTION_CHAIN');
-          }}
           ticks={ticks}
-          user={user}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenWalletModal={() => goToProfileTab('FUNDS')}
+          onLogout={handleLogout}
+          isTerminalMode={isTerminalMode}
+          onToggleTerminal={() => (isTerminalMode ? navigate(-1) : navigate('/terminal'))}
         />
 
-        {/* 3. MAIN WORKSPACE CONTAINER */}
         <main className="flex-1">
-          {isTerminalMode ? (
-            /* GROWW WEB TERMINAL MODE (IMAGES 4 & 5) */
-            <GrowwTerminalView
-              token={token}
-              ticks={ticks}
-              wallet={wallet}
-              onRefreshWallet={fetchWallet}
-              initialSymbol={terminalSymbol}
-              theme={theme}
-              onToggleTheme={toggleTheme}
-            />
-          ) : (
-            /* STANDARD GROWW DASHBOARD VIEWS (IMAGES 1, 2, 3) */
-            <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
-              
-              {activeCategory === 'COMMODITIES' ? (
-                <McxCommodityView ticks={ticks} onRefreshWallet={fetchWallet} />
-              ) : (
-                <>
-                  {activeSubView === 'EXPLORE' && (
-                    <GrowwExploreView
-                      ticks={ticks}
-                      token={token}
-                      wallet={wallet}
-                      onRefreshWallet={fetchWallet}
-                      onSelectSymbol={(sym) => {
-                        setTerminalSymbol(sym);
-                        setIsTerminalMode(true);
-                      }}
-                      onOpenProfile={(tab) => {
-                        setProfileInitialTab(tab || 'PROFILE');
-                        setIsProfileModalOpen(true);
-                      }}
-                    />
-                  )}
+          <Routes>
+            <Route path="/terminal" element={<TerminalRoute token={token} ticks={ticks} wallet={wallet} onRefreshWallet={fetchWallet} theme={theme} onToggleTheme={toggleTheme} />} />
 
-                  {activeSubView === 'HOLDINGS' && (
-                    <GrowwHoldingsView
-                      onExploreStocks={() => setActiveSubView('EXPLORE')}
-                    />
-                  )}
+            <Route path="/" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <GrowwExploreView
+                  ticks={ticks}
+                  token={token}
+                  wallet={wallet}
+                  onRefreshWallet={fetchWallet}
+                  onSelectSymbol={(sym) => navigate(`/terminal?symbol=${encodeURIComponent(sym)}`)}
+                  onOpenProfile={goToProfileTab}
+                  onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')}
+                  onOpenSearch={() => setIsSearchOpen(true)}
+                  theme={theme}
+                />
+              </div>
+            } />
 
-                  {activeSubView === 'POSITIONS' && (
-                    <OrdersPositionsView
-                      token={token}
-                      initialTab="POSITIONS"
-                      onRefreshWallet={fetchWallet}
-                    />
-                  )}
+            <Route path="/watchlist" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <GrowwWatchlistView
+                  token={token}
+                  ticks={ticks}
+                  onRefreshWallet={fetchWallet}
+                  onSelectSymbolForTerminal={(sym) => navigate(`/terminal?symbol=${encodeURIComponent(sym)}`)}
+                  riskRestriction={user?.riskRestriction}
+                />
+              </div>
+            } />
 
-                  {activeSubView === 'ORDERS' && (
-                    <OrdersPositionsView
-                      token={token}
-                      initialTab="ORDERS"
-                      onRefreshWallet={fetchWallet}
-                    />
-                  )}
+            <Route path="/option-chain" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-6 shadow-xs">
+                  <OptionChainView token={token} ticks={ticks} onRefreshWallet={fetchWallet} riskRestriction={user?.riskRestriction} />
+                </div>
+              </div>
+            } />
 
-                  {activeSubView === 'WATCHLIST' && (
-                    <GrowwWatchlistView
-                      token={token}
-                      ticks={ticks}
-                      onRefreshWallet={fetchWallet}
-                      onSelectSymbolForTerminal={(sym) => {
-                        setTerminalSymbol(sym);
-                        setIsTerminalMode(true);
-                      }}
-                    />
-                  )}
+            <Route path="/portfolio" element={<Navigate to="/portfolio/positions" replace />} />
+            <Route path="/portfolio/positions" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <OrdersPositionsView token={token} initialTab="POSITIONS" onRefreshWallet={fetchWallet} onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')} riskRestriction={user?.riskRestriction} />
+              </div>
+            } />
+            <Route path="/portfolio/orders" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <OrdersPositionsView token={token} initialTab="ORDERS" onRefreshWallet={fetchWallet} onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')} riskRestriction={user?.riskRestriction} />
+              </div>
+            } />
+            <Route path="/portfolio/history" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <OrdersPositionsView token={token} initialTab="TRADE_HISTORY" onRefreshWallet={fetchWallet} onOpenOptionChain={(sym) => navigate(sym ? `/option-chain?symbol=${encodeURIComponent(sym)}` : '/option-chain')} riskRestriction={user?.riskRestriction} />
+              </div>
+            } />
+            <Route path="/portfolio/holdings" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <PortfolioHoldingsAnalyticsView token={token || ''} wallet={wallet} riskRestriction={user?.riskRestriction} onRefreshWallet={fetchWallet} initialTab="HOLDINGS" />
+              </div>
+            } />
+            <Route path="/portfolio/analytics" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <PortfolioHoldingsAnalyticsView token={token || ''} wallet={wallet} riskRestriction={user?.riskRestriction} onRefreshWallet={fetchWallet} initialTab="ANALYTICS" />
+              </div>
+            } />
 
-                  {activeSubView === 'OPTION_CHAIN' && (
-                    <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-6 shadow-xs">
-                      <OptionChainView
-                        token={token}
-                        ticks={ticks}
-                        onRefreshWallet={fetchWallet}
-                      />
+            <Route path="/profile" element={<Navigate to="/profile/account" replace />} />
+            <Route path="/profile/:tab" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                <ProfilePage user={user} wallet={wallet} token={token || ''} theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} onRefreshWallet={fetchWallet} />
+              </div>
+            } />
+
+            <Route path="/admin/*" element={
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6">
+                {isStaffUser(user.role) ? (
+                  <AdminPanel token={token} />
+                ) : (
+                  <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto my-12 space-y-4 shadow-xl">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center mx-auto">
+                      <ShieldCheck className="w-6 h-6" />
                     </div>
-                  )}
+                    <h3 className="text-lg font-extrabold text-[var(--text-main)]">Access Denied — Client Account</h3>
+                    <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                      The Admin Control Center is strictly restricted to administrative staff and broker management teams. Client accounts do not have permission to view system controls.
+                    </p>
+                    <button
+                      onClick={() => navigate('/')}
+                      className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl transition-colors shadow-md shadow-emerald-500/20"
+                    >
+                      Return to Trading Workspace
+                    </button>
+                  </div>
+                )}
+              </div>
+            } />
 
-                  {(activeSubView as any) === 'ANALYTICS' && (
-                    <PortfolioAnalyticsView
-                      token={token}
-                      wallet={wallet}
-                      onRefreshWallet={fetchWallet}
-                    />
-                  )}
-
-                  {activeSubView === 'PROFILE' && (
-                    <ClientProfileView
-                      user={user}
-                      wallet={wallet}
-                      token={token}
-                      onRefreshWallet={fetchWallet}
-                      theme={theme}
-                      onToggleTheme={toggleTheme}
-                    />
-                  )}
-
-                  {activeSubView === 'ADMIN' && (
-                    user && isStaffUser(user.role) ? (
-                      <AdminPanel token={token} />
-                    ) : (
-                      <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-2xl p-8 text-center max-w-lg mx-auto my-12 space-y-4 shadow-xl">
-                        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center mx-auto">
-                          <ShieldCheck className="w-6 h-6" />
-                        </div>
-                        <h3 className="text-lg font-extrabold text-[var(--text-main)]">Access Denied — Client Account</h3>
-                        <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                          The Admin Control Center is strictly restricted to administrative staff and broker management teams. Client accounts do not have permission to view system controls.
-                        </p>
-                        <button
-                          onClick={() => setActiveSubView('EXPLORE')}
-                          className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl transition-colors shadow-md shadow-emerald-500/20"
-                        >
-                          Return to Trading Workspace
-                        </button>
-                      </div>
-                    )
-                  )}
-                </>
-              )}
-
-            </div>
-          )}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
 
-        {/* GLOBAL MODALS */}
         <GlobalSearchModal
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           userRole={user?.role}
           onSelectSymbol={(selectedToken, selectedSymbol) => {
-            setTerminalToken(selectedToken);
-            setTerminalSymbol(selectedSymbol);
-            setIsTerminalMode(true);
+            navigate(`/terminal?symbol=${encodeURIComponent(selectedSymbol)}&token=${encodeURIComponent(selectedToken)}`);
           }}
-          onSelectTab={(v) => {
-            setIsTerminalMode(false);
-            setActiveSubView(v as any);
-          }}
+          onSelectTab={(v) => navigate(SEARCH_TAB_TO_PATH[v] ?? '/')}
         />
-
-        {user && (
-          <UserProfileModal
-            user={user}
-            wallet={wallet}
-            isOpen={isProfileModalOpen}
-            initialTab={profileInitialTab}
-            onClose={() => setIsProfileModalOpen(false)}
-            onLogout={handleLogout}
-            onRefreshWallet={fetchWallet}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-          />
-        )}
-
-        <CustomerSupportModal
-          token={token}
-          isOpen={isSupportModalOpen}
-          onClose={() => setIsSupportModalOpen(false)}
-        />
-
-        {user && (
-          <LinkPeAddFundsModal
-            token={token}
-            wallet={wallet}
-            isOpen={isLinkPeModalOpen}
-            onClose={() => setIsLinkPeModalOpen(false)}
-            onRefreshWallet={fetchWallet}
-          />
-        )}
-
       </div>
     </MarketSocketProvider>
+  );
+}
+
+// Header + sub-nav, split out only so the desktop shell above stays readable.
+// Not a "page" — renders on every desktop route.
+function TerminalRoute(props: {
+  token: string;
+  ticks: Map<string, MarketTick>;
+  wallet: Wallet | null;
+  onRefreshWallet: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+}) {
+  const [searchParams] = useSearchParams();
+  const initialSymbol = searchParams.get('symbol') || 'RELIANCE';
+
+  return (
+    <GrowwTerminalView
+      token={props.token}
+      ticks={props.ticks}
+      wallet={props.wallet}
+      onRefreshWallet={props.onRefreshWallet}
+      initialSymbol={initialSymbol}
+      theme={props.theme}
+      onToggleTheme={props.onToggleTheme}
+    />
   );
 }

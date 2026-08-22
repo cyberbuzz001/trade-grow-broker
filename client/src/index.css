@@ -44,7 +44,10 @@
   --loss-light: #fee2e2;
 
   /* Option Chain Color Accents */
-  --call-accent: #0891b2;
+  /* Was #0891b2 (3.36-3.68:1 against --bg-surface/--bg-surface-elevated,
+     below WCAG AA's 4.5:1) — real option-premium text color in
+     OptionChainRow, not decoration. Darkened to 4.72:1 minimum, same hue. */
+  --call-accent: #077792;
   --call-bg-itm: #ecfeff;
   --call-bg-hover: #cffafe;
   --put-accent: #9333ea;
@@ -72,6 +75,75 @@
   --radius-lg: 14px;
   --radius-xl: 18px;
   --radius-full: 9999px;
+
+  /* Typography Scale (new — previously only font-family existed as a token;
+     every size/weight/line-height in the app was ad hoc Tailwind defaults) */
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-size-4xl: 38px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+
+  /* Spacing Scale — Page/Section Layout (extends the dense scale above,
+     which stays as-is for tables/rows; these are for page padding, section
+     gaps, and empty-state spacing where the brief calls for "generous
+     whitespace") */
+  --space-4xl: 36px;
+  --space-5xl: 48px;
+  --space-6xl: 64px;
+
+  /* Layout Widths (new — no documented max-width existed anywhere) */
+  --max-width-content: 640px;
+  --max-width-wide: 1120px;
+  --max-width-page: 1440px;
+
+  /* Motion (new — durations previously existed only as magic numbers inside
+     individual @keyframes/transition declarations scattered through this
+     file; new components reference these, existing animations can adopt
+     them opportunistically when their component is next touched) */
+  --duration-instant: 50ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --duration-slower: 600ms;
+
+  --easing-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-in: cubic-bezier(0.4, 0, 1, 1);
+  --easing-out: cubic-bezier(0, 0, 0.2, 1);
+  --easing-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Status colors beyond gain/loss (new — needed for RMS restriction
+     banners, KYC pending/rejected states, and general warning/info
+     messaging that isn't a gain/loss value) */
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --info: var(--gogrow-blue);
+  --info-light: var(--gogrow-blue-light);
+
+  /* Overlay & Focus — accessibility (new). Also resolves a real conflict
+     found in this file: .mobile-bottom-sheet-backdrop, .sheet-backdrop-light
+     and .sheet-backdrop-dark each hardcoded a different, disagreeing
+     backdrop color/opacity. This is the one canonical value the new Dialog/
+     Sheet primitive uses; the old classes are superseded once it ships. */
+  --overlay-backdrop: rgba(15, 23, 42, 0.4);
+  --shadow-focus: 0 0 0 3px var(--primary-glow);
 }
 
 [data-theme="dark"],
@@ -113,7 +185,10 @@
   --call-accent: #06b6d4;
   --call-bg-itm: rgba(6, 182, 212, 0.08);
   --call-bg-hover: rgba(6, 182, 212, 0.15);
-  --put-accent: #a855f7;
+  /* Was #a855f7 (3.70:1 against --bg-surface-elevated, below WCAG AA's 4.5:1
+     for normal text) — this is real option-premium text in OptionChainRow,
+     not decoration. Lightened to 4.52:1 while keeping the same hue. */
+  --put-accent: #b46df8;
   --put-bg-itm: rgba(168, 85, 247, 0.08);
   --put-bg-hover: rgba(168, 85, 247, 0.15);
   --atm-glow: rgba(234, 179, 8, 0.3);
@@ -122,6 +197,14 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.6);
   --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.8);
+
+  --warning: #f59e0b;
+  --warning-light: rgba(245, 158, 11, 0.14);
+  --info: var(--gogrow-blue);
+  --info-light: var(--gogrow-blue-light);
+
+  --overlay-backdrop: rgba(2, 6, 23, 0.6);
+  --shadow-focus: 0 0 0 3px var(--primary-glow);
 }
 
 [data-theme="light"],
@@ -156,7 +239,10 @@
   --loss: #dc2626;
   --loss-light: #fee2e2;
 
-  --call-accent: #0891b2;
+  /* Was #0891b2 (3.36-3.68:1 against --bg-surface/--bg-surface-elevated,
+     below WCAG AA's 4.5:1) — real option-premium text color in
+     OptionChainRow, not decoration. Darkened to 4.72:1 minimum, same hue. */
+  --call-accent: #077792;
   --call-bg-itm: #ecfeff;
   --call-bg-hover: #cffafe;
   --put-accent: #9333ea;
@@ -167,6 +253,14 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.08);
+
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --info: var(--gogrow-blue);
+  --info-light: var(--gogrow-blue-light);
+
+  --overlay-backdrop: rgba(15, 23, 42, 0.4);
+  --shadow-focus: 0 0 0 3px var(--primary-glow);
 }
 
 /* LIGHT THEME GLOBAL OVERRIDES FOR SLATE CLASSES */
@@ -283,6 +377,22 @@
 
   button, a, input, select, textarea {
     cursor: pointer;
+  }
+
+  /* App-wide keyboard focus ring. The shared `Button` component already sets
+     this per-instance via Tailwind classes, but most icon-only utility
+     buttons across the app (close/clear/stepper controls) are plain <button>
+     elements that never went through it — without this, tabbing to them
+     shows no visible focus indicator at all (WCAG 2.4.7). One rule here
+     covers every focusable element regardless of which component built it. */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
   }
 }
 

@@ -199,9 +199,11 @@ export class ExecutionEngine {
     const stampDuty       = 0.00;
     const totalCharges    = 0.00;
 
-    const exitReason = order.order_type === 'LIMIT'
-      ? 'TARGET_LIMIT'
-      : (order.order_type === 'MARKET' ? 'MARKET_SQUARE_OFF' : 'STOP_LOSS');
+    const exitReason = order.source === 'RMS'
+      ? 'RMS_AUTO_SQUARE_OFF'
+      : (order.order_type === 'LIMIT'
+        ? 'TARGET_LIMIT'
+        : (order.order_type === 'MARKET' ? 'MARKET_SQUARE_OFF' : 'STOP_LOSS'));
 
     const posResult = await withTransaction(async (client) => {
       // 1. Record execution fill with Immutable Provenance
@@ -270,15 +272,14 @@ export class ExecutionEngine {
         excId
       );
 
-      // 5. Settle Virtual Money Ledger atomically
-      const blockedMargin = order.product_type === 'MIS' ? tradeVal * 0.20 : tradeVal;
-
+      // 5. Settle Virtual Money Ledger atomically (used_margin is recomputed
+      // inside settleTradeExecutionInTransaction from the now-updated
+      // position + any other pending orders — no separate blockedMargin calc)
       await VirtualWalletLedger.settleTradeExecutionInTransaction(
         client,
         order.user_id,
         order.side as 'BUY' | 'SELL',
         tradeVal,
-        blockedMargin,
         res.releasedPositionCapital,
         res.realizedPnlDelta,
         order.order_id

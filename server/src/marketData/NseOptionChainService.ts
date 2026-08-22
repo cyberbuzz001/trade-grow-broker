@@ -52,8 +52,8 @@ export class NseOptionChainService extends EventEmitter {
   private guardTimer: NodeJS.Timeout | null = null;
   private cache: Record<string, NseChainSummary> = {};
   private guardSpotCache: Map<string, { price: number; timestamp: number }> = new Map();
-  private readonly REFRESH_INTERVAL = 30_000; // 30 seconds
-  private readonly GUARD_POLL_INTERVAL = 30_000; // 30 seconds
+  private readonly REFRESH_INTERVAL = 180_000; // 3 minutes (was 30s — NSE throttles aggressively)
+  private readonly GUARD_POLL_INTERVAL = 180_000; // 3 minutes
   private readonly COOKIE_TTL = 300_000; // 5 minutes
 
   public start(): void {

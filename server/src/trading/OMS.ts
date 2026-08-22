@@ -5,6 +5,10 @@ import { ExecutionEngine } from './ExecutionEngine';
 import { generateUUID } from '../utils/crypto';
 import { SafetyLock } from '../services/SafetyLock';
 import { redis } from '../db/redis';
+import { logAuditAction } from '../middleware/audit';
+
+/** Internal-only actor tokens for SubmitOrderDTO.systemActor — never sourced from any HTTP request body. */
+export const SYSTEM_ACTOR_RMS_AUTO_SQUAREOFF = 'RMS_AUTO_SQUAREOFF';
 
 export interface SubmitOrderDTO {
   userId: string;
@@ -18,6 +22,18 @@ export interface SubmitOrderDTO {
   orderType: 'MARKET' | 'LIMIT' | 'SL' | 'SL_M';
   productType: 'MIS' | 'CNC' | 'NRML';
   idempotencyKey?: string;
+  /** Tags who generated this order. Defaults to 'USER' when omitted. */
+  source?: string;
+  /** Free-text reason, e.g. 'MIS_CUTOFF'. Only meaningful alongside a non-'USER' source. */
+  reason?: string;
+  /**
+   * Internal bypass for Phase 0's account-status gate — set ONLY by code that
+   * calls OMS.submitOrder directly (e.g. RmsAutoSquareOffEngine), never read
+   * from any request body. Lets the engine close out existing exposure on a
+   * SUSPENDED/DISABLED account without reopening the door for that account to
+   * place ordinary orders. Every use is audit-logged.
+   */
+  systemActor?: string;
 }
 
 export class OMS {
@@ -25,14 +41,28 @@ export class OMS {
     // Safety assertion: fail-closed guard — no real money can be placed
     SafetyLock.assertSimulationOnly('OMS.submitOrder');
 
-    // 0. Ensure user ID exists in users table to prevent FK constraint failure
-    const userRow = await queryOne<any>('SELECT id FROM users WHERE id = $1', [dto.userId]);
+    // 0. Ensure user ID exists in users table to prevent FK constraint failure,
+    // and re-check account status here too — defense-in-depth for any caller
+    // that reaches submitOrder without going through the route-level check.
+    let userRow = await queryOne<any>('SELECT id, status, risk_restriction FROM users WHERE id = $1', [dto.userId]);
     if (!userRow) {
-      const fallbackUser = await queryOne<any>('SELECT id FROM users WHERE email = $1 OR username = $2 LIMIT 1', [dto.userId, dto.userId]);
+      const fallbackUser = await queryOne<any>('SELECT id, status, risk_restriction FROM users WHERE email = $1 OR username = $2 LIMIT 1', [dto.userId, dto.userId]);
       if (fallbackUser) {
         dto.userId = fallbackUser.id;
+        userRow = fallbackUser;
       } else {
         return { success: false, error: 'ORDER_REJECTED: User account does not exist in database. Please re-login.' };
+      }
+    }
+    if (userRow.status !== 'ACTIVE') {
+      if (dto.systemActor === SYSTEM_ACTOR_RMS_AUTO_SQUAREOFF) {
+        await logAuditAction(
+          'SYSTEM', 'SYSTEM', 'RMS_STATUS_GATE_BYPASS', 'USER', dto.userId,
+          { status: userRow.status }, { systemActor: dto.systemActor, symbol: dto.symbol, side: dto.side, quantity: dto.quantity },
+          '127.0.0.1'
+        );
+      } else {
+        return { success: false, error: 'ORDER_REJECTED: Account is suspended or disabled' };
       }
     }
 
@@ -82,19 +112,21 @@ export class OMS {
       quantity:        dto.quantity,
       price:           dto.price,
       orderType:       dto.orderType,
-      productType:     dto.productType
+      productType:     dto.productType,
+      riskRestriction: userRow.risk_restriction,
     });
 
     if (!rmsResult.passed) {
       // Log rejected order to DB
       await execute(
-        `INSERT INTO orders (id, order_id, user_id, instrument_token, exchange, symbol, side, quantity, price, trigger_price, order_type, product_type, status, rejection_reason, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'REJECTED', $13, $14)`,
+        `INSERT INTO orders (id, order_id, user_id, instrument_token, exchange, symbol, side, quantity, price, trigger_price, order_type, product_type, status, rejection_reason, idempotency_key, source, reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'REJECTED', $13, $14, $15, $16)`,
         [
           dbOrderId, publicOrderId, dto.userId, dto.instrumentToken,
           dto.exchange, dto.symbol, dto.side, dto.quantity, dto.price,
           dto.triggerPrice || 0, dto.orderType, dto.productType,
-          rmsResult.reason, dto.idempotencyKey || null
+          rmsResult.reason, dto.idempotencyKey || null,
+          dto.source || 'USER', dto.reason || null
         ]
       );
 
@@ -104,26 +136,39 @@ export class OMS {
       return { success: false, error: rmsResult.reason };
     }
 
-    // 2. Block virtual margin (row-locked in VirtualWalletLedger)
-    const marginBlocked = await VirtualWalletLedger.blockMargin(
-      dto.userId, rmsResult.requiredMargin, publicOrderId, 'OMS'
-    );
+    // 2. Save the order, then recompute the authoritative used_margin
+    // (positions + every still-pending order, this one now included) —
+    // atomically, so a margin-rejected order never lands in the table as an
+    // unfunded phantom row. The wallet row is locked for the duration of
+    // this transaction (inside recomputeUsedMarginForUser), which is what
+    // actually guards against two concurrent submissions for the same user
+    // both passing RMS's pre-check against the same stale used_margin
+    // snapshot — replacing blockMargin's increment-based lock with the same
+    // serialization guarantee.
+    try {
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO orders (id, order_id, user_id, instrument_token, exchange, symbol, side, quantity, price, trigger_price, order_type, product_type, status, idempotency_key, source, reason)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'ACCEPTED', $13, $14, $15)`,
+          [
+            dbOrderId, publicOrderId, dto.userId, dto.instrumentToken,
+            dto.exchange, dto.symbol, dto.side, dto.quantity, dto.price,
+            dto.triggerPrice || 0, dto.orderType, dto.productType,
+            dto.idempotencyKey || null,
+            dto.source || 'USER', dto.reason || null
+          ]
+        );
 
-    if (!marginBlocked) {
-      return { success: false, error: 'ORDER_REJECTED: Margin blocking failed — concurrent order detected' };
+        const newUsedMargin = await VirtualWalletLedger.recomputeUsedMarginForUser(dto.userId, client);
+        const walletRow = await client.query('SELECT cash_balance FROM virtual_wallets WHERE user_id = $1', [dto.userId]);
+        const cashBalance = walletRow.rows.length ? parseFloat(walletRow.rows[0].cash_balance) : 0;
+        if (newUsedMargin > cashBalance) {
+          throw new Error(`ORDER_REJECTED: Insufficient buying power. Required: ₹${newUsedMargin.toFixed(2)}, Available: ₹${cashBalance.toFixed(2)}`);
+        }
+      });
+    } catch (err: any) {
+      return { success: false, error: err.message || 'ORDER_REJECTED: Margin check failed — concurrent order detected' };
     }
-
-    // 3. Save order to database
-    await execute(
-      `INSERT INTO orders (id, order_id, user_id, instrument_token, exchange, symbol, side, quantity, price, trigger_price, order_type, product_type, status, idempotency_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'ACCEPTED', $13)`,
-      [
-        dbOrderId, publicOrderId, dto.userId, dto.instrumentToken,
-        dto.exchange, dto.symbol, dto.side, dto.quantity, dto.price,
-        dto.triggerPrice || 0, dto.orderType, dto.productType,
-        dto.idempotencyKey || null
-      ]
-    );
 
     // Record order event
     await this.recordOrderEvent(dbOrderId, null, 'ACCEPTED', 'RMS passed, margin blocked');
@@ -158,19 +203,16 @@ export class OMS {
       return { success: false, error: `Order cannot be cancelled in state ${order.status}` };
     }
 
-    await execute(
-      `UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`,
-      [order.id]
-    );
+    await withTransaction(async (client) => {
+      await client.query(`UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`, [order.id]);
+      // The cancelled order no longer matches the pending-status filter, so
+      // it naturally drops out of the recomputed sum — no separate release
+      // amount to calculate (that hand-computed amount is what used to go
+      // out of sync with what was actually blocked).
+      await VirtualWalletLedger.recomputeUsedMarginForUser(userId, client);
+    });
 
     await this.recordOrderEvent(order.id, order.status, 'CANCELLED', 'User cancelled order');
-
-    // Release blocked margin
-    const leverageMultiplier = order.product_type === 'MIS' ? 0.20 : 1.0;
-    const marginToRelease = parseFloat(order.price || '0') * parseInt(order.quantity || '0', 10) * leverageMultiplier;
-    if (marginToRelease > 0) {
-      await VirtualWalletLedger.releaseMargin(userId, marginToRelease, order.order_id, 'OMS_CANCEL');
-    }
 
     return { success: true };
   }
@@ -197,10 +239,23 @@ export class OMS {
     const price = newPrice > 0 ? newPrice : parseFloat(order.price);
     const quantity = newQuantity && newQuantity > 0 ? newQuantity : parseInt(order.quantity, 10);
 
-    await execute(
-      `UPDATE orders SET price = $1, quantity = $2, updated_at = NOW() WHERE id = $3`,
-      [price, quantity, order.id]
-    );
+    // A modify can enlarge price/quantity well past what was originally
+    // margin-checked at placement — re-validate atomically rather than
+    // trusting the original acceptance to still cover it.
+    try {
+      await withTransaction(async (client) => {
+        await client.query(`UPDATE orders SET price = $1, quantity = $2, updated_at = NOW() WHERE id = $3`, [price, quantity, order.id]);
+
+        const newUsedMargin = await VirtualWalletLedger.recomputeUsedMarginForUser(userId, client);
+        const walletRow = await client.query('SELECT cash_balance FROM virtual_wallets WHERE user_id = $1', [userId]);
+        const cashBalance = walletRow.rows.length ? parseFloat(walletRow.rows[0].cash_balance) : 0;
+        if (newUsedMargin > cashBalance) {
+          throw new Error(`MODIFY_REJECTED: Modification requires ₹${newUsedMargin.toFixed(2)} margin, exceeding available funds of ₹${cashBalance.toFixed(2)}`);
+        }
+      });
+    } catch (err: any) {
+      return { success: false, error: err.message || 'MODIFY_FAILED: Margin check failed' };
+    }
 
     await this.recordOrderEvent(order.id, order.status, order.status, `Order modified: price=${price}, qty=${quantity}`);
 

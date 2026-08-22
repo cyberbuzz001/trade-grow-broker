@@ -38,9 +38,30 @@ export class DhanAdapter implements IMarketDataProvider {
     'NSE_TATAMOTORS': { segment: 'NSE_EQ', securityId: '3456' },
   };
 
+  // Max number of option token entries kept in the static security map to prevent unbounded growth
+  private static readonly SECURITY_MAP_MAX_SIZE = 2000;
+  // Track dynamic (option) keys separately so we can evict oldest when map grows too large
+  private static dynamicSecurityMapKeys: string[] = [];
+
+  /**
+   * Add a dynamic security mapping (option strikes etc.) with LRU-style eviction at SECURITY_MAP_MAX_SIZE.
+   * Static index/equity entries in the constructor are never evicted.
+   */
+  private static addDynamicSecurityMapping(token: string, mapping: { segment: string; securityId: string }): void {
+    if (!DhanAdapter.DHAN_SECURITY_MAP[token]) {
+      // Evict oldest dynamic entries if we're at the cap
+      while (DhanAdapter.dynamicSecurityMapKeys.length >= DhanAdapter.SECURITY_MAP_MAX_SIZE) {
+        const oldest = DhanAdapter.dynamicSecurityMapKeys.shift();
+        if (oldest) delete DhanAdapter.DHAN_SECURITY_MAP[oldest];
+      }
+      DhanAdapter.dynamicSecurityMapKeys.push(token);
+    }
+    DhanAdapter.DHAN_SECURITY_MAP[token] = mapping;
+  }
+
   constructor() {
     this.clientId = process.env.DHAN_CLIENT_ID || '1113019677';
-    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg3MTM5Njc5LCJpYXQiOjE3ODcwNTMyNzksInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.uK1dGY00l5RNevgxy43BX0L9Rk-yG81iNbHwz9doaCYqtuQPiCOcfQNy5w0IJGiK2C5gg-LQrSGNVkzjhts7gQ';
+    this.accessToken = process.env.DHAN_ACCESS_TOKEN || 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzg3Mjg4NTAwLCJpYXQiOjE3ODcyMDIxMDAsInRva2VuQ29uc3VtZXJUeXBlIjoiU0VMRiIsIndlYmhvb2tVcmwiOiIiLCJkaGFuQ2xpZW50SWQiOiIxMTEzMDE5Njc3In0.v8SJgFEJQnYgh5W92wbdYl2JrjvBFrkqvpRBVEFtXLWJaqwW1mFPY8zJTJTObZBzsVcX07ekuoXzSzHM-L2_AA';
     this.apiKey = process.env.DHAN_API_KEY || '21483ef7';
     this.apiSecret = process.env.DHAN_API_SECRET || 'e9730aa4-682c-4e75-a944-94f703449b09';
   }
@@ -443,7 +464,7 @@ export class DhanAdapter implements IMarketDataProvider {
       const scrip = InstrumentMasterService.getInstance().getDhanScripByToken(cleanToken);
       if (scrip) {
         const mapping = { segment: scrip.segment, securityId: scrip.securityId };
-        DhanAdapter.DHAN_SECURITY_MAP[cleanToken] = mapping;
+        DhanAdapter.addDynamicSecurityMapping(cleanToken, mapping);
         return mapping;
       }
 
@@ -457,7 +478,7 @@ export class DhanAdapter implements IMarketDataProvider {
         if (secId) {
           const seg = (underlying === 'SENSEX' || optMatch[1] === 'BFO') ? 'BSE_FNO' : 'NSE_FNO';
           const mapping = { segment: seg, securityId: secId };
-          DhanAdapter.DHAN_SECURITY_MAP[cleanToken] = mapping;
+          DhanAdapter.addDynamicSecurityMapping(cleanToken, mapping);
           return mapping;
         }
       }
@@ -728,7 +749,8 @@ export class DhanAdapter implements IMarketDataProvider {
     const cacheKey = `${cleanSym}_${targetExpiry}`;
 
     const cached = DhanAdapter.optionChainCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 15000) {
+    // 30-second memory cache to respect Dhan API rate limits (10 req/min)
+    if (cached && Date.now() - cached.timestamp < 30000 && cached.rows.length > 0) {
       return cached.rows;
     }
 
@@ -748,7 +770,7 @@ export class DhanAdapter implements IMarketDataProvider {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10000) // 10s timeout to prevent nginx 504s
+        signal: AbortSignal.timeout(3000) // 3s strict timeout to prevent event-loop clogging
       });
 
       if (res.ok) {
@@ -798,12 +820,10 @@ export class DhanAdapter implements IMarketDataProvider {
             const peToken = `${optPrefix}_${cleanSym}_${strikePrice}_PE`;
 
             if (ceSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[ceToken] = { segment: optSeg, securityId: ceSecurityId };
-              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${ceSecurityId}`] = { segment: optSeg, securityId: ceSecurityId };
+              DhanAdapter.addDynamicSecurityMapping(ceToken, { segment: optSeg, securityId: ceSecurityId });
             }
             if (peSecurityId) {
-              DhanAdapter.DHAN_SECURITY_MAP[peToken] = { segment: optSeg, securityId: peSecurityId };
-              DhanAdapter.DHAN_SECURITY_MAP[`${optPrefix}_${peSecurityId}`] = { segment: optSeg, securityId: peSecurityId };
+              DhanAdapter.addDynamicSecurityMapping(peToken, { segment: optSeg, securityId: peSecurityId });
             }
 
             const ceLtp = Number(ceData.last_price ?? ceData.ltp ?? 0);
@@ -894,13 +914,13 @@ export class DhanAdapter implements IMarketDataProvider {
             return sorted;
           }
         }
-      } else {
-        const errorText = await res.text();
-        console.warn(`[DhanAdapter] Live Option Chain HTTP ${res.status}:`, errorText.substring(0, 200));
+      } else if (res.status === 429) {
+        // Rate limited by Dhan — cache cooldown to prevent hammered retries
+        if (cached && cached.rows && cached.rows.length > 0) {
+          DhanAdapter.optionChainCache.set(cacheKey, { timestamp: Date.now(), rows: cached.rows });
+        }
       }
-    } catch (err: any) {
-      console.warn(`[DhanAdapter] Live Option Chain API error for ${cleanSym}:`, err.message);
-    }
+    } catch (_) {}
 
     if (cached && cached.rows && cached.rows.length > 0) {
       return cached.rows;

@@ -1,6 +1,7 @@
 import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { MarketDataEngine } from '../marketData/MarketDataEngine';
 import { generateUUID } from '../utils/crypto';
+import { resolveUnrealizedPnlForPosition } from './MarginMath';
 
 export interface PositionRecord {
   id: string;
@@ -347,71 +348,17 @@ export class PortfolioService {
     sql += ' ORDER BY updated_at DESC';
 
     const rows = await query<any>(sql, [userId]);
-    const engine = MarketDataEngine.getInstance();
-    const { GreeksEngine } = require('../marketData/GreeksEngine');
 
     return rows.map(r => {
-      const symbol = r.symbol || '';
-      let tick = engine.getCachedTick(`NSE_${symbol}`) ||
-                 engine.getCachedTick(`NFO_${symbol}`) ||
-                 engine.getCachedTick(`BFO_${symbol}`) ||
-                 engine.getCachedTick(symbol);
-
-      if (!tick) {
-        const mNifty = symbol.match(/NIFTY\s*(\d+)\s*(CE|PE)/i);
-        if (mNifty) {
-          tick = engine.getCachedTick(`NFO_NIFTY_${mNifty[1]}_${mNifty[2].toUpperCase()}`) ||
-                 engine.getCachedTick(`NFO_NIFTY${mNifty[1]}${mNifty[2].toUpperCase()}`);
-        }
-        const mBank = symbol.match(/BANKNIFTY\s*(\d+)\s*(CE|PE)/i);
-        if (mBank) {
-          tick = engine.getCachedTick(`NFO_BANKNIFTY_${mBank[1]}_${mBank[2].toUpperCase()}`) ||
-                 engine.getCachedTick(`NFO_BANKNIFTY${mBank[1]}${mBank[2].toUpperCase()}`);
-        }
-        const mFin = symbol.match(/FINNIFTY\s*(\d+)\s*(CE|PE)/i);
-        if (mFin) {
-          tick = engine.getCachedTick(`NFO_FINNIFTY_${mFin[1]}_${mFin[2].toUpperCase()}`) ||
-                 engine.getCachedTick(`NFO_FINNIFTY${mFin[1]}${mFin[2].toUpperCase()}`);
-        }
-        const mMid = symbol.match(/MIDCPNIFTY\s*(\d+)\s*(CE|PE)/i);
-        if (mMid) {
-          tick = engine.getCachedTick(`NFO_MIDCPNIFTY_${mMid[1]}_${mMid[2].toUpperCase()}`);
-        }
-        const mSensex = symbol.match(/SENSEX\s*(\d+)\s*(CE|PE)/i);
-        if (mSensex) {
-          tick = engine.getCachedTick(`BFO_SENSEX_${mSensex[1]}_${mSensex[2].toUpperCase()}`) ||
-                 engine.getCachedTick(`BFO_SENSEX${mSensex[1]}${mSensex[2].toUpperCase()}`);
-        }
-      }
-
-      let ltp = tick && tick.ltp > 0 ? tick.ltp : parseFloat(r.ltp || r.average_price || 0);
-
-      // Fallback: If option position and no direct tick, compute live BS price anchored to live spot tick
-      if ((!tick || tick.ltp <= 0) && ltp <= 0) {
-        const mOpt = symbol.match(/(NIFTY|BANKNIFTY|FINNIFTY|SENSEX)\s*(\d+)\s*(CE|PE)/i);
-        if (mOpt) {
-          const symName = mOpt[1].toUpperCase();
-          const strike = parseFloat(mOpt[2]);
-          const isCall = mOpt[3].toUpperCase() === 'CE';
-          const spotToken = symName === 'SENSEX' ? 'BSE_SENSEX' : symName === 'BANKNIFTY' ? 'NSE_BANKNIFTY' : symName === 'FINNIFTY' ? 'NSE_FINNIFTY' : 'NSE_NIFTY50';
-          const spotTick = engine.getCachedTick(spotToken);
-          if (spotTick && spotTick.ltp > 0) {
-            const timeToExpiryYears = 1.0 / 365.0;
-            const iv = symName === 'SENSEX' ? 0.16 : symName === 'BANKNIFTY' ? 0.15 : 0.13;
-            const bsPrice = GreeksEngine.calculateOptionPrice(spotTick.ltp, strike, timeToExpiryYears, isCall, iv);
-            ltp = Number(bsPrice.toFixed(2));
-          }
-        }
-      }
-
       const netQty = parseInt(r.net_qty, 10);
       const averagePrice = parseFloat(r.average_price);
 
-      const unrealizedPnl = netQty > 0
-        ? netQty * (ltp - averagePrice)
-        : netQty < 0
-        ? Math.abs(netQty) * (averagePrice - ltp)
-        : 0;
+      const { ltp, unrealizedPnl } = resolveUnrealizedPnlForPosition({
+        symbol: r.symbol || '',
+        netQty,
+        averagePrice,
+        dbLtp: parseFloat(r.ltp || 0),
+      });
 
       return {
         id: r.id,

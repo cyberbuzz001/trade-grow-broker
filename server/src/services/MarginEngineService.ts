@@ -1,6 +1,6 @@
 import { query, queryOne } from '../db/schema';
 import { VirtualWalletLedger } from '../trading/VirtualWalletLedger';
-import { MarketDataEngine } from '../marketData/MarketDataEngine';
+import { marginForLeg, resolveSpotPrice, getMarginParams, TickSource } from '../trading/MarginMath';
 
 export interface MarginQuoteRequest {
   userId: string;
@@ -40,6 +40,8 @@ export interface MarginQuoteResponse {
   shortfall: number;
   canPlaceOrder: boolean;
   rejectionReason?: string;
+  spotPriceSource?: TickSource;
+  spotPriceStale?: boolean;
 }
 
 export interface PortfolioMarginResponse {
@@ -79,83 +81,63 @@ export class MarginEngineService {
 
     // Fetch statutory configuration
     const statutoryConfig = await this.getStatutoryConfig();
-    const marginParams = await this.getMarginParams(req.underlying, req.exchange);
+    const marginParams = await getMarginParams(req.underlying);
 
     // 1. Calculate Statutory Charges (Brokerage = ₹0.00)
     const charges = this.calculateStatutoryCharges(req.side, orderValue, req.optionType || 'CE', statutoryConfig);
 
-    // 2. Distinguish Equity vs Option Buying vs Option Selling
-    let spanMargin = 0;
-    let exposureMargin = 0;
-    let additionalMargin = 0;
-    let requiredMargin = 0;
-    let isEstimated = false;
-
+    // 2. Resolve live spot price for option-SELL SPAN margin (no-op for other branches)
     const isOption = req.optionType === 'CE' || req.optionType === 'PE';
-
-    if (isOption) {
-      if (req.side === 'BUY') {
-        // OPTION BUYING: Required Capital = Premium Payable + Statutory Charges
-        requiredMargin = orderValue + charges.total;
-        spanMargin = 0;
-        exposureMargin = 0;
-      } else {
-        // OPTION SELLING (WRITING): SPAN + Exposure Margin required
-        isEstimated = true;
-        const spotPrice = this.getSpotPrice(req.underlying, req.instrumentToken);
-        const strike = req.strike || spotPrice;
-        const optionType = req.optionType || 'CE';
-
-        // OTM Calculation
-        const otmAmount = optionType === 'CE'
-          ? Math.max(0, strike - spotPrice)
-          : Math.max(0, spotPrice - strike);
-
-        // Standard NSE Fallback SPAN Formula:
-        // SPAN = Max( (Premium + SPAN_Rate * Spot - OTM_Amount) * Qty, (Premium + 0.05 * Spot) * Qty )
-        const spanSpanAmt = (orderPrice + (marginParams.spanMarginRate * spotPrice) - otmAmount) * qty;
-        const minSpanAmt  = (orderPrice + (0.05 * spotPrice)) * qty;
-        spanMargin = Math.max(spanSpanAmt, minSpanAmt);
-
-        // Exposure Margin = Exposure_Rate * Spot * Qty
-        exposureMargin = marginParams.exposureMarginRate * spotPrice * qty;
-        additionalMargin = marginParams.additionalMarginRate * spotPrice * qty;
-
-        requiredMargin = spanMargin + exposureMargin + additionalMargin + charges.total;
-      }
-    } else {
-      // EQUITY / FUTURES
-      if (req.productType === 'MIS') {
-        requiredMargin = (orderValue * 0.20) + charges.total; // 5x leverage intraday
-      } else {
-        requiredMargin = orderValue + charges.total; // 100% CNC
-      }
+    let spotPriceSource: TickSource | undefined;
+    let spotPriceStale: boolean | undefined;
+    let spotPrice: number | undefined;
+    if (isOption && req.side === 'SELL') {
+      const resolved = resolveSpotPrice(req.underlying);
+      spotPrice = resolved.price;
+      spotPriceSource = resolved.source;
+      spotPriceStale = resolved.isStale;
     }
 
-    const totalMargin = requiredMargin;
-    const shortfall = Math.max(0, requiredMargin - availableFunds);
+    // 3. Distinguish Equity vs Option Buying vs Option Selling — the one
+    // shared formula, identical to what every position/pending-order
+    // recompute uses (MarginMath.marginForLeg).
+    const leg = marginForLeg({
+      productType: req.productType || 'NRML',
+      side: req.side,
+      quantity: qty,
+      price: orderPrice,
+      optionType: req.optionType,
+      strike: req.strike,
+      spotPrice,
+      marginParams,
+      charges,
+    });
+
+    const shortfall = Math.max(0, leg.requiredMargin - availableFunds);
     const canPlaceOrder = shortfall === 0;
 
     let rejectionReason: string | undefined;
     if (!canPlaceOrder) {
-      rejectionReason = `Insufficient margin. Required Capital: ₹${requiredMargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}, Available Funds: ₹${availableFunds.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      rejectionReason = `Insufficient margin. Required Capital: ₹${leg.requiredMargin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}, Available Funds: ₹${availableFunds.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
     }
 
     return {
       orderValue,
-      premium: isOption ? orderValue : 0,
-      requiredMargin: Number(requiredMargin.toFixed(2)),
-      spanMargin: Number(spanMargin.toFixed(2)),
-      exposureMargin: Number(exposureMargin.toFixed(2)),
-      additionalMargin: Number(additionalMargin.toFixed(2)),
-      totalMargin: Number(totalMargin.toFixed(2)),
+      premium: leg.premium,
+      requiredMargin: leg.requiredMargin,
+      spanMargin: leg.spanMargin,
+      exposureMargin: leg.exposureMargin,
+      additionalMargin: leg.additionalMargin,
+      totalMargin: leg.requiredMargin,
       brokerage: 0, // ₹0 Free Brokerage
       statutoryCharges: charges,
-      estimated: isEstimated,
+      estimated: leg.isEstimated,
       availableFunds: Number(availableFunds.toFixed(2)),
       shortfall: Number(shortfall.toFixed(2)),
       canPlaceOrder,
       rejectionReason,
+      spotPriceSource,
+      spotPriceStale,
     };
   }
 
@@ -261,38 +243,7 @@ export class MarginEngineService {
     return { stt, gst, exchangeCharges, stampDuty, sebiFee, total };
   }
 
-  private getSpotPrice(underlying: string, token?: string): number {
-    if (token) {
-      const tick = MarketDataEngine.getInstance().getCachedTick(token);
-      if (tick && tick.ltp > 0) return tick.ltp;
-    }
-    const clean = underlying.toUpperCase();
-    if (clean.includes('BANK')) return 52200;
-    if (clean.includes('SENSEX')) return 80000;
-    return 24500;
-  }
-
   private cachedStatutoryConfig: { config: any; expiresAt: number } | null = null;
-  private cachedMarginParams = new Map<string, { params: any; expiresAt: number }>();
-
-  private async getMarginParams(underlying: string, exchange: string): Promise<any> {
-    const clean = underlying.toUpperCase();
-    const cached = this.cachedMarginParams.get(clean);
-    if (cached && Date.now() < cached.expiresAt) {
-      return cached.params;
-    }
-    const row = await queryOne<any>(
-      `SELECT * FROM margin_parameters WHERE UPPER(underlying) = $1 LIMIT 1`,
-      [clean]
-    );
-    const params = {
-      spanMarginRate: row ? parseFloat(row.span_margin_rate) : 0.12,
-      exposureMarginRate: row ? parseFloat(row.exposure_margin_rate) : 0.03,
-      additionalMarginRate: row ? parseFloat(row.additional_margin_rate) : 0.00,
-    };
-    this.cachedMarginParams.set(clean, { params, expiresAt: Date.now() + 60000 });
-    return params;
-  }
 
   private async getStatutoryConfig(): Promise<any> {
     if (this.cachedStatutoryConfig && Date.now() < this.cachedStatutoryConfig.expiresAt) {

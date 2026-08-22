@@ -168,14 +168,14 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
   if (isMobile) {
     return (
       <tr
-        className={`transition-colors border-b border-slate-800/80 text-xs font-mono tabular-nums ${
+        className={`transition-colors border-b border-[var(--border-color)] text-xs font-mono tabular-nums ${
           isAtm
-            ? 'bg-amber-950/40 font-bold border-amber-500/50'
-            : 'hover:bg-slate-800/40'
+            ? 'bg-amber-500/10 font-bold border-amber-500/40'
+            : 'hover:bg-[var(--bg-surface-elevated)]'
         }`}
       >
         {/* Call Volume */}
-        <td className={`py-2 px-1.5 text-left text-[11px] text-slate-400 ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+        <td className={`py-2 px-1.5 text-left text-[11px] text-[var(--text-muted)] ${isCeItm ? 'bg-[var(--call-bg-itm)]' : ''}`}>
           {formatQty(row.ce.volume)}
         </td>
 
@@ -183,8 +183,8 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
         <td
           onClick={() => onSelectLtp(isCeActive ? null : ceKey)}
           className={`py-2 px-1 text-center cursor-pointer transition-all duration-150 relative min-h-[44px] min-w-[70px] ${
-            isCeItm ? 'bg-cyan-950/30 text-cyan-300' : 'text-slate-200'
-          } ${isCeActive ? 'ring-2 ring-cyan-400 bg-cyan-950/60 z-10' : 'hover:bg-cyan-950/20'} ${ceFlashClass}`}
+            isCeItm ? 'bg-[var(--call-bg-itm)] text-[var(--call-accent)]' : 'text-[var(--text-main)]'
+          } ${isCeActive ? 'ring-2 ring-[var(--call-accent)] bg-[var(--call-bg-hover)] z-10' : 'hover:bg-[var(--call-bg-itm)]'} ${ceFlashClass}`}
         >
           {isCeActive ? (
             <div className="flex items-center justify-center gap-1 animate-in fade-in zoom-in-95 duration-150">
@@ -236,17 +236,17 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
         {/* STRIKE PRICE (Center Column with PCR) */}
         <td
           onClick={handleOpenCeChart}
-          className={`py-2 px-1.5 text-center font-extrabold border-x border-slate-800/80 cursor-pointer hover:bg-slate-800/60 transition-colors ${
-            isAtm ? 'text-amber-300 bg-amber-950/60 font-black' : 'text-slate-200 bg-slate-950/60'
+          className={`py-2 px-1.5 text-center font-extrabold border-x border-[var(--border-color)] cursor-pointer hover:bg-[var(--bg-surface-elevated)] transition-colors ${
+            isAtm ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 font-black' : 'text-[var(--text-main)] bg-[var(--bg-surface-inset)]'
           }`}
           title="Click to view Strike Chart"
         >
           <div className="flex flex-col items-center">
-            <span className="text-xs font-bold text-white flex items-center gap-1">
+            <span className="text-xs font-bold text-[var(--text-main)] flex items-center gap-1">
               {row.strikePrice}
               {isAtm && <span className="text-[9px] bg-amber-400 text-slate-950 px-1 rounded font-black">ATM</span>}
             </span>
-            <span className="text-[9px] text-slate-400 font-medium">PCR: {pcrVal}</span>
+            <span className="text-[9px] text-[var(--text-muted)] font-medium">PCR: {pcrVal}</span>
           </div>
         </td>
 
@@ -254,8 +254,8 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
         <td
           onClick={() => onSelectLtp(isPeActive ? null : peKey)}
           className={`py-2 px-1 text-center cursor-pointer transition-all duration-150 relative min-h-[44px] min-w-[70px] ${
-            isPeItm ? 'bg-purple-950/30 text-purple-300' : 'text-slate-200'
-          } ${isPeActive ? 'ring-2 ring-purple-400 bg-purple-950/60 z-10' : 'hover:bg-purple-950/20'} ${peFlashClass}`}
+            isPeItm ? 'bg-[var(--put-bg-itm)] text-[var(--put-accent)]' : 'text-[var(--text-main)]'
+          } ${isPeActive ? 'ring-2 ring-[var(--put-accent)] bg-[var(--put-bg-hover)] z-10' : 'hover:bg-[var(--put-bg-itm)]'} ${peFlashClass}`}
         >
           {isPeActive ? (
             <div className="flex items-center justify-center gap-1 animate-in fade-in zoom-in-95 duration-150">
@@ -305,7 +305,7 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
         </td>
 
         {/* Put Volume */}
-        <td className={`py-2 px-1.5 text-right text-[11px] text-slate-400 ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+        <td className={`py-2 px-1.5 text-right text-[11px] text-[var(--text-muted)] ${isPeItm ? 'bg-[var(--put-bg-itm)]' : ''}`}>
           {formatQty(row.pe.volume)}
         </td>
       </tr>
@@ -315,36 +315,36 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
   // Render Desktop Multi-Column Table Row (Matching Reference)
   return (
     <tr
-      className={`transition-colors border-b border-slate-800/60 text-xs font-mono tabular-nums ${
+      className={`transition-colors border-b border-[var(--border-color)] text-xs font-mono tabular-nums ${
         isAtm
-          ? 'bg-amber-950/30 border-y border-amber-400/50 font-bold'
-          : 'hover:bg-slate-800/50'
+          ? 'bg-amber-500/10 border-y border-amber-500/40 font-bold'
+          : 'hover:bg-[var(--bg-surface-elevated)]'
       }`}
     >
       {/* --- CALLS (CE) SIDE --- */}
       {viewMode === 'GREEKS' ? (
         <>
-          <td className={`py-2.5 px-3 text-slate-400 ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-muted)] ${isCeItm ? 'bg-[var(--call-bg-itm)]' : ''}`}>
             Δ {row.ce.delta?.toFixed(2) || '0.50'}
           </td>
-          <td className={`py-2.5 px-3 text-slate-400 ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-muted)] ${isCeItm ? 'bg-[var(--call-bg-itm)]' : ''}`}>
             IV {row.ce.iv?.toFixed(1) || '12.0'}%
           </td>
         </>
       ) : (
         <>
           {/* CALL Volume */}
-          <td className={`py-2.5 px-3 text-slate-300 text-left ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-main)] text-left ${isCeItm ? 'bg-[var(--call-bg-itm)]' : ''}`}>
             {formatQty(row.ce.volume)}
           </td>
 
           {/* CALL OI Change (Change%) */}
-          <td className={`py-2.5 px-3 text-slate-400 text-left ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-muted)] text-left ${isCeItm ? 'bg-[var(--call-bg-itm)]' : ''}`}>
             {formatQty(row.ce.openInterestChange)} {row.ce.openInterestChange ? `(${(row.ce.openInterestChange / (row.ce.openInterest || 1) * 100).toFixed(1)}%)` : ''}
           </td>
 
           {/* CALL OI */}
-          <td className={`py-2.5 px-3 text-slate-300 text-left ${isCeItm ? 'bg-cyan-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-main)] text-left ${isCeItm ? 'bg-[var(--call-bg-itm)]' : ''}`}>
             {formatQty(row.ce.openInterest)}
           </td>
         </>
@@ -354,8 +354,8 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
       <td
         onClick={() => onSelectLtp(isCeActive ? null : ceKey)}
         className={`py-2.5 px-3 text-right cursor-pointer transition-all duration-150 relative min-w-[130px] ${
-          isCeItm ? 'bg-cyan-950/30 text-cyan-300 font-bold' : 'text-cyan-400 font-bold'
-        } ${isCeActive ? 'ring-2 ring-emerald-400 bg-cyan-950/80 shadow-lg z-10' : 'hover:bg-cyan-950/40 group'} ${ceFlashClass}`}
+          isCeItm ? 'bg-[var(--call-bg-itm)] text-[var(--call-accent)] font-bold' : 'text-[var(--call-accent)] font-bold'
+        } ${isCeActive ? 'ring-2 ring-emerald-400 bg-[var(--call-bg-hover)] shadow-lg z-10' : 'hover:bg-[var(--call-bg-hover)] group'} ${ceFlashClass}`}
       >
         {isCeActive ? (
           <div className="flex items-center justify-end gap-1.5 animate-in fade-in zoom-in-95 duration-150">
@@ -398,7 +398,7 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
               <button
                 type="button"
                 onClick={handleOpenCeChart}
-                className="p-1 rounded bg-slate-800/80 hover:bg-blue-600 text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                className="p-1 rounded bg-[var(--bg-surface-elevated)] hover:bg-blue-600 text-[var(--text-muted)] hover:text-white opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                 title="View Strike Chart"
               >
                 <TrendingUp size={12} />
@@ -410,7 +410,7 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
             <span className={`text-[11px] ${formattedCePct.isPos ? 'text-emerald-500' : 'text-rose-500'}`}>
               ({formattedCePct.text})
             </span>
-            <ArrowRight className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <ArrowRight className="w-3.5 h-3.5 text-[var(--call-accent)] opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         )}
       </td>
@@ -418,10 +418,10 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
       {/* --- STRIKE PRICE (CENTER COLUMN) --- */}
       <td
         onClick={handleOpenCeChart}
-        className={`py-2.5 px-4 font-extrabold text-sm border-x border-slate-800/80 text-center cursor-pointer hover:bg-slate-900 transition-colors ${
+        className={`py-2.5 px-4 font-extrabold text-sm border-x border-[var(--border-color)] text-center cursor-pointer hover:bg-[var(--bg-surface)] transition-colors ${
           isAtm
-            ? 'text-amber-300 bg-amber-950/60 font-black tracking-wider shadow-inner'
-            : 'text-white bg-slate-950'
+            ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 font-black tracking-wider shadow-inner'
+            : 'text-[var(--text-main)] bg-[var(--bg-surface-inset)]'
         }`}
         title="Click to view Strike Chart"
       >
@@ -440,8 +440,8 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
       <td
         onClick={() => onSelectLtp(isPeActive ? null : peKey)}
         className={`py-2.5 px-3 text-left cursor-pointer transition-all duration-150 relative min-w-[130px] ${
-          isPeItm ? 'bg-purple-950/30 text-purple-300 font-bold' : 'text-purple-400 font-bold'
-        } ${isPeActive ? 'ring-2 ring-emerald-400 bg-purple-950/80 shadow-lg z-10' : 'hover:bg-purple-950/40 group'} ${peFlashClass}`}
+          isPeItm ? 'bg-[var(--put-bg-itm)] text-[var(--put-accent)] font-bold' : 'text-[var(--put-accent)] font-bold'
+        } ${isPeActive ? 'ring-2 ring-emerald-400 bg-[var(--put-bg-hover)] shadow-lg z-10' : 'hover:bg-[var(--put-bg-hover)] group'} ${peFlashClass}`}
       >
         {isPeActive ? (
           <div className="flex items-center justify-start gap-1.5 animate-in fade-in zoom-in-95 duration-150">
@@ -480,7 +480,7 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
           </div>
         ) : (
           <div className="flex items-center justify-start gap-1.5">
-            <ArrowLeft className="w-3.5 h-3.5 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <ArrowLeft className="w-3.5 h-3.5 text-[var(--put-accent)] opacity-0 group-hover:opacity-100 transition-opacity" />
             <span className={`text-xs font-bold ${formattedPePct.isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
               ₹{peLtp.toFixed(2)}
             </span>
@@ -491,7 +491,7 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
               <button
                 type="button"
                 onClick={handleOpenPeChart}
-                className="p-1 rounded bg-slate-800/80 hover:bg-blue-600 text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                className="p-1 rounded bg-[var(--bg-surface-elevated)] hover:bg-blue-600 text-[var(--text-muted)] hover:text-white opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                 title="View Strike Chart"
               >
                 <TrendingUp size={12} />
@@ -503,27 +503,27 @@ export const OptionChainRowComponent: React.FC<OptionChainRowProps> = ({
 
       {viewMode === 'GREEKS' ? (
         <>
-          <td className={`py-2.5 px-3 text-slate-400 ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-muted)] ${isPeItm ? 'bg-[var(--put-bg-itm)]' : ''}`}>
             IV {row.pe.iv?.toFixed(1) || '12.0'}%
           </td>
-          <td className={`py-2.5 px-3 text-slate-400 ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-muted)] ${isPeItm ? 'bg-[var(--put-bg-itm)]' : ''}`}>
             Δ {row.pe.delta?.toFixed(2) || '0.50'}
           </td>
         </>
       ) : (
         <>
           {/* PUT OI */}
-          <td className={`py-2.5 px-3 text-slate-300 text-right ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-main)] text-right ${isPeItm ? 'bg-[var(--put-bg-itm)]' : ''}`}>
             {formatQty(row.pe.openInterest)}
           </td>
 
           {/* PUT OI Change (Change%) */}
-          <td className={`py-2.5 px-3 text-slate-400 text-right ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-muted)] text-right ${isPeItm ? 'bg-[var(--put-bg-itm)]' : ''}`}>
             {formatQty(row.pe.openInterestChange)} {row.pe.openInterestChange ? `(${(row.pe.openInterestChange / (row.pe.openInterest || 1) * 100).toFixed(1)}%)` : ''}
           </td>
 
           {/* PUT Volume */}
-          <td className={`py-2.5 px-3 text-slate-300 text-right ${isPeItm ? 'bg-purple-950/20' : ''}`}>
+          <td className={`py-2.5 px-3 text-[var(--text-main)] text-right ${isPeItm ? 'bg-[var(--put-bg-itm)]' : ''}`}>
             {formatQty(row.pe.volume)}
           </td>
         </>

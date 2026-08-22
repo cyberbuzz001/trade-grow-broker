@@ -38,6 +38,8 @@ export interface User {
   city?: string;
   address?: string;
   dateOfBirth?: string;
+  /** 'REDUCE_ONLY' when the backend RMS loss monitor has restricted this account to closing/reducing exposure only. */
+  riskRestriction?: string | null;
 }
 
 export interface Wallet {

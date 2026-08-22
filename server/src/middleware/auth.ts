@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { queryOne } from '../db/schema';
+import { getPermissionCatalogEntry } from '../config/permissionCatalog';
 
 export interface AuthenticatedUser {
   userId: string;
@@ -116,6 +117,61 @@ export function checkRole(allowedRoles: string[]) {
 
 export function requireSuperAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   checkRole(['SUPER_ADMIN'])(req, res, next);
+}
+
+/**
+ * Granular-permission gate (Phase 3). Looks up `key` in the permission
+ * catalog, checks `manager_permissions` for a per-user override, and falls
+ * back to the catalog's `defaultRoles` when no override exists. Fails closed
+ * (403) both when the key itself is unknown (a coding mistake, not a
+ * legitimate access decision) and on a DB error during the override lookup —
+ * this gates real liquidation/financial controls, not a hot path, so
+ * conservative-on-error is the right default.
+ */
+export function checkPermission(key: string) {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+      return;
+    }
+
+    const entry = getPermissionCatalogEntry(key);
+    if (!entry) {
+      res.status(403).json({
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: `Unknown permission key '${key}'.` }
+      });
+      return;
+    }
+
+    try {
+      const override = await queryOne<{ granted: boolean }>(
+        `SELECT granted FROM manager_permissions WHERE manager_id = $1 AND permission_key = $2`,
+        [req.user.userId, key]
+      );
+
+      const allowed = override ? !!override.granted : entry.defaultRoles.includes(req.user.role);
+
+      if (!allowed) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'PERMISSION_DENIED',
+            message: `Access denied. You do not have the '${key}' permission required for this action.`
+          }
+        });
+        return;
+      }
+
+      next();
+    } catch (err: any) {
+      console.error(`[checkPermission] Lookup failed for key='${key}', user='${req.user.userId}':`, err.message || err);
+      res.status(403).json({
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'Unable to verify permission. Access denied.' }
+      });
+    }
+  };
 }
 
 /**

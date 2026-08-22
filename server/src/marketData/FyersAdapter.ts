@@ -100,21 +100,9 @@ export class FyersAdapter implements IMarketDataProvider {
   }
 
   public async initialize(): Promise<void> {
-    console.log(`[FyersAdapter] Initializing Fyers API v3 Adapter (AppId: ${this.appId || 'UNSET'})...`);
-    SafetyLock.assertSimulationOnly('FyersAdapter.initialize');
-
-    // Pre-populate tick cache with baseline reference prices
-    this.seedReferenceTicks();
-
-    if (this.appId && this.accessToken) {
-      await this.connectWebSocket();
-    } else {
-      console.warn('[FyersAdapter] ⚠️ FYERS_APP_ID or FYERS_ACCESS_TOKEN not configured. Running in ready standby mode with reference feeds.');
-      this.healthy = true;
-    }
-
-    // Start a periodic fallback quote poller (every 5 seconds) to ensure fresh ticks
-    this.startPeriodicQuotePoll();
+    // DISABLED: Fyers provider is not in use. Prevents WebSocket crash-reconnect storms.
+    console.log('[FyersAdapter] ⏭️  Fyers initialize() skipped — provider disabled. Using Dhan-only mode.');
+    this.healthy = false;
   }
 
   public stop(): void {

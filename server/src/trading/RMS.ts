@@ -1,12 +1,13 @@
 import { queryOne } from '../db/schema';
 import { VirtualWalletLedger } from './VirtualWalletLedger';
-import { MarketDataEngine } from '../marketData/MarketDataEngine';
 import { marginEngineService } from '../services/MarginEngineService';
+import { resolveOrderReferencePrice, resolveOptionDetails, TickSource } from './MarginMath';
 
 export interface RMSValidationResult {
   passed: boolean;
   reason?: string;
   requiredMargin: number;
+  priceSource?: TickSource;
 }
 
 export interface RMSOrderParams {
@@ -19,6 +20,8 @@ export interface RMSOrderParams {
   price: number;
   orderType: 'MARKET' | 'LIMIT' | 'SL' | 'SL_M';
   productType: 'MIS' | 'CNC' | 'NRML';
+  /** From users.risk_restriction (Phase 2) — 'REDUCE_ONLY' blocks exposure-increasing orders, exempting square-offs. */
+  riskRestriction?: string | null;
 }
 
 function getISTDateString(input?: Date | string | number | null): string {
@@ -80,49 +83,13 @@ export class RMS {
       return { passed: false, reason: 'ORDER_REJECTED: Quantity must be greater than 0', requiredMargin: 0 };
     }
 
-    // 2. Instrument & Contract Non-Expiration Check
-    const instrument = await queryOne<any>(
-      `SELECT * FROM instruments WHERE instrument_token = $1 OR symbol = $2 LIMIT 1`,
-      [order.instrumentToken, order.symbol]
-    );
-
-    if (instrument) {
-      if (!instrument.active) {
-        return { passed: false, reason: `ORDER_REJECTED: Instrument ${order.symbol} is currently inactive or suspended by exchange`, requiredMargin: 0 };
-      }
-      if (instrument.expiry) {
-        const todayIST = getISTDateString();
-        const parsedExp = getISTDateString(instrument.expiry);
-        if (parsedExp && /^\d{4}-\d{2}-\d{2}$/.test(parsedExp) && parsedExp < todayIST) {
-          return { passed: false, reason: `ORDER_REJECTED: Contract ${order.symbol} has expired on ${parsedExp}. Trading on expired contracts is strictly prohibited`, requiredMargin: 0 };
-        }
-      }
-    }
-
-    // 3. Fetch System Risk Limits (Cached)
-    const { maxQty, maxOrderVal } = await this.getRiskLimits();
-
-    if (order.quantity > maxQty) {
-      return { passed: false, reason: `ORDER_REJECTED: Order quantity exceeds maximum allowed limit of ${maxQty}`, requiredMargin: 0 };
-    }
-
-    // 4. Reference execution price
-    let refPrice = order.price;
-    if (!refPrice || refPrice <= 0) {
-      const tick = MarketDataEngine.getInstance().getCachedTick(order.instrumentToken);
-      refPrice = tick ? tick.ltp : (instrument && parseFloat(instrument.strike || '0') > 0 ? parseFloat(instrument.strike) : 100.0);
-    }
-
-    const orderValue = refPrice * order.quantity;
-    if (orderValue > maxOrderVal) {
-      return {
-        passed: false,
-        reason: `ORDER_REJECTED: Total order value (₹${orderValue.toLocaleString('en-IN')}) exceeds maximum limit (₹${maxOrderVal.toLocaleString('en-IN')})`,
-        requiredMargin: 0
-      };
-    }
-
-    // 5. Check position reduction / square-off benefit
+    // 2. Check position reduction / square-off status FIRST — a square-off
+    // order must never be blocked by the instrument-expiry or qty/value
+    // limits below. Computed here (moved up from its previous place after
+    // those checks) because an order closing an existing position is
+    // fundamentally different from one opening/growing exposure: it must
+    // always be allowed through regardless of contract state or size limits,
+    // the same way step 8's buying-power check already exempts it.
     const existingPos = await queryOne<any>(
       'SELECT net_qty FROM positions WHERE user_id = $1 AND symbol = $2 AND product_type = $3',
       [order.userId, order.symbol, order.productType]
@@ -135,18 +102,91 @@ export class RMS {
       isSquareOff = true;
     }
 
-    // Determine option details if derivative contract
+    // 2b. Phase 2 risk-tier restriction — a user flagged REDUCE_ONLY (their
+    // unrealized loss crossed the 70% CRITICAL tier) may still close/reduce
+    // positions (isSquareOff exemption, same as every other gate below) but
+    // may not open or grow exposure until a human reviews the account.
+    if (!isSquareOff && order.riskRestriction === 'REDUCE_ONLY') {
+      return {
+        passed: false,
+        reason: 'ORDER_REJECTED: Account restricted to reduce-only trading pending risk review',
+        requiredMargin: 0
+      };
+    }
+
+    // 3. Instrument & Contract Non-Expiration Check
+    // Token lookup first, symbol only as a fallback — `instruments.symbol` is
+    // the bare underlying name shared by every contract listed on it (e.g.
+    // every RELIANCE option/futures row also has symbol='RELIANCE'), so the
+    // previous single `OR ... LIMIT 1` query could return an arbitrary
+    // matching row instead of the actual instrument the order's token names —
+    // wrongly rejecting a valid equity order if the row it happened to land
+    // on was an expired/inactive option sharing that same underlying name.
+    let instrument = order.instrumentToken
+      ? await queryOne<any>(`SELECT * FROM instruments WHERE instrument_token = $1`, [order.instrumentToken])
+      : null;
+    if (!instrument && order.symbol) {
+      instrument = await queryOne<any>(`SELECT * FROM instruments WHERE symbol = $1 LIMIT 1`, [order.symbol]);
+    }
+
+    if (instrument && !isSquareOff) {
+      if (!instrument.active) {
+        return { passed: false, reason: `ORDER_REJECTED: Instrument ${order.symbol} is currently inactive or suspended by exchange`, requiredMargin: 0 };
+      }
+      if (instrument.expiry) {
+        const todayIST = getISTDateString();
+        const parsedExp = getISTDateString(instrument.expiry);
+        if (parsedExp && /^\d{4}-\d{2}-\d{2}$/.test(parsedExp) && parsedExp < todayIST) {
+          return { passed: false, reason: `ORDER_REJECTED: Contract ${order.symbol} has expired on ${parsedExp}. Trading on expired contracts is strictly prohibited`, requiredMargin: 0 };
+        }
+      }
+    }
+
+    // 4. Fetch System Risk Limits (Cached)
+    const { maxQty, maxOrderVal } = await this.getRiskLimits();
+
+    if (!isSquareOff && order.quantity > maxQty) {
+      return { passed: false, reason: `ORDER_REJECTED: Order quantity exceeds maximum allowed limit of ${maxQty}`, requiredMargin: 0 };
+    }
+
+    // 5. Reference execution price — falls back to a cached/stale tick or a
+    // last-resort constant rather than blocking (confirmed staleness policy:
+    // tag and proceed), so the order flow never hard-stalls on a feed gap.
+    let refPrice = order.price;
+    let priceSource: TickSource = 'live';
+    if (!refPrice || refPrice <= 0) {
+      const fallback = instrument && parseFloat(instrument.strike || '0') > 0 ? parseFloat(instrument.strike) : 100.0;
+      const resolved = resolveOrderReferencePrice(order.instrumentToken, fallback);
+      refPrice = resolved.price;
+      priceSource = resolved.source;
+    }
+
+    const orderValue = refPrice * order.quantity;
+    if (!isSquareOff && orderValue > maxOrderVal) {
+      return {
+        passed: false,
+        reason: `ORDER_REJECTED: Total order value (₹${orderValue.toLocaleString('en-IN')}) exceeds maximum limit (₹${maxOrderVal.toLocaleString('en-IN')})`,
+        requiredMargin: 0
+      };
+    }
+
+    // Determine option details if derivative contract — prefers the joined
+    // instruments row (authoritative), falling back to symbol/token parsing
+    // via the one shared parser (SymbologyNormalizer.parseOptionSymbol,
+    // through resolveOptionDetails) instead of a second inline regex copy.
     let optionType: 'CE' | 'PE' | 'XX' = 'XX';
     let strike = 0;
     let underlying = order.symbol;
 
-    if (instrument) {
-      optionType = instrument.option_type || (order.symbol.endsWith('CE') ? 'CE' : order.symbol.endsWith('PE') ? 'PE' : 'XX');
-      strike = parseFloat(instrument.strike || '0');
-      underlying = instrument.name || instrument.symbol;
-    } else if (order.symbol.endsWith('CE')) {
+    const resolved = resolveOptionDetails(order.symbol, instrument)
+      || resolveOptionDetails(order.instrumentToken, instrument);
+    if (resolved) {
+      underlying = resolved.underlying;
+      strike = resolved.strike;
+      optionType = resolved.optionType;
+    } else if (order.symbol.toUpperCase().endsWith('CE')) {
       optionType = 'CE';
-    } else if (order.symbol.endsWith('PE')) {
+    } else if (order.symbol.toUpperCase().endsWith('PE')) {
       optionType = 'PE';
     }
 
@@ -181,7 +221,7 @@ export class RMS {
           requiredMargin: 0
         };
       }
-      return { passed: true, requiredMargin: 0 };
+      return { passed: true, requiredMargin: 0, priceSource };
     }
 
     // 8. Check Virtual Buying Power
@@ -189,10 +229,11 @@ export class RMS {
       return {
         passed: false,
         reason: `ORDER_REJECTED: ${marginQuote.rejectionReason || 'Insufficient funds'}`,
-        requiredMargin: marginQuote.requiredMargin
+        requiredMargin: marginQuote.requiredMargin,
+        priceSource
       };
     }
 
-    return { passed: true, requiredMargin };
+    return { passed: true, requiredMargin, priceSource };
   }
 }
