@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import argon2 from 'argon2';
-import { authenticateToken, checkRole, checkPermission, AuthenticatedRequest } from '../middleware/auth';
+import { authenticateToken, checkPermission, AuthenticatedRequest } from '../middleware/auth';
 import { SYSTEM_PERMISSION_CATEGORIES } from '../config/permissionCatalog';
 import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { logAuditAction } from '../middleware/audit';
@@ -44,7 +44,7 @@ const ADMIN_ROLES = [
 // ============================================================
 // 1. EXECUTIVE DASHBOARD
 // ============================================================
-router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/dashboard/executive', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const [
       totalUsersRow, activeUsersRow, newUsersRow,
@@ -165,7 +165,7 @@ router.get('/dashboard/executive', authenticateToken, checkRole(ADMIN_ROLES), as
 // ============================================================
 // 2. CUSTOMER MANAGEMENT
 // ============================================================
-router.get('/customers', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const limit = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
   const offset = parseInt(req.query.offset as string || '0', 10);
   const search = req.query.search as string || '';
@@ -208,7 +208,7 @@ router.get('/customers', authenticateToken, checkRole(ADMIN_ROLES), async (req: 
 });
 
 // Real-Time Duplicate Identity Checker API
-router.get('/customers/check-duplicate', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/check-duplicate', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const email = req.query.email as string || '';
     const username = req.query.username as string || '';
@@ -223,7 +223,7 @@ router.get('/customers/check-duplicate', authenticateToken, checkRole(ADMIN_ROLE
 });
 
 // Admin Add Customer / Create Client API
-router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/create', authenticateToken, checkPermission('USER_CREATE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { username, email, password, role, clientId, fullName, phoneNumber, initialCapital, city, address } = req.body;
 
@@ -260,7 +260,7 @@ router.post('/customers/create', authenticateToken, checkRole(['SUPER_ADMIN', 'A
 });
 
 // Scan Database for Duplicate Identities (Email, Phone, PAN)
-router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/duplicates', authenticateToken, checkPermission('CUSTOMERS_DUPLICATE_SCAN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     // 1. Find users with identical normalized emails (if any)
     const emailDups = await query<any>(
@@ -302,7 +302,7 @@ router.get('/customers/duplicates', authenticateToken, checkRole(['SUPER_ADMIN',
   }
 });
 
-router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const customerId = req.params.id;
   const [user, wallet, kycRecords, orders, trades, positions, holdings, ledger, auditLogs] = await Promise.all([
     queryOne<any>('SELECT id, username, email, role, status, created_at, last_login_at, failed_login_attempts FROM users WHERE id = $1', [customerId]),
@@ -366,7 +366,7 @@ router.get('/customers/:id', authenticateToken, checkRole(ADMIN_ROLES), async (r
   });
 });
 
-router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/freeze', authenticateToken, checkPermission('USER_LOCK_UNLOCK'), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
   // 'FROZEN' was never a legal value for users.status (only for virtual_wallets.status) —
@@ -376,7 +376,7 @@ router.post('/customers/:id/freeze', authenticateToken, checkRole(['SUPER_ADMIN'
   res.json({ success: true, message: 'Account frozen' });
 });
 
-router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER', 'OPERATIONS_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/unfreeze', authenticateToken, checkPermission('USER_LOCK_UNLOCK'), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
   await execute("UPDATE users SET status = 'ACTIVE', updated_at = NOW() WHERE id = $1", [targetId]);
@@ -384,7 +384,7 @@ router.post('/customers/:id/unfreeze', authenticateToken, checkRole(['SUPER_ADMI
   res.json({ success: true, message: 'Account unfrozen' });
 });
 
-router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/reset-password', authenticateToken, checkPermission('USER_RESET_PASSWORD'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const targetUserId = req.params.id as string;
     const { newPassword } = req.body;
@@ -434,7 +434,7 @@ router.post('/customers/:id/reset-password', authenticateToken, checkRole(['SUPE
 // ============================================================
 // 3. KYC MANAGEMENT
 // ============================================================
-router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/kyc/queue', authenticateToken, checkPermission('KYC_QUEUE_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const status = req.query.status as string || '';
   let where = '';
   const params: any[] = [];
@@ -450,7 +450,7 @@ router.get('/kyc/queue', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', '
   res.json({ success: true, records });
 });
 
-router.post('/kyc/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/kyc/:id/approve', authenticateToken, checkPermission('KYC_VERIFY_APPROVE'), async (req: AuthenticatedRequest, res: Response) => {
   const { notes } = req.body;
   const kycId = req.params.id as string;
   await execute(
@@ -461,7 +461,7 @@ router.post('/kyc/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'AD
   res.json({ success: true, message: 'KYC approved' });
 });
 
-router.post('/kyc/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER', 'OPERATIONS_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/kyc/:id/reject', authenticateToken, checkPermission('KYC_VERIFY_APPROVE'), async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const kycId = req.params.id as string;
   await execute(
@@ -475,7 +475,7 @@ router.post('/kyc/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADM
 // ============================================================
 // 4. ORDER MONITOR
 // ============================================================
-router.get('/orders/monitor', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/orders/monitor', authenticateToken, checkPermission('ORDERS_MONITOR_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 500);
   const status = req.query.status as string || '';
   const exchange = req.query.exchange as string || '';
@@ -500,7 +500,7 @@ router.get('/orders/monitor', authenticateToken, checkRole(ADMIN_ROLES), async (
   res.json({ success: true, orders });
 });
 
-router.get('/orders/:id/events', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/orders/:id/events', authenticateToken, checkPermission('ORDERS_MONITOR_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const orderId = req.params.id as string;
   const events = await query(
     'SELECT * FROM order_events WHERE order_id = $1 ORDER BY created_at ASC',
@@ -518,7 +518,7 @@ router.get('/orders/:id/events', authenticateToken, checkRole(ADMIN_ROLES), asyn
 // ============================================================
 // 5. RISK COMMAND CENTER
 // ============================================================
-router.get('/risk/dashboard', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/risk/dashboard', authenticateToken, checkPermission('RISK_DASHBOARD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const [totalExposure, marginUsed, highRisk, marginAlerts, frozenAccounts, rmsBlocks] = await Promise.all([
     queryOne<any>('SELECT COALESCE(SUM(used_margin), 0) as s FROM virtual_wallets'),
     queryOne<any>('SELECT COALESCE(SUM(used_margin), 0) as s FROM virtual_wallets WHERE used_margin > 0'),
@@ -541,7 +541,7 @@ router.get('/risk/dashboard', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
   });
 });
 
-router.get('/risk/alerts', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/risk/alerts', authenticateToken, checkPermission('RISK_DASHBOARD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const alerts = await query(
     `SELECT re.*, u.username FROM risk_events re
      LEFT JOIN users u ON re.customer_id = u.id
@@ -555,12 +555,12 @@ router.get('/risk/alerts', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN',
 // ============================================================
 // 6. KILL SWITCH
 // ============================================================
-router.get('/risk/kill-switch', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/risk/kill-switch', authenticateToken, checkPermission('RISK_DASHBOARD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const states = await query('SELECT * FROM kill_switch_state ORDER BY scope');
   res.json({ success: true, states });
 });
 
-router.post('/risk/kill-switch', authenticateToken, checkRole(['SUPER_ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/risk/kill-switch', authenticateToken, checkPermission('KILL_SWITCH_TRIGGER'), async (req: AuthenticatedRequest, res: Response) => {
   const { scope, action, reason } = req.body;
   if (!scope || !action || !reason) {
     res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'scope, action, and reason are required' } });
@@ -586,7 +586,7 @@ router.post('/risk/kill-switch', authenticateToken, checkRole(['SUPER_ADMIN']), 
 // ============================================================
 // 7. BROKER HEALTH
 // ============================================================
-router.get('/broker/health', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/broker/health', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const mdEngine = MarketDataEngine.getInstance();
   const provider = mdEngine.getActiveProviderName();
   const tickCount = mdEngine.getAllCachedTicks().length;
@@ -610,7 +610,7 @@ router.get('/broker/health', authenticateToken, checkRole(ADMIN_ROLES), async (r
 // ============================================================
 // 8. MARKET DATA STATUS
 // ============================================================
-router.get('/market/status', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/market/status', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const mdEngine = MarketDataEngine.getInstance();
   const ticks = mdEngine.getAllCachedTicks();
   const staleThreshold = Date.now() - 60000;
@@ -633,7 +633,7 @@ router.get('/market/status', authenticateToken, checkRole(ADMIN_ROLES), async (r
 // ============================================================
 // 9. FUNDS OVERVIEW
 // ============================================================
-router.get('/funds/overview', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/funds/overview', authenticateToken, checkPermission('FUNDS_OVERVIEW_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const [totalFunds, usedMargin, pendingRequests, recentTransactions] = await Promise.all([
     queryOne<any>('SELECT COALESCE(SUM(cash_balance), 0) as total, COALESCE(SUM(used_margin), 0) as margin FROM virtual_wallets'),
     queryOne<any>('SELECT COALESCE(SUM(used_margin), 0) as s FROM virtual_wallets WHERE used_margin > 0'),
@@ -657,7 +657,7 @@ router.get('/funds/overview', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
 // ============================================================
 // 9B. ADMIN FUND REQUEST APPROVAL / REJECTION API
 // ============================================================
-router.get('/funds/requests', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/funds/requests', authenticateToken, checkPermission('FUNDS_OVERVIEW_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const statusFilter = req.query.status as string || '';
     let whereClause = '';
@@ -683,7 +683,7 @@ router.get('/funds/requests', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMI
   }
 });
 
-router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/funds/requests/:id/approve', authenticateToken, checkPermission('WITHDRAWALS_APPROVE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const reqId = id as string;
@@ -866,7 +866,7 @@ router.post('/funds/requests/:id/approve', authenticateToken, checkRole(['SUPER_
   }
 });
 
-router.post('/funds/requests/:id/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/funds/requests/:id/reject', authenticateToken, checkPermission('WITHDRAWALS_APPROVE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const reqId = id as string;
@@ -895,7 +895,7 @@ router.post('/funds/requests/:id/reject', authenticateToken, checkRole(['SUPER_A
 });
 
 // Admin-Only Payment Credentials Configuration (LinkPe UPI & Bank Account)
-router.get('/funds/payment-settings', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/funds/payment-settings', authenticateToken, checkPermission('PAYMENT_GATEWAYS_MANAGE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const keys = [
       'LINKPE_UPI_ID', 'LINKPE_MERCHANT_NAME',
@@ -927,7 +927,7 @@ router.get('/funds/payment-settings', authenticateToken, checkRole(['SUPER_ADMIN
   }
 });
 
-router.post('/funds/payment-settings', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/funds/payment-settings', authenticateToken, checkPermission('PAYMENT_GATEWAYS_UPDATE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { upiId, merchantName, bankName, accountName, accountNumber, ifscCode, branch } = req.body;
 
@@ -966,7 +966,7 @@ router.post('/funds/payment-settings', authenticateToken, checkRole(['SUPER_ADMI
 // ============================================================
 // 10. LEDGER VIEWER
 // ============================================================
-router.get('/ledger', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER', 'READ_ONLY_AUDITOR']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/ledger', authenticateToken, checkPermission('LEDGER_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 500);
   const offset = parseInt(req.query.offset as string || '0', 10);
   const customerId = req.query.customerId as string || '';
@@ -994,7 +994,7 @@ router.get('/ledger', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FIN
 // ============================================================
 // 11. SYSTEM HEALTH MONITOR
 // ============================================================
-router.get('/system/health', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/system/health', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   const dbHealth = await checkDatabaseHealth();
   const mdEngine = MarketDataEngine.getInstance();
 
@@ -1016,7 +1016,7 @@ router.get('/system/health', authenticateToken, checkRole(ADMIN_ROLES), async (r
 // ============================================================
 // 12. MARKET DATA PROVIDER & API KEYS MANAGEMENT
 // ============================================================
-router.get('/market-data/config', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/market-data/config', authenticateToken, checkPermission('MARKET_DATA_CONFIG'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const configs = await MarketDataStorageService.getAllSystemConfigs();
     const engine = MarketDataEngine.getInstance();
@@ -1046,7 +1046,7 @@ router.get('/market-data/config', authenticateToken, checkRole(ADMIN_ROLES), asy
   }
 });
 
-router.post('/market-data/config', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/market-data/config', authenticateToken, checkPermission('MARKET_DATA_CONFIG'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { primaryProvider, keys } = req.body;
 
@@ -1079,7 +1079,7 @@ router.post('/market-data/config', authenticateToken, checkRole(ADMIN_ROLES), as
 // ============================================================
 // 13. LOCAL MARKET DATA DOWNLOADER & STORAGE API
 // ============================================================
-router.post('/market-data/download', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/market-data/download', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { tokens, timeframe = '1D', count = 100 } = req.body;
     const targetTokens = Array.isArray(tokens) && tokens.length > 0
@@ -1099,7 +1099,7 @@ router.post('/market-data/download', authenticateToken, checkRole(ADMIN_ROLES), 
   }
 });
 
-router.get('/market-data/local-stats', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/market-data/local-stats', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await MarketDataStorageService.getLocalStorageStats();
     res.json({ success: true, stats });
@@ -1111,7 +1111,7 @@ router.get('/market-data/local-stats', authenticateToken, checkRole(ADMIN_ROLES)
 // ============================================================
 // 14. ADMIN KYC MANAGEMENT & DOCUMENT VERIFICATION
 // ============================================================
-router.get('/kyc/applications', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/kyc/applications', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const apps = await query<any>(
       `SELECT ka.*, u.username, u.email, u.role
@@ -1134,7 +1134,7 @@ router.get('/kyc/applications', authenticateToken, checkRole(ADMIN_ROLES), async
   }
 });
 
-router.get('/kyc/documents/:id/download', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/kyc/documents/:id/download', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const doc = await queryOne<any>('SELECT * FROM kyc_documents WHERE id = $1', [req.params.id]);
     if (!doc) {
@@ -1158,7 +1158,7 @@ router.get('/kyc/documents/:id/download', authenticateToken, checkRole(ADMIN_ROL
   }
 });
 
-router.post('/kyc/review', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/kyc/review', authenticateToken, checkPermission('KYC_REJECT'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { applicationId, action, rejectionReason, rejectionCategory } = req.body;
 
@@ -1187,7 +1187,7 @@ router.post('/kyc/review', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN',
 // ============================================================
 // 15. ADMIN DIRECT FUND ADJUSTMENT (CREDIT / DEBIT)
 // ============================================================
-router.post('/funds/direct-adjust', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/funds/direct-adjust', authenticateToken, checkPermission('DIRECT_BALANCE_ADJUST'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, requestType, amount, reason } = req.body;
     const reqAmount = parseFloat(amount);
@@ -1228,7 +1228,7 @@ router.post('/funds/direct-adjust', authenticateToken, checkRole(['SUPER_ADMIN',
 // ============================================================
 // 16. ADMIN ORDER MONITOR & ORDER MANAGEMENT SYSTEM
 // ============================================================
-router.get('/orders/monitor', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/orders/monitor', authenticateToken, checkPermission('ORDERS_MONITOR_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const statusFilter = req.query.status as string || '';
     const exchangeFilter = req.query.exchange as string || '';
@@ -1264,7 +1264,7 @@ router.get('/orders/monitor', authenticateToken, checkRole(ADMIN_ROLES), async (
   }
 });
 
-router.post('/orders/:orderId/price', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/:orderId/price', authenticateToken, checkPermission('ORDERS_MANAGE_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { orderId } = req.params;
     const { price } = req.body;
@@ -1301,7 +1301,7 @@ router.post('/orders/:orderId/price', authenticateToken, checkRole(ADMIN_ROLES),
   }
 });
 
-router.post('/orders/:orderId/cancel', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/:orderId/cancel', authenticateToken, checkPermission('ORDERS_MANAGE_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { orderId } = req.params;
     const { reason } = req.body;
@@ -1336,7 +1336,7 @@ router.post('/orders/:orderId/cancel', authenticateToken, checkRole(ADMIN_ROLES)
   }
 });
 
-router.post('/orders/:orderId/execute', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/:orderId/execute', authenticateToken, checkPermission('ORDERS_MANAGE_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { orderId } = req.params;
     const { price } = req.body;
@@ -1364,7 +1364,7 @@ router.post('/orders/:orderId/execute', authenticateToken, checkRole(ADMIN_ROLES
   }
 });
 
-router.post('/orders/:orderId/reject', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/:orderId/reject', authenticateToken, checkPermission('ORDERS_MANAGE_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { orderId } = req.params;
     const { reason } = req.body;
@@ -1398,7 +1398,7 @@ router.post('/orders/:orderId/reject', authenticateToken, checkRole(ADMIN_ROLES)
   }
 });
 
-router.post('/orders/create', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/orders/create', authenticateToken, checkPermission('ORDERS_MANAGE_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, symbol, exchange, side, orderType, quantity, price, productType } = req.body;
 
@@ -1434,7 +1434,7 @@ router.post('/orders/create', authenticateToken, checkRole(ADMIN_ROLES), async (
 // ============================================================
 // ADMIN POSITION MANAGEMENT & EXCLUSIVE RIGHTS
 // ============================================================
-router.post('/positions/:id/edit', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/positions/:id/edit', authenticateToken, checkPermission('POSITIONS_EDIT_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const positionId = req.params.id as string;
     const { netQty, averagePrice, buyPrice, sellPrice } = req.body;
@@ -1536,7 +1536,7 @@ router.post('/rms/auto-square-off/run', authenticateToken, checkPermission('RMS_
 // ============================================================
 // ADMIN CLIENT FUNDS MANAGEMENT
 // ============================================================
-router.post('/customers/:id/funds', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/funds', authenticateToken, checkPermission('CUSTOMER_FUNDS_ADJUST_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { amount, action, reason } = req.body;
@@ -1591,7 +1591,7 @@ router.post('/customers/:id/funds', authenticateToken, checkRole(ADMIN_ROLES), a
 //     -H "Content-Type: application/json" \
 //     -d '{"accessToken": "YOUR_NEW_DHAN_TOKEN"}'
 // ============================================================
-router.post('/broker/update-dhan-token', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/broker/update-dhan-token', authenticateToken, checkPermission('BROKER_TOKEN_MANAGE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { accessToken } = req.body;
 
@@ -1640,7 +1640,7 @@ router.post('/broker/update-dhan-token', authenticateToken, checkRole(['SUPER_AD
 
 // GET /api/v1/admin/broker/dhan-token-status
 // Returns current Dhan token expiry information
-router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/broker/dhan-token-status', authenticateToken, checkPermission('BROKER_TOKEN_STATUS_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const dhanToken = process.env.DHAN_ACCESS_TOKEN || '';
     const minutesLeft = getTokenExpiryMinutes(dhanToken);
@@ -1668,7 +1668,7 @@ router.get('/broker/dhan-token-status', authenticateToken, checkRole(['SUPER_ADM
 // ============================================================
 // FYERS TOKEN HOT-SWAP & OAUTH ENDPOINTS
 // ============================================================
-router.post('/broker/update-fyers-token', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/broker/update-fyers-token', authenticateToken, checkPermission('BROKER_TOKEN_MANAGE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { accessToken } = req.body;
 
@@ -1712,7 +1712,7 @@ router.post('/broker/update-fyers-token', authenticateToken, checkRole(['SUPER_A
   }
 });
 
-router.get('/broker/fyers-auth-url', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/broker/fyers-auth-url', authenticateToken, checkPermission('BROKER_TOKEN_MANAGE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const appId = String(req.query.appId || process.env.FYERS_APP_ID || '');
     const redirectUri = String(req.query.redirectUri || process.env.FYERS_REDIRECT_URI || 'http://localhost:5000/api/v1/auth/fyers/callback');
@@ -1728,7 +1728,7 @@ router.get('/broker/fyers-auth-url', authenticateToken, checkRole(['SUPER_ADMIN'
   }
 });
 
-router.post('/broker/fyers-validate-code', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/broker/fyers-validate-code', authenticateToken, checkPermission('BROKER_TOKEN_MANAGE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { authCode, appId, appSecret } = req.body;
 
@@ -1768,7 +1768,7 @@ router.post('/broker/fyers-validate-code', authenticateToken, checkRole(['SUPER_
 // ============================================================
 // 15. FILL PROVENANCE & DISPUTE AUDITOR
 // ============================================================
-router.get('/executions/provenance', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'KYC_OFFICER', 'READ_ONLY_AUDITOR']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/executions/provenance', authenticateToken, checkPermission('EXECUTIONS_PROVENANCE_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, symbol, freshness, limit = '50', offset = '0' } = req.query;
     let where = 'WHERE 1=1';
@@ -1819,7 +1819,7 @@ router.get('/executions/provenance', authenticateToken, checkRole(['SUPER_ADMIN'
 // ============================================================
 // 16. PLATFORM SOLVENCY & CASH RESERVE RECONCILER
 // ============================================================
-router.get('/finance/reserves', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/finance/reserves', authenticateToken, checkPermission('RESERVES_RECONCILE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { totalCash, totalLiability, totalUsedMargin } = await VirtualWalletLedger.getPlatformTotalLiability();
     
@@ -1851,7 +1851,7 @@ router.get('/finance/reserves', authenticateToken, checkRole(['SUPER_ADMIN', 'AD
   }
 });
 
-router.post('/finance/reserves/reconcile', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'FINANCE_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/finance/reserves/reconcile', authenticateToken, checkPermission('RESERVES_RECONCILE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { bankCashReserve, notes } = req.body;
     const bankReserveNum = parseFloat(bankCashReserve);
@@ -1895,7 +1895,7 @@ router.post('/finance/reserves/reconcile', authenticateToken, checkRole(['SUPER_
 // ============================================================
 // 17. MANAGER HIERARCHY & CAPACITY CONTROLS
 // ============================================================
-router.get('/managers', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/managers', authenticateToken, checkPermission('MANAGERS_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const managers = await query<any>(
       `SELECT u.id, u.username, u.email, u.role, u.status, u.created_at,
@@ -1918,7 +1918,7 @@ router.get('/managers', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), 
   }
 });
 
-router.post('/managers/assign', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/managers/assign', authenticateToken, checkPermission('MANAGERS_ASSIGN'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { managerId, userId } = req.body;
     if (!managerId || !userId) {
@@ -1950,7 +1950,7 @@ router.post('/managers/assign', authenticateToken, checkRole(['SUPER_ADMIN', 'AD
 // ============================================================
 // 18. CUSTOMER PROFILE MODIFICATION (PATCH)
 // ============================================================
-router.patch('/customers/:id', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/customers/:id', authenticateToken, checkPermission('CUSTOMERS_PROFILE_EDIT'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { fullName, phoneNumber, email, address, city, role, status } = req.body;
@@ -2039,7 +2039,7 @@ router.patch('/customers/:id', authenticateToken, checkRole(['SUPER_ADMIN', 'ADM
 // ============================================================
 // 19. SUSPEND CUSTOMER
 // ============================================================
-router.post('/customers/:id/suspend', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/suspend', authenticateToken, checkPermission('CUSTOMERS_SUSPEND'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason, notes, suspendUntil } = req.body;
@@ -2084,7 +2084,7 @@ router.post('/customers/:id/suspend', authenticateToken, checkRole(['SUPER_ADMIN
 // ============================================================
 // 20. ACTIVATE CUSTOMER
 // ============================================================
-router.post('/customers/:id/activate', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/activate', authenticateToken, checkPermission('CUSTOMERS_ACTIVATE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason } = req.body;
@@ -2130,7 +2130,7 @@ router.post('/customers/:id/activate', authenticateToken, checkRole(['SUPER_ADMI
 // ============================================================
 // 21. LOCK CUSTOMER (Security Hold)
 // ============================================================
-router.post('/customers/:id/lock', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'RISK_MANAGER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/lock', authenticateToken, checkPermission('CUSTOMERS_LOCK'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason } = req.body;
@@ -2170,7 +2170,7 @@ router.post('/customers/:id/lock', authenticateToken, checkRole(['SUPER_ADMIN', 
 // ============================================================
 // 22. UNLOCK CUSTOMER
 // ============================================================
-router.post('/customers/:id/unlock', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/unlock', authenticateToken, checkPermission('CUSTOMERS_UNLOCK'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason } = req.body;
@@ -2211,7 +2211,7 @@ router.post('/customers/:id/unlock', authenticateToken, checkRole(['SUPER_ADMIN'
 // ============================================================
 // 23. CLOSE CUSTOMER ACCOUNT (Soft Close — with dependency check)
 // ============================================================
-router.post('/customers/:id/close', authenticateToken, checkRole(['SUPER_ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/close', authenticateToken, checkPermission('CUSTOMERS_CLOSE'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason, confirmClose } = req.body;
@@ -2297,7 +2297,7 @@ router.post('/customers/:id/close', authenticateToken, checkRole(['SUPER_ADMIN']
 // ============================================================
 // 24. CUSTOMER AUDIT TRAIL (paginated)
 // ============================================================
-router.get('/customers/:id/audit', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id/audit', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const limit = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
@@ -2330,7 +2330,7 @@ router.get('/customers/:id/audit', authenticateToken, checkRole(ADMIN_ROLES), as
 // ============================================================
 // 25. CUSTOMER LOGIN ACTIVITY
 // ============================================================
-router.get('/customers/:id/login-activity', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id/login-activity', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const limit = Math.min(parseInt(req.query.limit as string || '30', 10), 100);
@@ -2367,7 +2367,7 @@ router.get('/customers/:id/login-activity', authenticateToken, checkRole(ADMIN_R
 // ============================================================
 // 26. CUSTOMER KYC DETAIL (full — for Customer360 KYC tab)
 // ============================================================
-router.get('/customers/:id/kyc', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id/kyc', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
 
@@ -2396,7 +2396,7 @@ router.get('/customers/:id/kyc', authenticateToken, checkRole(ADMIN_ROLES), asyn
 // ============================================================
 // 27. KYC APPROVE FOR CUSTOMER (by customer ID, not KYC record ID)
 // ============================================================
-router.post('/customers/:id/kyc/approve', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/kyc/approve', authenticateToken, checkPermission('KYC_REJECT'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { notes, applicationId } = req.body;
@@ -2451,7 +2451,7 @@ router.post('/customers/:id/kyc/approve', authenticateToken, checkRole(['SUPER_A
 // ============================================================
 // 28. KYC REJECT FOR CUSTOMER (by customer ID)
 // ============================================================
-router.post('/customers/:id/kyc/reject', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/kyc/reject', authenticateToken, checkPermission('KYC_REJECT'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason, rejectionCategory, applicationId } = req.body;
@@ -2505,7 +2505,7 @@ router.post('/customers/:id/kyc/reject', authenticateToken, checkRole(['SUPER_AD
 // ============================================================
 // 29. KYC REQUEST RE-UPLOAD
 // ============================================================
-router.post('/customers/:id/kyc/request-reupload', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN', 'KYC_OFFICER']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/kyc/request-reupload', authenticateToken, checkPermission('KYC_REJECT'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason, applicationId } = req.body;
@@ -2543,7 +2543,7 @@ router.post('/customers/:id/kyc/request-reupload', authenticateToken, checkRole(
 // circular dependency on this route file.
 
 // GET: System Permission Definitions & Default Matrix
-router.get('/permissions/matrix', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/permissions/matrix', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const roles = [
       'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_MANAGER', 'RISK_MANAGER', 
@@ -2562,7 +2562,7 @@ router.get('/permissions/matrix', authenticateToken, checkRole(ADMIN_ROLES), asy
 });
 
 // GET: All Users with Roles, Custom Permissions & Capacity Limits
-router.get('/permissions/users', authenticateToken, checkRole(ADMIN_ROLES), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/permissions/users', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const users = await query<any>(
       `SELECT u.id, u.username, u.email, u.full_name, u.phone_number, u.role, u.status, u.is_kyc_completed, u.created_at,
@@ -2617,7 +2617,7 @@ router.get('/permissions/users', authenticateToken, checkRole(ADMIN_ROLES), asyn
 });
 
 // POST: Assign User Role
-router.post('/permissions/assign-role', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/permissions/assign-role', authenticateToken, checkPermission('MANAGE_ROLES_PERMISSIONS'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, role } = req.body;
     if (!userId || !role) {
@@ -2664,7 +2664,7 @@ router.post('/permissions/assign-role', authenticateToken, checkRole(['SUPER_ADM
 });
 
 // POST: Toggle Single Permission for User
-router.post('/permissions/toggle-permission', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/permissions/toggle-permission', authenticateToken, checkPermission('MANAGE_ROLES_PERMISSIONS'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, permissionKey, granted } = req.body;
     if (!userId || !permissionKey) {
@@ -2694,7 +2694,7 @@ router.post('/permissions/toggle-permission', authenticateToken, checkRole(['SUP
 });
 
 // POST: Save User Profile, Role, Granular Permissions & Capacity Limits in One Call
-router.post('/permissions/save-user-permissions', authenticateToken, checkRole(['SUPER_ADMIN', 'ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/permissions/save-user-permissions', authenticateToken, checkPermission('MANAGE_ROLES_PERMISSIONS'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { userId, role, permissions, limits } = req.body;
     if (!userId) {

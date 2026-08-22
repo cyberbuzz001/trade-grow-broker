@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   User as UserIcon, ShieldCheck, Wallet as WalletIcon, Lock, CheckCircle2, AlertTriangle,
   Clock, RefreshCw, Save, Building2, UploadCloud, KeyRound, HelpCircle, Shield,
-  Sun, Moon, ArrowUpRight, ArrowDownLeft, QrCode, ExternalLink, Smartphone, MessageSquare,
+  Sun, Moon, ArrowUpRight, ArrowDownLeft, QrCode, ExternalLink, Smartphone, MessageSquare, LogOut,
 } from 'lucide-react';
 import { User, Wallet, isStaffUser } from '../types';
 import { Card, CardHeader, CardTitle, Badge, Tabs, DataTable, DataTableColumn, Button, Dialog } from './ui';
@@ -60,9 +60,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, wallet, token, t
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [isResetCapitalModalOpen, setIsResetCapitalModalOpen] = useState(false);
-  const [isResettingCapital, setIsResettingCapital] = useState(false);
-  const [resetCapitalMsg, setResetCapitalMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const fetchProfileDetails = async () => {
     try {
@@ -99,25 +97,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, wallet, token, t
     }
   };
 
-  const confirmResetCapital = async () => {
-    setIsResettingCapital(true);
-    setResetCapitalMsg(null);
-    try {
-      const res = await fetchWithAuth('/api/v1/funds/reset-margin', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        onRefreshWallet();
-        setResetCapitalMsg({ type: 'success', text: data.message || 'Virtual capital reset to default.' });
-        setIsResetCapitalModalOpen(false);
-      } else {
-        setResetCapitalMsg({ type: 'error', text: data.error?.message || 'Failed to reset capital.' });
-      }
-    } catch (err: any) {
-      setResetCapitalMsg({ type: 'error', text: err.message || 'Failed to reset capital.' });
-    } finally {
-      setIsResettingCapital(false);
-    }
-  };
 
   // ============================================================
   // KYC STATE
@@ -460,15 +439,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, wallet, token, t
             </div>
           </form>
 
+          {/* Sign out lives here now that the avatar in AppShell navigates
+              straight to this page instead of opening a dropdown that used to
+              hold it. Kept visually separated from the profile form above and
+              styled as destructive, per the destructive-nav-separation rule —
+              it should never sit adjacent to routine "save my details" actions. */}
           <div className="pt-4 border-t border-[var(--border-color)]">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <h4 className="text-xs font-bold text-[var(--text-main)]">Reset Virtual Capital</h4>
-                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Resets your simulated cash balance to the default starting capital. Only available with no open positions or pending orders.</p>
+                <h4 className="text-xs font-bold text-[var(--text-main)]">Sign out</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                  Ends this session on this device. Your positions, orders and funds are unaffected.
+                </p>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => setIsResetCapitalModalOpen(true)}>Reset Capital</Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                leftIcon={<LogOut className="w-4 h-4" />}
+                onClick={() => setIsLogoutModalOpen(true)}
+              >
+                Sign out
+              </Button>
             </div>
-            <InfoMessage msg={resetCapitalMsg} />
           </div>
         </Card>
       )}
@@ -777,10 +769,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, wallet, token, t
         </Card>
       )}
 
-      <Dialog isOpen={isResetCapitalModalOpen} onClose={() => setIsResetCapitalModalOpen(false)} title="Reset Virtual Capital?" size="sm"
-        footer={<><Button variant="secondary" onClick={() => setIsResetCapitalModalOpen(false)}>Cancel</Button><Button variant="destructive" disabled={isResettingCapital} onClick={confirmResetCapital}>{isResettingCapital ? 'Resetting...' : 'Reset Capital'}</Button></>}
+      {/* Confirm before signing out — per confirmation-dialogs, an action that
+          drops the session shouldn't fire on a single stray tap. */}
+      <Dialog
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        title={<span className="flex items-center gap-2"><LogOut className="w-4 h-4 text-[var(--loss)]" />Sign out?</span>}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsLogoutModalOpen(false)}>Stay signed in</Button>
+            <Button variant="destructive" leftIcon={<LogOut className="w-4 h-4" />} onClick={onLogout}>Sign out</Button>
+          </>
+        }
       >
-        <p className="text-xs text-[var(--text-muted)]">This resets your simulated cash balance back to the default starting capital and clears realized/unrealized P&L figures. This only works while you have no open positions or pending orders.</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          You&rsquo;ll be returned to the sign-in screen. Open positions and pending orders keep running &mdash; signing out only ends this session on this device.
+        </p>
       </Dialog>
     </div>
   );

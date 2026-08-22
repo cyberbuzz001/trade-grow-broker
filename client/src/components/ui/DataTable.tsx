@@ -19,6 +19,12 @@ export interface DataTableProps<T> {
   rows: T[];
   rowKey: (row: T) => string;
   emptyMessage?: string;
+  /** Short headline above `emptyMessage`. Without it the empty state stays the plain single-line form. */
+  emptyTitle?: string;
+  /** Decorative glyph for the empty state — hidden from assistive tech, since `emptyTitle`/`emptyMessage` already carry the meaning. */
+  emptyIcon?: React.ReactNode;
+  /** A way *out* of the empty state (e.g. "Browse stocks"). Empty states should offer an action, not just explain the absence. */
+  emptyAction?: React.ReactNode;
   isLoading?: boolean;
   loadingRowCount?: number;
   /** Rendered in the mobile card's footer (e.g. action buttons) — on desktop, put actions in their own column instead. */
@@ -44,6 +50,9 @@ export function DataTable<T>({
   rows,
   rowKey,
   emptyMessage = 'No records found.',
+  emptyTitle,
+  emptyIcon,
+  emptyAction,
   isLoading = false,
   loadingRowCount = 4,
   renderMobileActions,
@@ -70,9 +79,28 @@ export function DataTable<T>({
   }
 
   if (rows.length === 0) {
+    // Richer form only when the caller supplies a title/icon/action — callers
+    // that pass just `emptyMessage` keep the original single-line rendering,
+    // so this stays backward compatible for every existing usage.
+    const isRich = Boolean(emptyTitle || emptyIcon || emptyAction);
+    if (!isRich) {
+      return <div className="py-12 text-center text-sm text-[var(--text-muted)]">{emptyMessage}</div>;
+    }
     return (
-      <div className="py-12 text-center text-sm text-[var(--text-muted)]">
-        {emptyMessage}
+      <div className="py-12 px-6 flex flex-col items-center text-center card-enter">
+        {emptyIcon && (
+          <div
+            className="w-12 h-12 rounded-full bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] flex items-center justify-center mb-3.5"
+            aria-hidden="true"
+          >
+            {emptyIcon}
+          </div>
+        )}
+        {emptyTitle && <h4 className="text-sm font-bold text-[var(--text-main)]">{emptyTitle}</h4>}
+        {emptyMessage && (
+          <p className="mt-1.5 text-xs text-[var(--text-muted)] max-w-xs leading-relaxed">{emptyMessage}</p>
+        )}
+        {emptyAction && <div className="mt-4">{emptyAction}</div>}
       </div>
     );
   }

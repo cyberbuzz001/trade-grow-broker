@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Compass, Bookmark, Layers, Briefcase, User as UserIcon, ShieldCheck,
-  Search, Wallet, Plus, Sun, Moon, Bell, LogOut, SlidersHorizontal,
+  Search, Wallet, Plus, Sun, Moon, Bell, SlidersHorizontal,
 } from 'lucide-react';
 import { User, MarketTick, isStaffUser } from '../types';
 import { IndexActionModal } from './IndexActionModal';
@@ -23,7 +23,6 @@ export interface AppShellProps {
   onToggleTheme: () => void;
   onOpenSearch: () => void;
   onOpenWalletModal: () => void;
-  onLogout: () => void;
   /** Desktop-only utility toggle, kept out of the 5 primary nav items per .design/client-panel-redesign/TASKS.md. */
   isTerminalMode?: boolean;
   onToggleTerminal?: () => void;
@@ -58,26 +57,13 @@ export function AppShell({
   onToggleTheme,
   onOpenSearch,
   onOpenWalletModal,
-  onLogout,
   isTerminalMode = false,
   onToggleTerminal,
 }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [selectedIndexModal, setSelectedIndexModal] = useState<{ symbol: string; token: string; exchange: string } | null>(null);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
   const isStaff = isStaffUser(user?.role);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
-        setIsProfileMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const getNifty = () => ticks?.get('NSE_NIFTY50') || ticks?.get('NIFTY50') || ticks?.get('NIFTY 50');
   const getSensex = () => ticks?.get('BSE_SENSEX') || ticks?.get('SENSEX');
@@ -206,42 +192,19 @@ export function AppShell({
             <Bell className="w-5 h-5" />
           </div>
 
-          <div className="relative" ref={profileMenuRef}>
-            <button
-              onClick={() => setIsProfileMenuOpen((v) => !v)}
-              aria-label="Account menu"
-              aria-haspopup="true"
-              aria-expanded={isProfileMenuOpen}
-              className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center"
-            >
-              {(user.username || 'T').charAt(0).toUpperCase()}
-            </button>
-            {isProfileMenuOpen && (
-              <div className="absolute right-0 mt-3 w-64 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-[var(--shadow-xl)] p-3 z-50">
-                <div className="pb-3 border-b border-[var(--border-color)]">
-                  <p className="font-bold text-sm text-[var(--text-main)] capitalize">{user.username || 'Trader Account'}</p>
-                  <p className="text-xs text-[var(--text-muted)]">{user.email || 'trader@tradegrow.sim'}</p>
-                </div>
-                <div className="py-2 space-y-1">
-                  <button
-                    onClick={() => { setIsProfileMenuOpen(false); navigate('/profile/account'); }}
-                    className="w-full text-left px-2.5 py-2 rounded-lg text-xs font-bold text-[var(--text-main)] hover:bg-[var(--bg-surface-elevated)]"
-                  >
-                    Profile & KYC
-                  </button>
-                </div>
-                <div className="pt-2 border-t border-[var(--border-color)]">
-                  <button
-                    onClick={() => { setIsProfileMenuOpen(false); onLogout(); }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold text-[var(--loss)] hover:bg-[var(--loss-light)]"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Log out
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Avatar navigates straight to Profile rather than opening a
+              dropdown. The dropdown only ever held two items — "Profile & KYC"
+              (which just went here anyway) and "Log out", which now lives on
+              the Profile page itself — so it was an extra click in front of
+              its own only destination. */}
+          <button
+            onClick={() => navigate('/profile/account')}
+            aria-label="Open your profile"
+            title={user.username || 'Profile'}
+            className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center cursor-pointer active:scale-[0.97] hover:brightness-110 transition-all duration-[var(--duration-fast)] ease-[var(--easing-default)]"
+          >
+            {(user.username || 'T').charAt(0).toUpperCase()}
+          </button>
         </div>
       </header>
 

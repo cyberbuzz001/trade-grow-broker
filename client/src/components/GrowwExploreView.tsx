@@ -11,6 +11,7 @@ import { MobileChartModal } from './mobile/MobileChartModal';
 import { McxCommodityView } from './McxCommodityView';
 import { FoHubView } from './FoHubView';
 import { Card, CardTitle, Badge, Tabs, DataTable, DataTableColumn } from './ui';
+import { pnlColorClass, formatPnl, formatPnlPct } from '../utils/pnl';
 
 type Category = 'STOCKS' | 'FO' | 'COMMODITIES';
 
@@ -218,60 +219,53 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
         <FoHubView ticks={ticks} onOpenOptionChain={onOpenOptionChain} />
       ) : (
       <>
-      {/* PORTFOLIO METRICS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex justify-between items-start mb-3">
-            <h3 className="text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-wider">Portfolio Value</h3>
-            <span className="p-2 rounded-xl bg-indigo-500/15 text-indigo-500"><Landmark className="w-4 h-4" /></span>
-          </div>
-          <div className="num-font">
-            <span className="text-xl sm:text-2xl font-black tracking-tight">₹{portfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <div className={`flex items-center gap-1.5 mt-2 text-xs font-bold ${todaysPnl >= 0 ? 'text-[var(--gain)]' : 'text-[var(--loss)]'}`}>
-              {todaysPnl >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-              <span>{todaysPnl >= 0 ? '+' : ''}₹{todaysPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({todaysPnl >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex justify-between items-start mb-3">
-            <h3 className="text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-wider">Today's P&L</h3>
-            <span className={`p-2 rounded-xl ${todaysPnl >= 0 ? 'bg-[var(--gain-light)] text-[var(--gain)]' : 'bg-[var(--loss-light)] text-[var(--loss)]'}`}><TrendingUp className="w-4 h-4" /></span>
-          </div>
-          <div className="num-font">
-            <span className={`text-xl sm:text-2xl font-black tracking-tight ${todaysPnl >= 0 ? 'text-[var(--gain)]' : 'text-[var(--loss)]'}`}>
-              {todaysPnl >= 0 ? '+' : ''}₹{todaysPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {/* PORTFOLIO METRICS — four KPIs in one dense row from sm: up. Deliberately
+          compact: these are glanceable context for the page, not its headline, so
+          they get a tight 12px-padded card rather than the 16px default. The
+          decorative blur-circle backgrounds each of these used to carry were
+          dropped — the brief's aesthetic direction is colour "only where it
+          carries meaning", and they were the main reason the row read as bloated. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+        <KpiCard
+          index={1}
+          label="Portfolio Value"
+          icon={<Landmark className="w-3.5 h-3.5" />}
+          iconClass="bg-indigo-500/15 text-indigo-500"
+          value={`₹${portfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          footer={
+            <span className={`flex items-center gap-1 ${pnlColorClass(todaysPnl)}`}>
+              {/* Arrow only when there's a real direction — a zero P&L has none. */}
+              {todaysPnl > 0 && <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />}
+              {todaysPnl < 0 && <ArrowDownRight className="w-3.5 h-3.5" aria-hidden="true" />}
+              {formatPnl(todaysPnl)} ({formatPnlPct(pnlPct)})
             </span>
-            <div className="mt-2"><Badge variant="gain" dot>WS STREAMING</Badge></div>
-          </div>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex justify-between items-start mb-3">
-            <h3 className="text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-wider">Active Positions</h3>
-            <span className="p-2 rounded-xl bg-amber-500/15 text-amber-500"><Layers className="w-4 h-4" /></span>
-          </div>
-          <div className="num-font">
-            <span className="text-xl sm:text-2xl font-black tracking-tight">{openPositionsCount}</span>
-            <div className="mt-2 text-xs font-bold text-[var(--text-muted)]">{longCount} Long • {shortCount} Short</div>
-          </div>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex justify-between items-start mb-3">
-            <h3 className="text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-wider">Available Margin</h3>
-            <span className="p-2 rounded-xl bg-teal-500/15 text-teal-500"><Award className="w-4 h-4" /></span>
-          </div>
-          <div className="num-font">
-            <span className="text-xl sm:text-2xl font-black tracking-tight">₹{availableMargin.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <div className="mt-2 text-xs font-bold text-[var(--gain)]">Ready for F&O Trade</div>
-          </div>
-        </Card>
+          }
+        />
+        <KpiCard
+          index={2}
+          label="Today's P&L"
+          icon={<TrendingUp className="w-3.5 h-3.5" />}
+          iconClass={todaysPnl > 0 ? 'bg-[var(--gain-light)] text-[var(--gain)]' : todaysPnl < 0 ? 'bg-[var(--loss-light)] text-[var(--loss)]' : 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)]'}
+          valueClass={pnlColorClass(todaysPnl)}
+          value={formatPnl(todaysPnl)}
+          footer={<Badge variant="gain" dot>LIVE</Badge>}
+        />
+        <KpiCard
+          index={3}
+          label="Active Positions"
+          icon={<Layers className="w-3.5 h-3.5" />}
+          iconClass="bg-amber-500/15 text-amber-500"
+          value={String(openPositionsCount)}
+          footer={<span className="text-[var(--text-muted)]">{longCount} Long &middot; {shortCount} Short</span>}
+        />
+        <KpiCard
+          index={4}
+          label="Available Margin"
+          icon={<Award className="w-3.5 h-3.5" />}
+          iconClass="bg-teal-500/15 text-teal-500"
+          value={`₹${availableMargin.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          footer={<span className="text-[var(--gain)]">Ready for F&amp;O Trade</span>}
+        />
       </div>
 
       {/* MARKET INDICES — the only place index quotes are visible on mobile, since AppShell's ticker is desktop-only. Shown at every width for one consistent page (not device-conditional). */}
@@ -309,16 +303,29 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
       </div>
 
       {/* QUICK ACTIONS */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-surface)] border border-[var(--border-color)] p-3.5 rounded-2xl">
-        <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-[var(--primary)]" />
+      {/* Quick Actions — one continuous toolbar. This used to be
+          `justify-between`, which pinned the label hard left and the buttons
+          hard right and left a wide empty gutter between them on desktop;
+          grouping them reads as a single control strip instead of two islands
+          separated by void. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-[var(--bg-surface)] border border-[var(--border-color)] px-3.5 py-2.5 rounded-2xl">
+        <div className="flex items-center gap-2 mr-1">
+          <Zap className="w-4 h-4 text-[var(--primary)]" aria-hidden="true" />
           <span className="text-xs font-bold">Quick Actions</span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => handleSelectRow('RELIANCE')} className="bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)] hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all">+ Buy Equity</button>
-          <button onClick={() => onOpenOptionChain?.()} className="bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all">Option Chain Matrix</button>
-          <button onClick={onOpenSearch} className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"><SearchIcon className="w-3.5 h-3.5" />Market Scanner</button>
-        </div>
+        {[
+          { label: '+ Buy Equity', onClick: () => handleSelectRow('RELIANCE'), cls: 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/30 hover:bg-[var(--primary)] hover:text-white' },
+          { label: 'Option Chain Matrix', onClick: () => onOpenOptionChain?.(), cls: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 hover:bg-indigo-500 hover:text-white' },
+          { label: 'Market Scanner', onClick: onOpenSearch, icon: <SearchIcon className="w-3.5 h-3.5" aria-hidden="true" />, cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500 hover:text-white' },
+        ].map((a) => (
+          <button
+            key={a.label}
+            onClick={a.onClick}
+            className={`min-h-[44px] md:min-h-0 px-3.5 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer active:scale-[0.97] transition-all duration-[var(--duration-fast)] ease-[var(--easing-default)] ${a.cls}`}
+          >
+            {a.icon}{a.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
@@ -414,8 +421,10 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
               Ensure your profile details, PAN/Aadhaar documents, and bank payout methods are up to date.
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => onOpenProfile?.('KYC')} className="w-full bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)] hover:text-white py-2 px-3 rounded-xl text-xs font-bold transition-all">Update KYC</button>
-              <button onClick={() => onOpenProfile?.('PROFILE')} className="w-full bg-[var(--bg-surface-elevated)] hover:bg-[var(--border-color)] border border-[var(--border-color)] py-2 px-3 rounded-xl text-xs font-bold transition-all">Edit Profile</button>
+              {/* min-h-[44px] below md only — same scoped touch-target rule the
+                  shared Button/Tabs primitives use, so desktop density is unchanged. */}
+              <button onClick={() => onOpenProfile?.('KYC')} className="w-full min-h-[44px] md:min-h-0 bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)] hover:text-white py-2 px-3 rounded-xl text-xs font-bold cursor-pointer active:scale-[0.97] transition-all duration-[var(--duration-fast)] ease-[var(--easing-default)]">Update KYC</button>
+              <button onClick={() => onOpenProfile?.('PROFILE')} className="w-full min-h-[44px] md:min-h-0 bg-[var(--bg-surface-elevated)] hover:bg-[var(--border-color)] border border-[var(--border-color)] py-2 px-3 rounded-xl text-xs font-bold cursor-pointer active:scale-[0.97] transition-all duration-[var(--duration-fast)] ease-[var(--easing-default)]">Edit Profile</button>
             </div>
           </Card>
         </div>
@@ -452,3 +461,39 @@ export const GrowwExploreView: React.FC<GrowwExploreViewProps> = ({
     </div>
   );
 };
+
+/**
+ * One compact KPI tile, used four times in the metrics row above. Extracted
+ * because those four were near-identical copies differing only in label, icon
+ * and value — the same duplication this redesign removed everywhere else.
+ *
+ * `index` (1-4) drives the shared `.card-enter-N` stagger classes already
+ * defined in index.css (40ms apart, within the 30-50ms guidance) — they existed
+ * but nothing had ever used them. Entrance only, and only on this one row, to
+ * stay inside the "animate 1-2 key elements per view" rule; index.css's
+ * prefers-reduced-motion block disables it for users who ask.
+ */
+function KpiCard({ index, label, icon, iconClass, value, valueClass, footer }: {
+  index: number;
+  label: string;
+  icon: React.ReactNode;
+  iconClass: string;
+  value: string;
+  valueClass?: string;
+  footer: React.ReactNode;
+}) {
+  return (
+    <Card padding="sm" className={`card-enter card-enter-${index} min-w-0`}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${iconClass}`} aria-hidden="true">
+          {icon}
+        </span>
+        <h3 className="text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-wider truncate">{label}</h3>
+      </div>
+      <div className={`num-font text-lg sm:text-xl font-black tracking-tight tabular-nums truncate ${valueClass || ''}`}>
+        {value}
+      </div>
+      <div className="mt-1 text-[11px] font-bold num-font tabular-nums truncate">{footer}</div>
+    </Card>
+  );
+}

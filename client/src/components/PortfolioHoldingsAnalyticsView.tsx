@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Wallet as WalletIcon, TrendingUp, TrendingDown, PieChart, ShieldAlert, Zap, Layers, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Wallet } from '../types';
 import { Card, CardHeader, CardTitle, Badge, DataTable, DataTableColumn, Button } from './ui';
 import { PortfolioNav, PortfolioSection } from './PortfolioNav';
+import { pnlColorClass, formatPnl, formatPnlPct } from '../utils/pnl';
 
 interface PortfolioHoldingsAnalyticsViewProps {
   token: string;
@@ -21,6 +23,7 @@ interface RiskInfo {
 export const PortfolioHoldingsAnalyticsView: React.FC<PortfolioHoldingsAnalyticsViewProps> = ({
   token, wallet, riskRestriction, onRefreshWallet, initialTab = 'HOLDINGS',
 }) => {
+  const navigate = useNavigate();
   const activeTab = initialTab;
   const [holdings, setHoldings] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
@@ -117,15 +120,11 @@ export const PortfolioHoldingsAnalyticsView: React.FC<PortfolioHoldingsAnalytics
               </div>
               <div>
                 <div className="text-xs font-bold text-[var(--text-muted)] mb-1">Total P&L</div>
-                <div className={`text-lg font-black ${holdingsPnl >= 0 ? 'text-[var(--gain)]' : 'text-[var(--loss)]'}`}>
-                  {holdingsPnl >= 0 ? '+' : ''}₹{holdingsPnl.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </div>
+                <div className={`text-lg font-black ${pnlColorClass(holdingsPnl)}`}>{formatPnl(holdingsPnl)}</div>
               </div>
               <div>
                 <div className="text-xs font-bold text-[var(--text-muted)] mb-1">Returns</div>
-                <div className={`text-lg font-black ${holdingsPnlPct >= 0 ? 'text-[var(--gain)]' : 'text-[var(--loss)]'}`}>
-                  {holdingsPnlPct >= 0 ? '+' : ''}{holdingsPnlPct.toFixed(2)}%
-                </div>
+                <div className={`text-lg font-black ${pnlColorClass(holdingsPnlPct)}`}>{formatPnlPct(holdingsPnlPct)}</div>
               </div>
             </div>
           </Card>
@@ -136,8 +135,11 @@ export const PortfolioHoldingsAnalyticsView: React.FC<PortfolioHoldingsAnalytics
                 columns={holdingColumns}
                 rows={holdings}
                 rowKey={(h) => h.id || h.symbol}
-                emptyMessage="No delivery (CNC) holdings yet. Holdings appear here once a CNC buy order settles."
                 isLoading={loading && holdings.length === 0}
+                emptyIcon={<WalletIcon className="w-5 h-5" />}
+                emptyTitle="No delivery holdings yet"
+                emptyMessage="Stocks you buy with the CNC product type settle into long-term holdings and appear here."
+                emptyAction={<Button size="sm" onClick={() => navigate('/')}>Browse stocks</Button>}
               />
             </div>
           </Card>

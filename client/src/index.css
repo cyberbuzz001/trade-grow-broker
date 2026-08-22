@@ -838,6 +838,60 @@
 }
 
 /* ════════════════════════════════════════════════════════════
+   AUTH PAGE — the one place a richer entrance is warranted.
+   Only transform/opacity/stroke are animated (never width/height/
+   top/left), so nothing here can cause layout shift or CLS.
+   ════════════════════════════════════════════════════════════ */
+
+/* Card lifts in from slightly below and behind */
+@keyframes authCardIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.auth-card {
+  animation: authCardIn var(--duration-slow, 400ms) var(--easing-out) both;
+  will-change: transform, opacity;
+}
+
+/* Ambient brand-panel wash. Very slow and low-contrast on purpose —
+   it should register as depth, not as a moving element competing with
+   the form for attention. */
+@keyframes authGlowDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(6%, -4%, 0) scale(1.12); }
+}
+.auth-glow {
+  position: absolute;
+  top: -25%;
+  right: -20%;
+  width: 75%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+  filter: blur(48px);
+  pointer-events: none;
+  animation: authGlowDrift 14s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Sparkline draws itself once, then the area fill washes in behind it */
+@keyframes authSparkDraw {
+  from { stroke-dashoffset: 420; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes authSparkFillIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.auth-spark-line {
+  stroke-dasharray: 420;
+  animation: authSparkDraw 1.5s var(--easing-out) 250ms both;
+}
+.auth-spark-fill {
+  animation: authSparkFillIn 700ms var(--easing-default) 1s both;
+}
+
+/* ════════════════════════════════════════════════════════════
    REDUCED MOTION — Disable / simplify all animations
    ════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
@@ -851,13 +905,22 @@
   .nav-icon-active,
   .shake,
   .check-pop,
-  .reconnect-spin {
+  .reconnect-spin,
+  .auth-card,
+  .auth-glow,
+  .auth-spark-line,
+  .auth-spark-fill {
     animation: none !important;
     transition: none !important;
   }
   .skeleton-shimmer {
     background: var(--bg-surface-elevated) !important;
   }
+  /* These two are hidden by their animation's `both` fill — with the
+     animation off they must be forced to their finished state, or the
+     sparkline simply never appears for reduced-motion users. */
+  .auth-spark-line { stroke-dashoffset: 0 !important; }
+  .auth-spark-fill { opacity: 1 !important; }
 }
 
 /* ── @supports fallback for backdrop-filter ──────────────── */

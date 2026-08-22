@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Target, ShieldAlert, AlertTriangle, X, Search, Send } from 'lucide-react';
+import { RefreshCw, Target, ShieldAlert, AlertTriangle, X, Search, Send, Zap, Clock, History } from 'lucide-react';
 import { useMarketSocket, useSubscribeTokens } from '../hooks/useMarketSocket';
 import { Card, Badge, DataTable, DataTableColumn, Button, Dialog } from './ui';
 import { PortfolioNav } from './PortfolioNav';
+import { pnlColorClass, formatPnl } from '../utils/pnl';
 
 type PortfolioTab = 'POSITIONS' | 'ORDERS' | 'TRADE_HISTORY';
 
@@ -423,8 +424,8 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
             <span className="w-2 h-2 rounded-full bg-[var(--gain)] animate-pulse" />
           </div>
           <div className="flex items-baseline gap-3 mt-1 font-mono">
-            <span className={`text-2xl sm:text-3xl font-black ${totalPositionPnl >= 0 ? 'text-[var(--gain)]' : 'text-[var(--loss)]'}`}>
-              {totalPositionPnl >= 0 ? '+' : ''}₹{totalPositionPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <span className={`text-2xl sm:text-3xl font-black ${pnlColorClass(totalPositionPnl)}`}>
+              {formatPnl(totalPositionPnl)}
             </span>
             <span className="text-xs text-[var(--text-muted)] font-bold">(Unrealized: ₹{totalUnrealizedPnl.toFixed(2)} | Realized: ₹{totalRealizedPnl.toFixed(2)})</span>
           </div>
@@ -473,16 +474,32 @@ export const OrdersPositionsView: React.FC<OrdersPositionsViewProps> = ({ token,
         <div className="p-3">
           {activeTab === 'POSITIONS' && (
             <DataTable columns={positionColumns} rows={filteredPositions} rowKey={(p) => p.id || p.symbol}
-              emptyMessage="No open positions." isLoading={loading && positions.length === 0}
+              isLoading={loading && positions.length === 0}
+              emptyIcon={<Zap className="w-5 h-5" />}
+              emptyTitle={searchQuery ? 'No matching positions' : 'No open positions'}
+              emptyMessage={searchQuery
+                ? `Nothing open matches “${searchQuery}”. Clear the search to see all positions.`
+                : 'Intraday and F&O positions you open will show up here with live P&L.'}
+              emptyAction={searchQuery
+                ? <Button variant="secondary" size="sm" onClick={() => setSearchQuery('')}>Clear search</Button>
+                : <Button size="sm" onClick={() => onOpenOptionChain?.()}>Browse Option Chain</Button>}
               renderMobileActions={(p) => <PositionRowActions pos={p} activeTarget={getActiveTargetOrder(p)} onSetTarget={handleOpenSetTargetModal} onSquareOff={setSquareOffModalPos} onCancelTarget={setCancelTargetModalOrder} compact />} />
           )}
           {activeTab === 'ORDERS' && (
             <DataTable columns={orderColumns} rows={filteredOrders} rowKey={(o) => o.id || o.order_id}
-              emptyMessage="No orders recorded for today." isLoading={loading && orders.length === 0}
+              isLoading={loading && orders.length === 0}
+              emptyIcon={<Clock className="w-5 h-5" />}
+              emptyTitle="No orders today"
+              emptyMessage="Every order you place today — filled, pending or rejected — appears here."
+              emptyAction={<Button size="sm" onClick={() => onOpenOptionChain?.()}>Place an order</Button>}
               renderMobileActions={(o) => (['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes(o.status) ? <Button variant="destructive" size="sm" className="w-full" onClick={() => handleCancelOrder(o.id || o.order_id || o.orderId)}>Cancel Order</Button> : null)} />
           )}
           {activeTab === 'TRADE_HISTORY' && (
-            <DataTable columns={historyColumns} rows={filteredClosedTrades} rowKey={(ct) => ct.id || ct.executionId} emptyMessage="No closed trades recorded for today." isLoading={loading && closedTrades.length === 0} />
+            <DataTable columns={historyColumns} rows={filteredClosedTrades} rowKey={(ct) => ct.id || ct.executionId}
+              isLoading={loading && closedTrades.length === 0}
+              emptyIcon={<History className="w-5 h-5" />}
+              emptyTitle="No closed trades today"
+              emptyMessage="Once a position is squared off, the settled trade and its realised P&L land here." />
           )}
         </div>
       </Card>

@@ -364,7 +364,6 @@ function AppRoot() {
             onToggleTheme={toggleTheme}
             onOpenSearch={() => setIsSearchOpen(true)}
             onOpenWalletModal={() => goToProfileTab('FUNDS')}
-            onLogout={handleLogout}
           />
 
           <OrderPreviewModal
@@ -420,7 +419,6 @@ function AppRoot() {
           onToggleTheme={toggleTheme}
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenWalletModal={() => goToProfileTab('FUNDS')}
-          onLogout={handleLogout}
           isTerminalMode={isTerminalMode}
           onToggleTerminal={() => (isTerminalMode ? navigate(-1) : navigate('/terminal'))}
         />
