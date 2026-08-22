@@ -1156,22 +1156,45 @@ router.get('/market-data/local-stats', authenticateToken, checkPermission('ADMIN
 // ============================================================
 router.get('/kyc/applications', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // C1 fix: this had no LIMIT at all — every KYC application platform-wide, unbounded — plus
+    // an N+1 query firing one extra round trip per application to fetch its documents. Added
+    // pagination + an optional status filter, and batched the documents lookup into one query.
+    const limit = Math.min(parseInt(req.query.limit as string || '100', 10), 500);
+    const offset = parseInt(req.query.offset as string || '0', 10);
+    const status = req.query.status as string || '';
+
+    let where = '';
+    const params: any[] = [];
+    if (status) {
+      where = 'WHERE ka.status = $1';
+      params.push(status);
+    }
+
+    const countRow = await queryOne<any>(`SELECT COUNT(*) as c FROM kyc_applications ka ${where}`, params);
     const apps = await query<any>(
       `SELECT ka.*, u.username, u.email, u.role
        FROM kyc_applications ka
        JOIN users u ON ka.user_id = u.id
-       ORDER BY ka.submitted_at DESC`
+       ${where}
+       ORDER BY ka.submitted_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
 
-    const appsWithDocs = await Promise.all(apps.map(async (a: any) => {
-      const documents = await query(
-        'SELECT id, document_type, original_filename, mime_type, file_size, uploaded_at FROM kyc_documents WHERE kyc_application_id = $1',
-        [a.id]
+    const appIds = apps.map((a: any) => a.id);
+    const documentsByApp: Record<string, any[]> = {};
+    if (appIds.length > 0) {
+      const allDocs = await query<any>(
+        'SELECT id, kyc_application_id, document_type, original_filename, mime_type, file_size, uploaded_at FROM kyc_documents WHERE kyc_application_id = ANY($1)',
+        [appIds]
       );
-      return { ...a, documents };
-    }));
+      for (const doc of allDocs) {
+        (documentsByApp[doc.kyc_application_id] ||= []).push(doc);
+      }
+    }
 
-    res.json({ success: true, applications: appsWithDocs });
+    const appsWithDocs = apps.map((a: any) => ({ ...a, documents: documentsByApp[a.id] || [] }));
+
+    res.json({ success: true, applications: appsWithDocs, total: parseInt(countRow?.c || '0'), pagination: { limit, offset } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1885,7 +1908,10 @@ router.post('/broker/fyers-validate-code', authenticateToken, checkPermission('B
 // ============================================================
 router.get('/executions/provenance', authenticateToken, checkPermission('EXECUTIONS_PROVENANCE_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { userId, symbol, freshness, limit = '50', offset = '0' } = req.query;
+    const { userId, symbol, freshness, offset = '0' } = req.query;
+    // C1 fix: `limit` was passed straight through from the query string with no cap — a caller
+    // could request an arbitrarily large page (e.g. ?limit=999999) and pull the entire table.
+    const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 500);
     let where = 'WHERE 1=1';
     const params: any[] = [];
 
@@ -2722,6 +2748,11 @@ router.get('/permissions/matrix', authenticateToken, checkPermission('ADMIN_BROA
 });
 
 // GET: All Users with Roles, Custom Permissions & Capacity Limits
+// C1 fix: this used to return every row in `users` with no WHERE clause at all — every plain
+// customer account included, not just staff — on a screen whose entire purpose is managing
+// staff roles/permissions. At the brief's stated 1,000+-user scale target this would return the
+// whole platform's user base on every page load. Restricted to non-customer roles below, which
+// keeps the natural result size bounded by staff headcount (small) rather than customer count.
 router.get('/permissions/users', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const users = await query<any>(
@@ -2735,6 +2766,7 @@ router.get('/permissions/users', authenticateToken, checkPermission('ADMIN_BROAD
        FROM users u
        LEFT JOIN manager_limits ml ON u.id = ml.manager_id
        LEFT JOIN manager_assignments ma ON u.id = ma.manager_id
+       WHERE u.role != 'USER'
        GROUP BY u.id, ml.max_users, ml.max_exposure_per_user, ml.max_deposit_approval, ml.max_withdrawal_approval, ml.max_daily_loss_cap
        ORDER BY 
          CASE 
