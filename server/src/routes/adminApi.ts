@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import argon2 from 'argon2';
 import { authenticateToken, checkPermission, AuthenticatedRequest } from '../middleware/auth';
 import { SYSTEM_PERMISSION_CATEGORIES } from '../config/permissionCatalog';
@@ -22,6 +22,35 @@ function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
   if (forwarded) return Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
   return req.ip ?? '127.0.0.1';
+}
+
+// A4c: MANAGER is the only role with a book-of-assigned-clients concept
+// (SUPER_ADMIN/ADMIN oversee everyone; functional roles like RISK_MANAGER/
+// FINANCE_MANAGER/KYC_OFFICER need to act across all customers for their
+// function). Applied only to routes whose permission key's defaultRoles
+// actually include MANAGER — routes MANAGER can't reach at all need no scoping.
+async function restrictManagerToOwnCustomer(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  if (req.user!.role !== 'MANAGER') {
+    next();
+    return;
+  }
+  const customerId = req.params.id;
+  try {
+    const assignment = await queryOne<{ user_id: string }>(
+      'SELECT user_id FROM manager_assignments WHERE manager_id = $1 AND user_id = $2',
+      [req.user!.userId, customerId]
+    );
+    if (!assignment) {
+      res.status(403).json({
+        success: false,
+        error: { code: 'PERMISSION_DENIED', message: 'This customer is not assigned to your book.' }
+      });
+      return;
+    }
+    next();
+  } catch (err: any) {
+    res.status(403).json({ success: false, error: { code: 'PERMISSION_DENIED', message: 'Unable to verify customer assignment. Access denied.' } });
+  }
 }
 
 const router = Router();
@@ -191,6 +220,11 @@ router.get('/customers', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'),
     params.push(role);
     paramIdx++;
   }
+  if (req.user!.role === 'MANAGER') {
+    where += ` AND u.id IN (SELECT user_id FROM manager_assignments WHERE manager_id = $${paramIdx})`;
+    params.push(req.user!.userId);
+    paramIdx++;
+  }
 
   const countRow = await queryOne<any>(`SELECT COUNT(*) as c FROM users u ${where}`, params);
   const users = await query(
@@ -302,7 +336,7 @@ router.get('/customers/duplicates', authenticateToken, checkPermission('CUSTOMER
   }
 });
 
-router.get('/customers/:id', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   const customerId = req.params.id;
   const [user, wallet, kycRecords, orders, trades, positions, holdings, ledger, auditLogs] = await Promise.all([
     queryOne<any>('SELECT id, username, email, role, status, created_at, last_login_at, failed_login_attempts FROM users WHERE id = $1', [customerId]),
@@ -366,7 +400,7 @@ router.get('/customers/:id', authenticateToken, checkPermission('ADMIN_BROAD_VIE
   });
 });
 
-router.post('/customers/:id/freeze', authenticateToken, checkPermission('USER_LOCK_UNLOCK'), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/freeze', authenticateToken, checkPermission('USER_LOCK_UNLOCK'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
   // 'FROZEN' was never a legal value for users.status (only for virtual_wallets.status) —
@@ -376,7 +410,7 @@ router.post('/customers/:id/freeze', authenticateToken, checkPermission('USER_LO
   res.json({ success: true, message: 'Account frozen' });
 });
 
-router.post('/customers/:id/unfreeze', authenticateToken, checkPermission('USER_LOCK_UNLOCK'), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/unfreeze', authenticateToken, checkPermission('USER_LOCK_UNLOCK'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   const targetId = req.params.id as string;
   await execute("UPDATE users SET status = 'ACTIVE', updated_at = NOW() WHERE id = $1", [targetId]);
@@ -384,7 +418,7 @@ router.post('/customers/:id/unfreeze', authenticateToken, checkPermission('USER_
   res.json({ success: true, message: 'Account unfrozen' });
 });
 
-router.post('/customers/:id/reset-password', authenticateToken, checkPermission('USER_RESET_PASSWORD'), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/reset-password', authenticateToken, checkPermission('USER_RESET_PASSWORD'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const targetUserId = req.params.id as string;
     const { newPassword } = req.body;
@@ -878,17 +912,26 @@ router.post('/funds/requests/:id/reject', authenticateToken, checkPermission('WI
       return;
     }
 
-    if (request.status !== 'PENDING') {
-      res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: `Request is already ${request.status}` } });
-      return;
-    }
-
-    await execute(
-      `UPDATE fund_requests SET status = 'REJECTED', rejection_reason = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $3`,
+    // Status is re-checked as part of the UPDATE's WHERE clause below (not just here) so a
+    // concurrent /approve on the same request can't be silently overwritten back to REJECTED
+    // after money has already moved — see A4/B1 audit notes in .design/admin-panel-upgrade/.
+    const updated = await queryOne<any>(
+      `UPDATE fund_requests SET status = 'REJECTED', rejection_reason = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW()
+       WHERE id = $3 AND status = 'PENDING'
+       RETURNING id, request_id`,
       [reason || 'Rejected by Admin', req.user!.userId, request.id]
     );
 
-    res.json({ success: true, message: `Fund request ${request.request_id} REJECTED.` });
+    if (!updated) {
+      res.status(409).json({ success: false, error: { code: 'INVALID_STATUS', message: `Request is no longer PENDING (already processed).` } });
+      return;
+    }
+
+    // B2 fix: /approve logs an audit action for every transition; this route never did, leaving
+    // fund-request rejections with no audit trail entry at all despite being a real state change.
+    await logAuditAction(req.user!.userId, req.user!.role, 'REJECT_FUND_REQUEST', 'FUND_REQUEST', updated.id, null, { reqId, reason }, getClientIp(req));
+
+    res.json({ success: true, message: `Fund request ${updated.request_id} REJECTED.` });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
   }
@@ -1198,20 +1241,31 @@ router.post('/funds/direct-adjust', authenticateToken, checkPermission('DIRECT_B
     }
 
     const adjustAmount = requestType === 'CREDIT' ? reqAmount : -reqAmount;
-    const updatedWallet = await VirtualWalletLedger.adminAdjustBalance(
-      userId,
-      adjustAmount,
-      req.user!.userId,
-      reason || `Direct Admin ${requestType}`
-    );
-
     const id = 'freq_' + generateUUID();
     const requestId = 'ADM' + generateUUID().slice(0, 8).toUpperCase();
-    await execute(
-      `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note, approved_by, approved_at)
-       VALUES ($1, $2, $3, $4, $5, 'APPROVED', 'ADMIN_DIRECT', $6, $7, NOW())`,
-      [id, requestId, userId, requestType === 'CREDIT' ? 'DEPOSIT' : 'WITHDRAWAL', reqAmount, reason || 'Direct Admin Adjustment', req.user!.userId]
-    );
+
+    // B1 fix: the balance mutation and this audit-trail row used to be two separate,
+    // independently-committing operations — if the fund_requests INSERT ever threw after
+    // adminAdjustBalance had already committed, a real balance change would be left with no
+    // matching request record. Passing adminAdjustBalance our own client makes both commit or
+    // roll back together.
+    await withTransaction(async (client: any) => {
+      await VirtualWalletLedger.adminAdjustBalance(
+        userId,
+        adjustAmount,
+        req.user!.userId,
+        reason || `Direct Admin ${requestType}`,
+        client
+      );
+
+      await client.query(
+        `INSERT INTO fund_requests (id, request_id, user_id, request_type, amount, status, payment_method, reference_note, approved_by, approved_at)
+         VALUES ($1, $2, $3, $4, $5, 'APPROVED', 'ADMIN_DIRECT', $6, $7, NOW())`,
+        [id, requestId, userId, requestType === 'CREDIT' ? 'DEPOSIT' : 'WITHDRAWAL', reqAmount, reason || 'Direct Admin Adjustment', req.user!.userId]
+      );
+    });
+
+    const updatedWallet = await VirtualWalletLedger.getWallet(userId);
 
     await logAuditAction(req.user!.userId, req.user!.role, `ADMIN_DIRECT_FUNDS_${requestType}`, 'WALLET', userId, null, { amount: reqAmount, reason }, getClientIp(req));
 
@@ -1317,11 +1371,28 @@ router.post('/orders/:orderId/cancel', authenticateToken, checkPermission('ORDER
       return;
     }
 
+    // B1 fix: the UPDATE itself is now the guard (WHERE status IN (...)), not just the earlier
+    // unlocked read above — otherwise a concurrent fill (ExecutionEngine's 500ms loop) could
+    // commit status='FILLED' between this route's read and its UPDATE, and this would then
+    // blindly overwrite a real fill back to 'CANCELLED', silently hiding that money and a
+    // position actually moved. If no row matches, someone else already transitioned this order.
+    let cancelled = false;
     await withTransaction(async (client: any) => {
-      await client.query(`UPDATE orders SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`, [order.id]);
+      const upd = await client.query(
+        `UPDATE orders SET status = 'CANCELLED', updated_at = NOW()
+         WHERE id = $1 AND status IN ('ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING')
+         RETURNING id`,
+        [order.id]
+      );
+      if (upd.rows.length === 0) return;
+      cancelled = true;
       // Cancelled order drops out of the pending-order margin sum on its own — no separate release calc needed.
       await VirtualWalletLedger.recomputeUsedMarginForUser(order.user_id, client);
     });
+    if (!cancelled) {
+      res.status(409).json({ success: false, error: { code: 'INVALID_STATUS', message: 'Order was already processed (filled/cancelled/rejected) by another request.' } });
+      return;
+    }
     await execute(
       `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
        VALUES ($1, $2, $3, 'CANCELLED', $4, 'ADMIN')`,
@@ -1380,10 +1451,23 @@ router.post('/orders/:orderId/reject', authenticateToken, checkPermission('ORDER
       return;
     }
 
+    // B1 fix: same class of race as /cancel above — make the UPDATE itself the status guard.
+    let rejected = false;
     await withTransaction(async (client: any) => {
-      await client.query(`UPDATE orders SET status = 'REJECTED', updated_at = NOW() WHERE id = $1`, [order.id]);
+      const upd = await client.query(
+        `UPDATE orders SET status = 'REJECTED', updated_at = NOW()
+         WHERE id = $1 AND status IN ('ACCEPTED', 'PENDING')
+         RETURNING id`,
+        [order.id]
+      );
+      if (upd.rows.length === 0) return;
+      rejected = true;
       await VirtualWalletLedger.recomputeUsedMarginForUser(order.user_id, client);
     });
+    if (!rejected) {
+      res.status(409).json({ success: false, error: { code: 'INVALID_STATUS', message: 'Order was already processed (filled/cancelled/rejected) by another request.' } });
+      return;
+    }
     await execute(
       `INSERT INTO order_events (id, order_id, from_status, to_status, reason, actor)
        VALUES ($1, $2, $3, 'REJECTED', $4, 'ADMIN')`,
@@ -1457,6 +1541,13 @@ router.post('/positions/:id/edit', authenticateToken, checkPermission('POSITIONS
       [nQty, avgPx, bPx, sPx, positionId]
     );
 
+    // B1 fix: every other code path that changes positions.net_qty (fills, cancels, square-off)
+    // immediately recomputes used_margin from the new position set; this route didn't, so an
+    // admin qty edit could leave used_margin reflecting the pre-edit quantity indefinitely,
+    // overstating the user's buying power/withdrawable balance until an unrelated order event
+    // happened to trigger a recompute.
+    await VirtualWalletLedger.recomputeUsedMarginForUser(pos.user_id);
+
     await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_EDIT_POSITION', 'POSITION', positionId, null, { netQty: nQty, averagePrice: avgPx }, getClientIp(req));
 
     res.json({ success: true, message: `Position updated successfully. Net Qty: ${nQty}, Avg Price: ₹${avgPx}` });
@@ -1484,33 +1575,55 @@ router.post('/positions/:id/square-off', authenticateToken, checkPermission('POS
     const { PortfolioService } = require('../trading/PortfolioService');
     const { VirtualWalletLedger } = require('../trading/VirtualWalletLedger');
 
-    await withTransaction(async (client: any) => {
-      const res = await PortfolioService.recordExecutionInTransaction(
-        client,
-        pos.user_id,
-        pos.symbol,
-        pos.exchange || 'NSE',
-        pos.product_type || 'MIS',
-        exitSide,
-        exitQty,
-        exitPrice,
-        'ADMIN_SQUARE_OFF',
-        'ADMIN_FORCE_EXIT',
-        'exc_' + generateUUID()
-      );
+    try {
+      await withTransaction(async (client: any) => {
+        // B1 fix: net_qty/exitSide/exitQty were computed from an unlocked read above, before
+        // this transaction started. recordExecutionInTransaction takes its own row lock, but
+        // treats whatever (side, qty) it's handed as a normal trade — if the position was
+        // already flattened by a concurrent square-off (a double-click, or two admin sessions)
+        // by the time this transaction acquires the lock, it has no way to know this call was
+        // meant to be a no-op close-out rather than a legitimate new trade, and would open a
+        // fabricated opposite-side position instead. Re-check the locked row matches what was
+        // read outside the transaction before doing anything else; abort (rollback, no money
+        // moved) if a concurrent square-off already closed it out from under us.
+        const lockedPos = await client.query('SELECT net_qty FROM positions WHERE id = $1 FOR UPDATE', [positionId]);
+        if (lockedPos.rows.length === 0 || parseInt(lockedPos.rows[0].net_qty, 10) !== netQty) {
+          throw new Error('SQUAREOFF_POSITION_ALREADY_MODIFIED');
+        }
 
-      const tradeVal = exitPrice * exitQty;
+        const res = await PortfolioService.recordExecutionInTransaction(
+          client,
+          pos.user_id,
+          pos.symbol,
+          pos.exchange || 'NSE',
+          pos.product_type || 'MIS',
+          exitSide,
+          exitQty,
+          exitPrice,
+          'ADMIN_SQUARE_OFF',
+          'ADMIN_FORCE_EXIT',
+          'exc_' + generateUUID()
+        );
 
-      await VirtualWalletLedger.settleTradeExecutionInTransaction(
-        client,
-        pos.user_id,
-        exitSide,
-        tradeVal,
-        res.releasedPositionCapital,
-        res.realizedPnlDelta,
-        'ADMIN_SQUARE_OFF'
-      );
-    });
+        const tradeVal = exitPrice * exitQty;
+
+        await VirtualWalletLedger.settleTradeExecutionInTransaction(
+          client,
+          pos.user_id,
+          exitSide,
+          tradeVal,
+          res.releasedPositionCapital,
+          res.realizedPnlDelta,
+          'ADMIN_SQUARE_OFF'
+        );
+      });
+    } catch (txErr: any) {
+      if (txErr.message === 'SQUAREOFF_POSITION_ALREADY_MODIFIED') {
+        res.status(409).json({ success: false, error: { code: 'ALREADY_MODIFIED', message: 'Position was already closed or changed by another request. No action taken.' } });
+        return;
+      }
+      throw txErr;
+    }
 
     await logAuditAction(req.user!.userId, req.user!.role, 'ADMIN_SQUARE_OFF_POSITION', 'POSITION', positionId, null, { exitSide, exitQty, exitPrice }, getClientIp(req));
 
@@ -1536,7 +1649,7 @@ router.post('/rms/auto-square-off/run', authenticateToken, checkPermission('RMS_
 // ============================================================
 // ADMIN CLIENT FUNDS MANAGEMENT
 // ============================================================
-router.post('/customers/:id/funds', authenticateToken, checkPermission('CUSTOMER_FUNDS_ADJUST_ADMIN'), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/funds', authenticateToken, checkPermission('CUSTOMER_FUNDS_ADJUST_ADMIN'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { amount, action, reason } = req.body;
@@ -1547,32 +1660,34 @@ router.post('/customers/:id/funds', authenticateToken, checkPermission('CUSTOMER
       return;
     }
 
-    const wallet = await queryOne<any>('SELECT * FROM virtual_wallets WHERE user_id = $1', [customerId]);
+    const wallet = await queryOne<any>('SELECT id FROM virtual_wallets WHERE user_id = $1', [customerId]);
     if (!wallet) {
       res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'User wallet not found' } });
       return;
     }
 
-    const currentCash = parseFloat(wallet.cash_balance);
-    const newCash = action === 'ADD' ? currentCash + amt : Math.max(0, currentCash - amt);
-
-    await withTransaction(async (client: any) => {
-      await client.query('UPDATE virtual_wallets SET cash_balance = $1, updated_at = NOW() WHERE user_id = $2', [newCash, customerId]);
-      await client.query(
-        `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ADMIN', $9)`,
-        [
-          'led_' + generateUUID(), generateUUID(), customerId,
-          action === 'ADD' ? 'CREDIT' : 'DEBIT',
-          amt, currentCash, newCash,
-          'ADMIN_' + action,
-          JSON.stringify({ reason: reason || 'Admin Manual Capital Adjustment', adminUserId: req.user!.userId })
-        ]
+    // B1 fix: this used to read cash_balance, compute the new value in JS, then write it back
+    // outside any row lock — two concurrent adjustments (or a double-click) could both read the
+    // same stale balance and each apply their delta on top of it, silently losing one of the two
+    // credits/debits while the ledger ends up with two rows that don't sum to the real change.
+    // adminAdjustBalance takes a row lock (SELECT ... FOR UPDATE) and computes the new balance
+    // from the locked read, inside the same transaction as the ledger insert.
+    let newWallet;
+    try {
+      newWallet = await VirtualWalletLedger.adminAdjustBalance(
+        customerId,
+        action === 'ADD' ? amt : -amt,
+        req.user!.userId,
+        reason || 'Admin Manual Capital Adjustment'
       );
-    });
+    } catch (adjErr: any) {
+      res.status(409).json({ success: false, error: { code: 'INVALID_ADJUSTMENT', message: adjErr.message || 'Adjustment could not be applied.' } });
+      return;
+    }
 
     await logAuditAction(req.user!.userId, req.user!.role, `ADMIN_${action}_FUNDS`, 'WALLET', wallet.id, null, { amount: amt, action, reason }, getClientIp(req));
 
+    const newCash = newWallet?.cashBalance ?? 0;
     res.json({ success: true, message: `Successfully ${action === 'ADD' ? 'added' : 'deducted'} ₹${amt.toLocaleString('en-IN')} ${action === 'ADD' ? 'to' : 'from'} customer wallet. New Balance: ₹${newCash.toLocaleString('en-IN')}` });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
@@ -1892,6 +2007,51 @@ router.post('/finance/reserves/reconcile', authenticateToken, checkPermission('R
   }
 });
 
+// B3: per-user ledger-vs-balance drift check. `/finance/reserves` above checks platform-wide
+// solvency (bank reserve vs aggregate liability); this checks a different, narrower invariant —
+// that each user's virtual_wallets.cash_balance still matches the balance_after of their most
+// recent CASH-BALANCE-mutating wallet_ledger row. Every such route this session's B1 pass
+// touched now writes both inside the same locked transaction, so on a healthy system this
+// should never drift; this endpoint exists to prove that (or catch it if some other code path,
+// or a bug this audit missed, still lets them diverge).
+//
+// MARGIN_BLOCK/MARGIN_RELEASE rows are deliberately excluded: those two transaction types never
+// touch cash_balance at all (they only move used_margin) but reuse the same balance_after column
+// to record post-op *buying power* (cash_balance - used_margin) instead — a real, found-in-
+// production false-positive if included (confirmed against two live users during this task).
+router.get('/finance/ledger-reconciliation', authenticateToken, checkPermission('RESERVES_RECONCILE'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const drifted = await query<any>(
+      `SELECT w.user_id, w.cash_balance, latest.balance_after AS ledger_balance_after, latest.transaction_type AS ledger_last_type, latest.created_at AS ledger_last_entry_at
+       FROM virtual_wallets w
+       JOIN LATERAL (
+         SELECT balance_after, transaction_type, created_at FROM wallet_ledger
+         WHERE user_id = w.user_id
+           AND transaction_type NOT IN ('MARGIN_BLOCK', 'MARGIN_RELEASE')
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1
+       ) latest ON true
+       WHERE ABS(w.cash_balance - latest.balance_after) > 0.01
+       ORDER BY ABS(w.cash_balance - latest.balance_after) DESC
+       LIMIT 200`
+    );
+
+    const totalUsersWithLedgerRow = await queryOne<any>(
+      `SELECT COUNT(DISTINCT user_id) as c FROM wallet_ledger`
+    );
+
+    res.json({
+      success: true,
+      driftedUsers: drifted,
+      driftedCount: drifted.length,
+      totalUsersWithLedgerHistory: parseInt(totalUsersWithLedgerRow?.c || '0'),
+      status: drifted.length === 0 ? 'RECONCILED' : 'DRIFT_DETECTED'
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });
+  }
+});
+
 // ============================================================
 // 17. MANAGER HIERARCHY & CAPACITY CONTROLS
 // ============================================================
@@ -1950,7 +2110,7 @@ router.post('/managers/assign', authenticateToken, checkPermission('MANAGERS_ASS
 // ============================================================
 // 18. CUSTOMER PROFILE MODIFICATION (PATCH)
 // ============================================================
-router.patch('/customers/:id', authenticateToken, checkPermission('CUSTOMERS_PROFILE_EDIT'), async (req: AuthenticatedRequest, res: Response) => {
+router.patch('/customers/:id', authenticateToken, checkPermission('CUSTOMERS_PROFILE_EDIT'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { fullName, phoneNumber, email, address, city, role, status } = req.body;
@@ -2084,7 +2244,7 @@ router.post('/customers/:id/suspend', authenticateToken, checkPermission('CUSTOM
 // ============================================================
 // 20. ACTIVATE CUSTOMER
 // ============================================================
-router.post('/customers/:id/activate', authenticateToken, checkPermission('CUSTOMERS_ACTIVATE'), async (req: AuthenticatedRequest, res: Response) => {
+router.post('/customers/:id/activate', authenticateToken, checkPermission('CUSTOMERS_ACTIVATE'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const { reason } = req.body;
@@ -2297,7 +2457,7 @@ router.post('/customers/:id/close', authenticateToken, checkPermission('CUSTOMER
 // ============================================================
 // 24. CUSTOMER AUDIT TRAIL (paginated)
 // ============================================================
-router.get('/customers/:id/audit', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id/audit', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const limit = Math.min(parseInt(req.query.limit as string || '50', 10), 200);
@@ -2330,7 +2490,7 @@ router.get('/customers/:id/audit', authenticateToken, checkPermission('ADMIN_BRO
 // ============================================================
 // 25. CUSTOMER LOGIN ACTIVITY
 // ============================================================
-router.get('/customers/:id/login-activity', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id/login-activity', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
     const limit = Math.min(parseInt(req.query.limit as string || '30', 10), 100);
@@ -2367,7 +2527,7 @@ router.get('/customers/:id/login-activity', authenticateToken, checkPermission('
 // ============================================================
 // 26. CUSTOMER KYC DETAIL (full — for Customer360 KYC tab)
 // ============================================================
-router.get('/customers/:id/kyc', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/customers/:id/kyc', authenticateToken, checkPermission('ADMIN_BROAD_VIEW'), restrictManagerToOwnCustomer, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const customerId = req.params.id as string;
 

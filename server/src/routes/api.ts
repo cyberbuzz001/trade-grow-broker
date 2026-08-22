@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import argon2 from 'argon2';
 import rateLimit from 'express-rate-limit';
-import { query, queryOne, execute } from '../db/schema';
+import { query, queryOne, execute, withTransaction } from '../db/schema';
 import { authenticateToken, checkRole, checkPermission, AuthenticatedRequest, getJwtSecret, getRefreshSecret } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import {
@@ -1140,18 +1140,30 @@ router.post('/funds/reset-margin', authenticateToken, async (req: AuthenticatedR
     }
 
     const defaultCapital = parseFloat(process.env.DEFAULT_VIRTUAL_CAPITAL || '1000000');
-    await execute(
-      `UPDATE virtual_wallets SET cash_balance = $1, realized_pnl = 0, unrealized_pnl = 0, updated_at = NOW() WHERE user_id = $2`,
-      [defaultCapital, userId]
-    );
+    // B1 fix: the balance UPDATE and the ledger INSERT used to be two separate unprotected
+    // statements (no lock, no shared transaction) — a crash or transient DB error between them
+    // would leave the balance silently changed with no ledger row explaining it. The ledger row
+    // also hardcoded balance_before to 0 regardless of the wallet's actual prior balance, which
+    // is simply false whenever a user had any nonzero balance before resetting. Fixed by locking
+    // the wallet row, using its real prior value, and writing both in one transaction.
+    let balanceBefore = 0;
+    await withTransaction(async (client: any) => {
+      const walletRow = await client.query('SELECT cash_balance FROM virtual_wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      balanceBefore = parseFloat(walletRow.rows[0]?.cash_balance || '0');
+
+      await client.query(
+        `UPDATE virtual_wallets SET cash_balance = $1, realized_pnl = 0, unrealized_pnl = 0, updated_at = NOW() WHERE user_id = $2`,
+        [defaultCapital, userId]
+      );
+      await client.query(
+        `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
+         VALUES ($1, $2, $3, 'MARGIN_RESET', $4, $5, $6, $7, $8, $9)`,
+        ['led_' + generateUUID(), generateUUID(), userId, defaultCapital, balanceBefore, defaultCapital, userId, userId, JSON.stringify({ reason: 'Margin & Balance Reset' })]
+      );
+    });
     // No open positions/orders were confirmed above, so this resolves to 0 —
     // routed through the authoritative recompute rather than hardcoding it.
     await VirtualWalletLedger.recomputeUsedMarginForUser(userId);
-    await execute(
-      `INSERT INTO wallet_ledger (id, transaction_id, user_id, transaction_type, amount, balance_before, balance_after, reference_id, created_by, metadata)
-       VALUES ($1, $2, $3, 'MARGIN_RESET', $4, 0, $4, $5, $6, $7)`,
-      ['led_' + generateUUID(), generateUUID(), userId, defaultCapital, userId, userId, JSON.stringify({ reason: 'Margin & Balance Reset' })]
-    );
     res.json({ success: true, message: `Balance reset to ₹${defaultCapital.toLocaleString('en-IN')}` });
   } catch (err: any) {
     res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: err.message } });

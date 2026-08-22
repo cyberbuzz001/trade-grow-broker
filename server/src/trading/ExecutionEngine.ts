@@ -179,7 +179,8 @@ export class ExecutionEngine {
       fillLogic?: string;
     }
   ): Promise<void> {
-    // Idempotency Guard: prevent duplicate execution processing
+    // Cheap fast-path check outside the transaction — not the real guard (see below), just
+    // avoids doing unnecessary work for the common case of a plainly-already-filled order.
     const existingExec = await queryOne<any>(
       'SELECT id FROM executions WHERE order_id = $1',
       [order.id]
@@ -206,6 +207,23 @@ export class ExecutionEngine {
         : (order.order_type === 'MARKET' ? 'MARKET_SQUARE_OFF' : 'STOP_LOSS'));
 
     const posResult = await withTransaction(async (client) => {
+      // B1 fix: the real idempotency guard. The `existingExec` check above runs outside any
+      // lock, so two near-simultaneous executeOrder calls for the same order (e.g. an admin
+      // force-execute racing the engine's own periodic pending-order sweep) could both pass it
+      // before either has inserted an execution row, and both would then fill the same order
+      // twice — doubling the resulting position and cash/P&L impact. Making the order's FILLED
+      // transition itself the atomic guard (first statement, in this transaction) closes that:
+      // only one caller's UPDATE can match status IN (...) and return a row.
+      const statusUpd = await client.query(
+        `UPDATE orders SET status = 'FILLED', filled_quantity = quantity, average_price = $1, updated_at = NOW()
+         WHERE id = $2 AND status IN ('ACCEPTED', 'PENDING')
+         RETURNING id`,
+        [price, order.id]
+      );
+      if (statusUpd.rows.length === 0) {
+        return null;
+      }
+
       // 1. Record execution fill with Immutable Provenance
       await client.query(
         `INSERT INTO executions (
@@ -232,11 +250,7 @@ export class ExecutionEngine {
         ]
       );
 
-      // 2. Update order status to FILLED
-      await client.query(
-        `UPDATE orders SET status = 'FILLED', filled_quantity = quantity, average_price = $1, updated_at = NOW() WHERE id = $2`,
-        [price, order.id]
-      );
+      // 2. (order status already transitioned to FILLED above, atomically)
 
       // 3. Record order event audit trail
       await client.query(
@@ -287,6 +301,11 @@ export class ExecutionEngine {
 
       return res;
     });
+
+    if (posResult === null) {
+      console.log(`[ExecutionEngine] Skipped: order ${order.order_id} was already filled/cancelled/rejected by another request.`);
+      return;
+    }
 
     console.log(`[ExecutionEngine] EXECUTION SUCCESS: Order ${order.order_id} filled @ ₹${price.toFixed(2)} (Qty: ${qty}, ExitReason: ${exitReason}, Realized P&L: ₹${(posResult?.realizedPnlDelta || 0).toFixed(2)})`);
   }

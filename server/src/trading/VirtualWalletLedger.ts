@@ -419,14 +419,23 @@ export class VirtualWalletLedger {
 
   /**
    * Admin balance adjustment (Add or Remove virtual capital).
+   *
+   * Accepts an optional external `client` (B1 fix) so a caller that needs a
+   * second write — e.g. a `fund_requests` audit row — to commit or roll back
+   * together with the balance change can pass its own transaction in, instead
+   * of the balance mutation committing on its own before the second write is
+   * even attempted (which would leave a real balance change with no matching
+   * audit record if that second write ever throws). When no client is passed,
+   * behavior is unchanged: this opens and manages its own transaction.
    */
   public static async adminAdjustBalance(
     userId: string,
     amount: number,
     adminUserId: string,
-    reason: string
+    reason: string,
+    externalClient?: any
   ): Promise<WalletState | null> {
-    await withTransaction(async (client) => {
+    const run = async (client: any) => {
       const walletRow = await client.query(
         'SELECT * FROM virtual_wallets WHERE user_id = $1 FOR UPDATE',
         [userId]
@@ -455,7 +464,13 @@ export class VirtualWalletLedger {
           JSON.stringify({ reason, adjustmentType: amount >= 0 ? 'CREDIT' : 'DEBIT' })
         ]
       );
-    });
+    };
+
+    if (externalClient) {
+      await run(externalClient);
+    } else {
+      await withTransaction(run);
+    }
 
     return this.getWallet(userId);
   }
