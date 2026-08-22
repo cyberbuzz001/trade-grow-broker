@@ -249,7 +249,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
     }
   };
 
-  if (loading && !funds) return <div className="text-slate-400 text-sm p-8">Loading funds overview & requests...</div>;
+  if (loading && !funds) return <div className="text-[var(--text-muted)] text-sm p-8">Loading funds overview & requests...</div>;
 
   return (
     <div className="flex flex-col gap-5 h-full overflow-y-auto pr-1">
@@ -257,14 +257,14 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       {funds && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {[
-            { label: 'Total Funds', value: `₹${funds.totalFunds.toLocaleString('en-IN')}`, color: 'text-emerald-400' },
-            { label: 'Available Cash', value: `₹${funds.available.toLocaleString('en-IN')}`, color: 'text-emerald-300' },
-            { label: 'Blocked (Margin)', value: `₹${funds.blocked.toLocaleString('en-IN')}`, color: 'text-amber-400' },
-            { label: 'Pending Requests', value: requests.filter(r => r.status === 'PENDING').length, color: 'text-amber-400' },
-            { label: 'Pending Amount', value: `₹${requests.filter(r => r.status === 'PENDING').reduce((acc, r) => acc + parseFloat(r.amount), 0).toLocaleString('en-IN')}`, color: 'text-amber-400' },
+            { label: 'Total Funds', value: `₹${funds.totalFunds.toLocaleString('en-IN')}`, color: 'text-[var(--primary)]' },
+            { label: 'Available Cash', value: `₹${funds.available.toLocaleString('en-IN')}`, color: 'text-[var(--primary)]' },
+            { label: 'Blocked (Margin)', value: `₹${funds.blocked.toLocaleString('en-IN')}`, color: 'text-[var(--warning)]' },
+            { label: 'Pending Requests', value: requests.filter(r => r.status === 'PENDING').length, color: 'text-[var(--warning)]' },
+            { label: 'Pending Amount', value: `₹${requests.filter(r => r.status === 'PENDING').reduce((acc, r) => acc + parseFloat(r.amount), 0).toLocaleString('en-IN')}`, color: 'text-[var(--warning)]' },
           ].map(k => (
-            <div key={k.label} className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold block">{k.label}</span>
+            <div key={k.label} className="bg-[var(--bg-surface)]/80 border border-[var(--border-color)] rounded-xl p-4">
+              <span className="text-[10px] text-[var(--text-muted)] uppercase font-semibold block">{k.label}</span>
               <span className={`text-xl font-bold ${k.color} font-mono block mt-1`}>{k.value}</span>
             </div>
           ))}
@@ -272,14 +272,14 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       )}
 
       {actionMsg && (
-        <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between shadow-md transition-all ${actionMsg.type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-800' : 'bg-rose-950/90 text-rose-300 border border-rose-800'}`}>
+        <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between shadow-md transition-all ${actionMsg.type === 'success' ? 'bg-[var(--primary-light)]/90 text-[var(--primary)] border border-[var(--primary)]' : 'bg-[var(--loss-light)]/90 text-[var(--loss)] border border-[var(--loss)]'}`}>
           <div className="flex items-center gap-2">
-            {actionMsg.type === 'error' ? <XCircle className="w-4 h-4 text-rose-400 shrink-0" /> : <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
+            {actionMsg.type === 'error' ? <XCircle className="w-4 h-4 text-[var(--loss)] shrink-0" /> : <CheckCircle className="w-4 h-4 text-[var(--primary)] shrink-0" />}
             <span>{actionMsg.text.replace(/^[A-Z_]+:/, '')}</span>
           </div>
           <button 
             onClick={() => setActionMsg(null)}
-            className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer ml-3 shrink-0"
+            className="p-1 rounded-lg hover:bg-white/10 text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors cursor-pointer ml-3 shrink-0"
             title="Dismiss notification"
           >
             <X className="w-4 h-4" />
@@ -289,56 +289,56 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
 
       {/* Platform Real-Money Solvency & Bank Reserves Monitor */}
       {solvency && (
-        <div className="bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-[var(--bg-surface)]/90 via-[var(--bg-surface)]/70 to-[var(--bg-surface)]/90 border border-[var(--border-color)] rounded-2xl p-4 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl border ${
-              solvency.status === 'HEALTHY' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-              solvency.status === 'WARNING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-              'bg-rose-500/10 text-rose-400 border-rose-500/20'
+              solvency.status === 'HEALTHY' ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20' :
+              solvency.status === 'WARNING' ? 'bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/20' :
+              'bg-[var(--loss)]/10 text-[var(--loss)] border-[var(--loss)]/20'
             }`}>
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-white">Platform Solvency & Real Bank Reserves</h4>
+                <h4 className="text-sm font-bold text-[var(--text-main)]">Platform Solvency & Real Bank Reserves</h4>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                  solvency.status === 'HEALTHY' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                  solvency.status === 'WARNING' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
-                  'bg-rose-950 text-rose-400 border border-rose-800'
+                  solvency.status === 'HEALTHY' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' :
+                  solvency.status === 'WARNING' ? 'bg-[var(--warning-light)] text-[var(--warning)] border border-[var(--warning)]' :
+                  'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]'
                 }`}>
                   {solvency.status} SOLVENCY ({(solvency.reserveRatio * 100).toFixed(0)}%)
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">
-                Total Real-Money Liabilities: <span className="text-amber-400 font-mono font-bold">₹{solvency.totalWithdrawableLiabilities.toLocaleString('en-IN')}</span> · 
-                Bank Cash Reserves: <span className="text-emerald-400 font-mono font-bold">₹{solvency.bankCashReserve.toLocaleString('en-IN')}</span>
+              <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                Total Real-Money Liabilities: <span className="text-[var(--warning)] font-mono font-bold">₹{solvency.totalWithdrawableLiabilities.toLocaleString('en-IN')}</span> · 
+                Bank Cash Reserves: <span className="text-[var(--primary)] font-mono font-bold">₹{solvency.bankCashReserve.toLocaleString('en-IN')}</span>
               </p>
             </div>
           </div>
 
           <button
             onClick={() => setShowReconcileModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 font-bold text-xs flex items-center gap-1.5 transition shadow cursor-pointer ml-auto"
+            className="px-3.5 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-main)] border border-[var(--border-color)] hover:border-[var(--border-color)] font-bold text-xs flex items-center gap-1.5 transition shadow cursor-pointer ml-auto"
           >
-            <Building className="w-3.5 h-3.5 text-emerald-400" />
+            <Building className="w-3.5 h-3.5 text-[var(--primary)]" />
             <span>Reconcile Bank Reserve</span>
           </button>
         </div>
       )}
 
       {/* DIRECT ADMIN FUND ADJUSTMENT CARD */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <DollarSign className="w-4 h-4 text-emerald-400" /> Direct Admin Fund Addition / Withdrawal (Instant Credit or Debit)
+      <div className="bg-[var(--bg-surface)]/80 border border-[var(--border-color)] rounded-xl p-4 space-y-3">
+        <h3 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-[var(--primary)]" /> Direct Admin Fund Addition / Withdrawal (Instant Credit or Debit)
         </h3>
 
         <form onSubmit={handleDirectAdjust} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end text-xs">
           <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase">Select Client</label>
+            <label className="text-[10px] text-[var(--text-muted)] font-bold block mb-1 uppercase">Select Client</label>
             <select
               value={targetUserId}
               onChange={e => setTargetUserId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white font-semibold"
+              className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg p-2 text-[var(--text-main)] font-semibold"
             >
               {clients.map(c => (
                 <option key={c.id} value={c.id}>
@@ -349,11 +349,11 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
           </div>
 
           <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase">Action Type</label>
+            <label className="text-[10px] text-[var(--text-muted)] font-bold block mb-1 uppercase">Action Type</label>
             <select
               value={adjustType}
               onChange={e => setAdjustType(e.target.value as any)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white font-semibold"
+              className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg p-2 text-[var(--text-main)] font-semibold"
             >
               <option value="CREDIT">+ CREDIT (Add Funds)</option>
               <option value="DEBIT">- DEBIT (Withdraw Funds)</option>
@@ -361,33 +361,33 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
           </div>
 
           <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase">Amount (₹)</label>
+            <label className="text-[10px] text-[var(--text-muted)] font-bold block mb-1 uppercase">Amount (₹)</label>
             <input
               type="number"
               min="1"
               step="100"
               value={adjustAmount}
               onChange={e => setAdjustAmount(parseFloat(e.target.value) || 0)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white font-mono font-bold"
+              className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg p-2 text-[var(--text-main)] font-mono font-bold"
             />
           </div>
 
           <div>
-            <label className="text-[10px] text-slate-400 font-bold block mb-1 uppercase">Reason / Audit Note</label>
+            <label className="text-[10px] text-[var(--text-muted)] font-bold block mb-1 uppercase">Reason / Audit Note</label>
             <input
               type="text"
               value={adjustReason}
               onChange={e => setAdjustReason(e.target.value)}
               placeholder="Reason for adjustment"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+              className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg p-2 text-[var(--text-main)]"
             />
           </div>
 
           <button
             type="submit"
             disabled={submittingAdjust}
-            className={`py-2 px-4 rounded-lg font-bold text-xs text-white transition flex items-center justify-center gap-1 shadow ${
-              adjustType === 'CREDIT' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'
+            className={`py-2 px-4 rounded-lg font-bold text-xs text-[var(--text-main)] transition flex items-center justify-center gap-1 shadow ${
+              adjustType === 'CREDIT' ? 'bg-[var(--primary)] hover:bg-[var(--primary-hover)]' : 'bg-[var(--loss)] hover:bg-[var(--loss)]'
             }`}
           >
             {submittingAdjust ? 'Executing...' : `${adjustType === 'CREDIT' ? 'Add Funds' : 'Debit Funds'}`}
@@ -396,75 +396,75 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       </div>
 
       {/* PENDING APPROVAL REQUESTS SECTION */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+      <div className="bg-[var(--bg-surface)]/80 border border-[var(--border-color)] rounded-xl p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-400" /> Pending Client Fund Approval Requests ({requests.filter(r => r.status === 'PENDING').length})
+          <h3 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+            <Clock className="w-4 h-4 text-[var(--warning)]" /> Pending Client Fund Approval Requests ({requests.filter(r => r.status === 'PENDING').length})
           </h3>
-          <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.5 rounded font-mono">
+          <span className="text-[10px] bg-[var(--warning-light)] text-[var(--warning)] border border-[var(--warning)] px-2 py-0.5 rounded font-mono">
             Requires Admin Action
           </span>
         </div>
 
-        <div className="overflow-x-auto border border-slate-800 rounded-xl relative shadow-inner">
+        <div className="overflow-x-auto border border-[var(--border-color)] rounded-xl relative shadow-inner">
           <table className="w-full text-left border-collapse min-w-[840px]">
             <thead>
-              <tr className="border-b border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-950">
+              <tr className="border-b border-[var(--border-color)] text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-wider bg-[var(--bg-body)]">
                 <th className="py-2 px-2.5">Req ID & Client</th>
                 <th className="py-2 px-2">Type</th>
                 <th className="py-2 px-2 text-right">Amount</th>
                 <th className="py-2 px-2">Method & Note</th>
                 <th className="py-2 px-2">Requested</th>
                 <th className="py-2 px-2 text-center">Status</th>
-                <th className="py-2 px-2 text-center w-[210px] sticky right-0 bg-slate-950 shadow-[-6px_0_10px_rgba(0,0,0,0.6)] z-10">Action</th>
+                <th className="py-2 px-2 text-center w-[210px] sticky right-0 bg-[var(--bg-body)] shadow-[-6px_0_10px_rgba(0,0,0,0.6)] z-10">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80 bg-slate-900/40 text-xs">
+            <tbody className="divide-y divide-[var(--border-color)]/80 bg-[var(--bg-surface)]/40 text-xs">
               {requests.map((r: any) => (
-                <tr key={r.id} className="hover:bg-slate-800/60 transition group">
+                <tr key={r.id} className="hover:bg-[var(--bg-surface-elevated)]/60 transition group">
                   <td className="py-2 px-2.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-bold text-amber-400 text-[11px]">{r.request_id}</span>
+                      <span className="font-mono font-bold text-[var(--warning)] text-[11px]">{r.request_id}</span>
                     </div>
-                    <div className="font-bold text-white text-[11px] truncate max-w-[140px]">{r.username}</div>
-                    <div className="text-[9px] text-slate-400 font-mono truncate max-w-[140px]">{r.email}</div>
+                    <div className="font-bold text-[var(--text-main)] text-[11px] truncate max-w-[140px]">{r.username}</div>
+                    <div className="text-[9px] text-[var(--text-muted)] font-mono truncate max-w-[140px]">{r.email}</div>
                   </td>
                   <td className="py-2 px-2">
                     <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                      r.request_type === 'DEPOSIT' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/80' : 'bg-rose-950 text-rose-400 border border-rose-800/80'
+                      r.request_type === 'DEPOSIT' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/80' : 'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]/80'
                     }`}>
                       {r.request_type === 'DEPOSIT' ? <ArrowDownLeft className="w-2.5 h-2.5" /> : <ArrowUpRight className="w-2.5 h-2.5" />}
                       {r.request_type}
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-right font-mono font-bold text-white text-xs">
+                  <td className="py-2 px-2 text-right font-mono font-bold text-[var(--text-main)] text-xs">
                     ₹{parseFloat(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="py-2 px-2">
-                    <div className="text-[10px] text-slate-300 font-mono font-semibold">{r.payment_method || 'UPI'}</div>
-                    <div className="text-[9px] text-slate-400 truncate max-w-[150px]" title={r.reference_note || ''}>
+                    <div className="text-[10px] text-[var(--text-muted)] font-mono font-semibold">{r.payment_method || 'UPI'}</div>
+                    <div className="text-[9px] text-[var(--text-muted)] truncate max-w-[150px]" title={r.reference_note || ''}>
                       {r.reference_note || '-'}
                     </div>
                   </td>
-                  <td className="py-2 px-2 text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                  <td className="py-2 px-2 text-[10px] text-[var(--text-muted)] font-mono whitespace-nowrap">
                     {new Date(r.created_at).toLocaleDateString('en-IN', { month: 'numeric', day: 'numeric' })}, {new Date(r.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="py-2 px-2 text-center">
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider inline-block ${
-                      r.status === 'APPROVED' ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-800' :
-                      r.status === 'PARTIALLY_APPROVED' ? 'bg-indigo-950/90 text-indigo-300 border border-indigo-700' :
-                      r.status === 'REJECTED' ? 'bg-rose-950/90 text-rose-400 border border-rose-800' :
-                      'bg-amber-950/90 text-amber-300 border border-amber-800 animate-pulse'
+                      r.status === 'APPROVED' ? 'bg-[var(--primary-light)]/90 text-[var(--primary)] border border-[var(--primary)]' :
+                      r.status === 'PARTIALLY_APPROVED' ? 'bg-[var(--gogrow-blue-light)]/90 text-[var(--gogrow-blue)] border border-[var(--gogrow-blue)]' :
+                      r.status === 'REJECTED' ? 'bg-[var(--loss-light)]/90 text-[var(--loss)] border border-[var(--loss)]' :
+                      'bg-[var(--warning-light)]/90 text-[var(--warning)] border border-[var(--warning)] animate-pulse'
                     }`}>
                       {r.status === 'PENDING' ? 'PENDING' : r.status === 'PARTIALLY_APPROVED' ? 'PARTIAL' : r.status}
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-center w-[210px] sticky right-0 bg-slate-900 group-hover:bg-slate-800/90 shadow-[-6px_0_10px_rgba(0,0,0,0.6)] z-10 transition">
+                  <td className="py-2 px-2 text-center w-[210px] sticky right-0 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-surface-elevated)]/90 shadow-[-6px_0_10px_rgba(0,0,0,0.6)] z-10 transition">
                     {r.status === 'PENDING' ? (
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => handleApprove(r.id, r.request_id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
+                          className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-95 text-[var(--text-main)] text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
                           title="Approve full amount"
                         >
                           <CheckCircle className="w-3 h-3" /> Approve
@@ -472,7 +472,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                         {r.request_type === 'WITHDRAWAL' && (
                           <button
                             onClick={() => openPartialModal(r)}
-                            className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
+                            className="bg-[var(--gogrow-blue)] hover:bg-[var(--gogrow-blue)] active:scale-95 text-[var(--text-main)] text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
                             title="Approve partial amount"
                           >
                             <Sliders className="w-3 h-3" /> Partial
@@ -480,21 +480,21 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                         )}
                         <button
                           onClick={() => openRejectModal(r)}
-                          className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
+                          className="bg-[var(--loss)] hover:bg-[var(--loss)] active:scale-95 text-[var(--text-main)] text-[10px] font-bold px-2 py-1 rounded transition shadow flex items-center gap-0.5 shrink-0 cursor-pointer"
                           title="Reject request"
                         >
                           <XCircle className="w-3 h-3" /> Reject
                         </button>
                       </div>
                     ) : (
-                      <span className="text-[10px] font-mono text-slate-500">Processed</span>
+                      <span className="text-[10px] font-mono text-[var(--text-tertiary)]">Processed</span>
                     )}
                   </td>
                 </tr>
               ))}
               {requests.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 font-medium">No deposit or withdrawal requests found.</td>
+                  <td colSpan={7} className="py-8 text-center text-[var(--text-tertiary)] font-medium">No deposit or withdrawal requests found.</td>
                 </tr>
               )}
             </tbody>
@@ -503,23 +503,23 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
       </div>
 
       {/* Admin Payment Receiving Credentials Management (LinkPe UPI & Bank Account) */}
-      <div className="bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+      <div className="bg-gradient-to-r from-[var(--bg-surface)]/90 via-[var(--bg-surface)]/70 to-[var(--bg-surface)]/90 border border-[var(--border-color)] rounded-2xl p-5 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[var(--border-color)] pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-2 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
               <QrCode className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-bold text-white tracking-tight flex items-center gap-2">
+              <h3 className="text-xs font-bold text-[var(--text-main)] tracking-tight flex items-center gap-2">
                 MERCHANT PAYMENT RECEIVING CREDENTIALS
-                <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 uppercase tracking-widest flex items-center gap-1">
+                <span className="text-[9px] font-bold text-[var(--warning)] bg-[var(--warning)]/10 px-2 py-0.5 rounded-full border border-[var(--warning)]/20 uppercase tracking-widest flex items-center gap-1">
                   <Lock className="w-2.5 h-2.5" /> Admin Access Only
                 </span>
               </h3>
-              <span className="text-[10px] text-slate-400">Configure Merchant UPI ID (LinkPe) & Bank Deposit Account for Client Fund Receipts</span>
+              <span className="text-[10px] text-[var(--text-muted)]">Configure Merchant UPI ID (LinkPe) & Bank Deposit Account for Client Fund Receipts</span>
             </div>
           </div>
-          <span className="text-[10px] font-mono text-emerald-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800">
+          <span className="text-[10px] font-mono text-[var(--primary)] bg-[var(--bg-body)] px-3 py-1 rounded-lg border border-[var(--border-color)]">
             Active UPI VPA: {paymentSettings.upiId}
           </span>
         </div>
@@ -548,9 +548,9 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
         }} className="space-y-4">
           
           {/* UPI Settings Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[var(--bg-body)]/60 p-4 rounded-xl border border-[var(--border-color)]">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
                 LinkPe Merchant UPI VPA / ID
               </label>
               <input
@@ -559,13 +559,13 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 onChange={e => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
                 placeholder="e.g. tradegrow@upi or 9876543210@paytm"
                 required
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono font-bold text-[var(--primary)] focus:outline-none focus:border-[var(--primary)]"
               />
-              <span className="text-[9px] text-slate-500 mt-1 block">Receives client instant UPI payments & generates LinkPe QR codes</span>
+              <span className="text-[9px] text-[var(--text-tertiary)] mt-1 block">Receives client instant UPI payments & generates LinkPe QR codes</span>
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">
                 Merchant Business Name
               </label>
               <input
@@ -574,64 +574,64 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 onChange={e => setPaymentSettings({ ...paymentSettings, merchantName: e.target.value })}
                 placeholder="e.g. Trade Grow Brokerage"
                 required
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-bold text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
               />
-              <span className="text-[9px] text-slate-500 mt-1 block">Displayed on client LinkPe checkout page & UPI app prompt</span>
+              <span className="text-[9px] text-[var(--text-tertiary)] mt-1 block">Displayed on client LinkPe checkout page & UPI app prompt</span>
             </div>
           </div>
 
           {/* Bank Wire Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[var(--bg-body)]/60 p-4 rounded-xl border border-[var(--border-color)]">
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Bank Name</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">Bank Name</label>
               <input
                 type="text"
                 value={paymentSettings.bankName}
                 onChange={e => setPaymentSettings({ ...paymentSettings, bankName: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Account Holder Name</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">Account Holder Name</label>
               <input
                 type="text"
                 value={paymentSettings.accountName}
                 onChange={e => setPaymentSettings({ ...paymentSettings, accountName: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Account Number</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">Account Number</label>
               <input
                 type="text"
                 value={paymentSettings.accountNumber}
                 onChange={e => setPaymentSettings({ ...paymentSettings, accountNumber: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono font-bold text-[var(--primary)] focus:outline-none focus:border-[var(--primary)]"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">IFSC Code</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">IFSC Code</label>
               <input
                 type="text"
                 value={paymentSettings.ifscCode}
                 onChange={e => setPaymentSettings({ ...paymentSettings, ifscCode: e.target.value.toUpperCase() })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-amber-400 focus:outline-none focus:border-emerald-500 uppercase"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-mono font-bold text-[var(--warning)] focus:outline-none focus:border-[var(--primary)] uppercase"
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Branch Location</label>
+              <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider block mb-1">Branch Location</label>
               <input
                 type="text"
                 value={paymentSettings.branch}
                 onChange={e => setPaymentSettings({ ...paymentSettings, branch: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs font-semibold text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
               />
             </div>
           </div>
 
           {paymentSettingMsg && (
             <div className={`p-3 rounded-xl text-xs font-bold ${
-              paymentSettingMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+              paymentSettingMsg.type === 'success' ? 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/10 text-[var(--loss)] border border-[var(--loss)]/30'
             }`}>
               {paymentSettingMsg.text}
             </div>
@@ -641,7 +641,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
             <button
               type="submit"
               disabled={submittingPaymentSettings}
-              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 transition shadow-lg disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-slate-950 font-extrabold text-xs flex items-center gap-2 transition shadow-lg disabled:opacity-50"
             >
               {submittingPaymentSettings ? (
                 <span>Saving Credentials...</span>
@@ -658,13 +658,13 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
 
       {/* Recent Ledger Transactions */}
       {funds && (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" /> Wallet Ledger Audit History
+        <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4">
+          <h3 className="text-sm font-bold text-[var(--text-main)] mb-3 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-[var(--primary)]" /> Wallet Ledger Audit History
           </h3>
           <div className="overflow-y-auto max-h-[300px]">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] sticky top-0">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px] sticky top-0">
                 <tr>
                   <th className="py-2 px-3">Txn ID</th>
                   <th className="py-2 px-3">Client</th>
@@ -674,15 +674,15 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                   <th className="py-2 px-3">Time</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(funds.recentTransactions || []).map((t: any) => (
-                  <tr key={t.id} className="hover:bg-slate-800/40">
-                    <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{t.transaction_id?.slice(0, 8)}</td>
-                    <td className="py-2 px-3 font-semibold text-white">{t.username}</td>
-                    <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.transaction_type === 'CREDIT' ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}`}>{t.transaction_type}</span></td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-white">₹{parseFloat(t.amount).toLocaleString('en-IN')}</td>
-                    <td className="py-2 px-3 text-right font-mono text-emerald-400">₹{parseFloat(t.balance_after).toLocaleString('en-IN')}</td>
-                    <td className="py-2 px-3 text-[10px] text-slate-500">{new Date(t.created_at).toLocaleString()}</td>
+                  <tr key={t.id} className="hover:bg-[var(--bg-surface-elevated)]/40">
+                    <td className="py-2 px-3 font-mono text-[10px] text-[var(--text-tertiary)]">{t.transaction_id?.slice(0, 8)}</td>
+                    <td className="py-2 px-3 font-semibold text-[var(--text-main)]">{t.username}</td>
+                    <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${t.transaction_type === 'CREDIT' ? 'bg-[var(--primary-light)] text-[var(--primary)]' : 'bg-[var(--loss-light)] text-[var(--loss)]'}`}>{t.transaction_type}</span></td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-[var(--text-main)]">₹{parseFloat(t.amount).toLocaleString('en-IN')}</td>
+                    <td className="py-2 px-3 text-right font-mono text-[var(--primary)]">₹{parseFloat(t.balance_after).toLocaleString('en-IN')}</td>
+                    <td className="py-2 px-3 text-[10px] text-[var(--text-tertiary)]">{new Date(t.created_at).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -693,37 +693,37 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
 
       {/* PARTIAL WITHDRAWAL APPROVAL MODAL */}
       {partialModalReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <div className="p-2 rounded-xl bg-[var(--gogrow-blue)]/10 text-[var(--gogrow-blue)] border border-[var(--gogrow-blue)]/20">
                   <Sliders className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Approve Partial Withdrawal</h3>
-                  <p className="text-[10px] text-slate-400">Request: <span className="font-mono text-amber-400 font-bold">{partialModalReq.request_id}</span> ({partialModalReq.username})</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Approve Partial Withdrawal</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Request: <span className="font-mono text-[var(--warning)] font-bold">{partialModalReq.request_id}</span> ({partialModalReq.username})</p>
                 </div>
               </div>
-              <button onClick={() => setPartialModalReq(null)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+              <button onClick={() => setPartialModalReq(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
             <form onSubmit={handlePartialSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800 font-mono">
+              <div className="grid grid-cols-2 gap-3 bg-[var(--bg-body)] p-3.5 rounded-xl border border-[var(--border-color)] font-mono">
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Total Requested:</span>
-                  <span className="text-white font-bold text-sm">₹{parseFloat(partialModalReq.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block">Total Requested:</span>
+                  <span className="text-[var(--text-main)] font-bold text-sm">₹{parseFloat(partialModalReq.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 block">Payment Method:</span>
-                  <span className="text-emerald-400 font-bold text-sm">{partialModalReq.payment_method || 'UPI'}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] block">Payment Method:</span>
+                  <span className="text-[var(--primary)] font-bold text-sm">{partialModalReq.payment_method || 'UPI'}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Approved Amount (₹) *</label>
+                <label className="block text-[var(--text-muted)] font-bold mb-1">Approved Amount (₹) *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-slate-500 font-bold text-sm">₹</span>
+                  <span className="absolute left-3 top-2.5 text-[var(--text-tertiary)] font-bold text-sm">₹</span>
                   <input
                     type="number"
                     min="1"
@@ -732,23 +732,23 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                     required
                     value={partialAmountInput || ''}
                     onChange={e => setPartialAmountInput(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-950 border border-indigo-500/40 focus:border-indigo-500 rounded-xl py-2.5 pl-8 pr-3 text-white font-mono font-bold text-base focus:outline-none"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--gogrow-blue)]/40 focus:border-[var(--gogrow-blue)] rounded-xl py-2.5 pl-8 pr-3 text-[var(--text-main)] font-mono font-bold text-base focus:outline-none"
                     placeholder="Enter partial amount..."
                   />
                 </div>
-                <div className="flex justify-between text-[11px] text-slate-400 mt-1.5 font-mono">
-                  <span>Retained in Wallet: <strong className="text-amber-400">₹{Math.max(0, parseFloat(partialModalReq.amount) - (partialAmountInput || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                <div className="flex justify-between text-[11px] text-[var(--text-muted)] mt-1.5 font-mono">
+                  <span>Retained in Wallet: <strong className="text-[var(--warning)]">₹{Math.max(0, parseFloat(partialModalReq.amount) - (partialAmountInput || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
                   <span>Max: ₹{(parseFloat(partialModalReq.amount) - 1).toLocaleString('en-IN')}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Admin Audit Note / UTR Reference</label>
+                <label className="block text-[var(--text-muted)] font-bold mb-1">Admin Audit Note / UTR Reference</label>
                 <input
                   type="text"
                   value={partialAdminNote}
                   onChange={e => setPartialAdminNote(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl p-2.5 text-[var(--text-main)] text-xs"
                   placeholder="e.g. Approved tranche 1 payout via IMPS UTR 482910..."
                 />
               </div>
@@ -757,14 +757,14 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 <button
                   type="button"
                   onClick={() => setPartialModalReq(null)}
-                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl cursor-pointer"
+                  className="w-1/2 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold py-2.5 rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingPartial || !partialAmountInput || partialAmountInput <= 0 || partialAmountInput >= parseFloat(partialModalReq.amount)}
-                  className="w-1/2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-1/2 bg-[var(--gogrow-blue)] hover:bg-[var(--gogrow-blue)] disabled:opacity-50 text-[var(--text-main)] font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {submittingPartial ? 'Processing...' : `Approve ₹${(partialAmountInput || 0).toLocaleString('en-IN')}`}
                 </button>
@@ -776,35 +776,35 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
 
       {/* REJECT REQUEST MODAL */}
       {rejectModalReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <div className="p-2 rounded-xl bg-[var(--loss)]/10 text-[var(--loss)] border border-[var(--loss)]/20">
                   <XCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Reject Fund Request</h3>
-                  <p className="text-[10px] text-slate-400">Request: <span className="font-mono text-amber-400 font-bold">{rejectModalReq.request_id}</span> ({rejectModalReq.username})</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Reject Fund Request</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Request: <span className="font-mono text-[var(--warning)] font-bold">{rejectModalReq.request_id}</span> ({rejectModalReq.username})</p>
                 </div>
               </div>
-              <button onClick={() => setRejectModalReq(null)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+              <button onClick={() => setRejectModalReq(null)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
             <form onSubmit={handleRejectSubmit} className="space-y-4 text-xs">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-xs flex justify-between">
-                <span className="text-slate-400">Requested Amount:</span>
-                <span className="text-rose-400 font-bold text-sm">₹{parseFloat(rejectModalReq.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              <div className="bg-[var(--bg-body)] p-3 rounded-xl border border-[var(--border-color)] font-mono text-xs flex justify-between">
+                <span className="text-[var(--text-muted)]">Requested Amount:</span>
+                <span className="text-[var(--loss)] font-bold text-sm">₹{parseFloat(rejectModalReq.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-bold mb-1">Rejection Reason *</label>
+                <label className="block text-[var(--text-muted)] font-bold mb-1">Rejection Reason *</label>
                 <textarea
                   required
                   rows={3}
                   value={rejectReasonInput}
                   onChange={e => setRejectReasonInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-rose-500/30 focus:border-rose-500 rounded-xl p-2.5 text-white text-xs focus:outline-none"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--loss)]/30 focus:border-[var(--loss)] rounded-xl p-2.5 text-[var(--text-main)] text-xs focus:outline-none"
                   placeholder="Enter rejection reason for client..."
                 />
               </div>
@@ -816,7 +816,7 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                     key={tag}
                     type="button"
                     onClick={() => setRejectReasonInput(tag)}
-                    className="text-[10px] bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg border border-slate-800 transition cursor-pointer"
+                    className="text-[10px] bg-[var(--bg-body)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] hover:text-[var(--text-main)] px-2 py-1 rounded-lg border border-[var(--border-color)] transition cursor-pointer"
                   >
                     {tag}
                   </button>
@@ -827,14 +827,14 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 <button
                   type="button"
                   onClick={() => setRejectModalReq(null)}
-                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl cursor-pointer"
+                  className="w-1/2 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold py-2.5 rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReject || !rejectReasonInput.trim()}
-                  className="w-1/2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-1/2 bg-[var(--loss)] hover:bg-[var(--loss)] disabled:opacity-50 text-[var(--text-main)] font-bold py-2.5 rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {submittingReject ? 'Rejecting...' : 'Confirm Rejection'}
                 </button>
@@ -846,35 +846,35 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
 
       {/* RECONCILE BANK RESERVES MODAL */}
       {showReconcileModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <div className="p-2 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
                   <Building className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Reconcile Platform Bank Reserves</h3>
-                  <p className="text-[10px] text-slate-400">Audit actual bank balance against total real-money liabilities</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Reconcile Platform Bank Reserves</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Audit actual bank balance against total real-money liabilities</p>
                 </div>
               </div>
-              <button onClick={() => setShowReconcileModal(false)} className="text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowReconcileModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
 
             <form onSubmit={handleReconcileSubmit} className="space-y-3 text-xs">
-              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1 font-mono text-xs">
-                <div className="flex justify-between text-slate-400">
+              <div className="bg-[var(--bg-body)] p-3.5 rounded-xl border border-[var(--border-color)] space-y-1 font-mono text-xs">
+                <div className="flex justify-between text-[var(--text-muted)]">
                   <span>Current User Liabilities:</span>
-                  <span className="text-amber-400 font-bold">₹{solvency?.totalWithdrawableLiabilities.toLocaleString('en-IN') || '0'}</span>
+                  <span className="text-[var(--warning)] font-bold">₹{solvency?.totalWithdrawableLiabilities.toLocaleString('en-IN') || '0'}</span>
                 </div>
-                <div className="flex justify-between text-slate-400">
+                <div className="flex justify-between text-[var(--text-muted)]">
                   <span>Last Reconciled:</span>
-                  <span className="text-slate-300">{solvency?.lastReconciledAt ? new Date(solvency.lastReconciledAt).toLocaleString() : 'Never'}</span>
+                  <span className="text-[var(--text-muted)]">{solvency?.lastReconciledAt ? new Date(solvency.lastReconciledAt).toLocaleString() : 'Never'}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Actual Bank Account Balance (₹) *</label>
+                <label className="block text-[var(--text-muted)] font-semibold mb-1">Actual Bank Account Balance (₹) *</label>
                 <input
                   type="number"
                   min="0"
@@ -882,17 +882,17 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                   required
                   value={bankCashInput}
                   onChange={e => setBankCashInput(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-mono font-bold text-sm"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl p-2.5 text-[var(--text-main)] font-mono font-bold text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Audit Notes / Bank Statement Reference</label>
+                <label className="block text-[var(--text-muted)] font-semibold mb-1">Audit Notes / Bank Statement Reference</label>
                 <input
                   type="text"
                   value={reconcileNotes}
                   onChange={e => setReconcileNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white text-xs"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl p-2.5 text-[var(--text-main)] text-xs"
                   required
                 />
               </div>
@@ -901,14 +901,14 @@ export const FundsDashboard: React.FC<FundsDashboardProps> = ({ token }) => {
                 <button
                   type="button"
                   onClick={() => setShowReconcileModal(false)}
-                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-xl cursor-pointer"
+                  className="w-1/2 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold py-2 rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReconcile}
-                  className="w-1/2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-2 rounded-xl transition shadow cursor-pointer"
+                  className="w-1/2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 text-[var(--text-main)] font-bold py-2 rounded-xl transition shadow cursor-pointer"
                 >
                   {submittingReconcile ? 'Saving Audit...' : 'Confirm Solvency'}
                 </button>

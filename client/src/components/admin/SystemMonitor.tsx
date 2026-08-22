@@ -16,7 +16,7 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ token }) => {
 
   return (
     <div className="flex flex-col gap-5 h-full overflow-y-auto">
-      <div className="flex items-center gap-2 text-emerald-400">
+      <div className="flex items-center gap-2 text-[var(--primary)]">
         <RefreshCw className="w-4 h-4 animate-spin" style={{ animationDuration: '3s' }} />
         <span className="text-[10px] font-bold uppercase">Health Checks — Auto-refresh 8s</span>
       </div>
@@ -24,28 +24,28 @@ export const SystemMonitor: React.FC<SystemMonitorProps> = ({ token }) => {
       <div className="grid grid-cols-2 gap-4">
         {systems.map(s => (
           <div key={s.name} className={`border rounded-xl p-5 flex items-center gap-4 transition ${
-            s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'bg-emerald-950/10 border-emerald-800/40' :
-            s.status === 'DEGRADED' || s.status === 'IDLE' ? 'bg-amber-950/10 border-amber-800/40' :
-            'bg-rose-950/10 border-rose-800/40'
+            s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'bg-[var(--primary-light)]/10 border-[var(--primary)]/40' :
+            s.status === 'DEGRADED' || s.status === 'IDLE' ? 'bg-[var(--warning-light)]/10 border-[var(--warning)]/40' :
+            'bg-[var(--loss-light)]/10 border-[var(--loss)]/40'
           }`}>
             <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-              s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'bg-emerald-900/30' :
-              s.status === 'DEGRADED' || s.status === 'IDLE' ? 'bg-amber-900/30' : 'bg-rose-900/30'
+              s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'bg-[var(--primary-light)]/30' :
+              s.status === 'DEGRADED' || s.status === 'IDLE' ? 'bg-[var(--warning-light)]/30' : 'bg-[var(--loss-light)]/30'
             }`}>
               <Server className={`w-6 h-6 ${
-                s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'text-emerald-400' :
-                s.status === 'DEGRADED' || s.status === 'IDLE' ? 'text-amber-400' : 'text-rose-400'
+                s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'text-[var(--primary)]' :
+                s.status === 'DEGRADED' || s.status === 'IDLE' ? 'text-[var(--warning)]' : 'text-[var(--loss)]'
               }`} />
             </div>
             <div className="flex-1">
-              <span className="font-bold text-white block">{s.name}</span>
+              <span className="font-bold text-[var(--text-main)] block">{s.name}</span>
               <span className={`text-xs font-bold ${
-                s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'text-emerald-400' :
-                s.status === 'DEGRADED' || s.status === 'IDLE' ? 'text-amber-400' : 'text-rose-400'
+                s.status === 'OPERATIONAL' || s.status === 'CONNECTED' ? 'text-[var(--primary)]' :
+                s.status === 'DEGRADED' || s.status === 'IDLE' ? 'text-[var(--warning)]' : 'text-[var(--loss)]'
               }`}>{s.status}</span>
             </div>
             {s.latencyMs > 0 && (
-              <span className="text-xs font-mono text-slate-400">{s.latencyMs}ms</span>
+              <span className="text-xs font-mono text-[var(--text-muted)]">{s.latencyMs}ms</span>
             )}
           </div>
         ))}

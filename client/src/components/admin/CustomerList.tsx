@@ -172,7 +172,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       message: `Suspending will block all trading and login for this customer. This action is fully reversible.`,
       requireReason: true,
       actionLabel: 'Confirm Suspend',
-      actionColor: 'bg-amber-600 hover:bg-amber-500',
+      actionColor: 'bg-[var(--warning)] hover:bg-[var(--warning)]',
       onConfirm: async (reason) => {
         const data = await adminAction(`/api/v1/admin/customers/${c.id}/suspend`, 'POST', { reason });
         if (data.success) {
@@ -192,7 +192,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       title: `Activate Account — ${c.username}`,
       message: `This will restore full trading access for ${c.username}. Current status: ${c.status}.`,
       actionLabel: 'Confirm Activate',
-      actionColor: 'bg-emerald-600 hover:bg-emerald-500',
+      actionColor: 'bg-[var(--primary)] hover:bg-[var(--primary-hover)]',
       onConfirm: async () => {
         const data = await adminAction(`/api/v1/admin/customers/${c.id}/activate`, 'POST', {});
         if (data.success) {
@@ -213,7 +213,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       message: `Locking places a security hold on the account. User cannot login or trade.`,
       requireReason: true,
       actionLabel: 'Confirm Lock',
-      actionColor: 'bg-blue-600 hover:bg-blue-500',
+      actionColor: 'bg-[var(--info)] hover:bg-[var(--info)]',
       onConfirm: async (reason) => {
         const data = await adminAction(`/api/v1/admin/customers/${c.id}/lock`, 'POST', { reason });
         if (data.success) {
@@ -233,7 +233,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       title: `Unlock Account — ${c.username}`,
       message: `Unlocking will restore the account to ACTIVE status.`,
       actionLabel: 'Confirm Unlock',
-      actionColor: 'bg-emerald-600 hover:bg-emerald-500',
+      actionColor: 'bg-[var(--primary)] hover:bg-[var(--primary-hover)]',
       onConfirm: async () => {
         const data = await adminAction(`/api/v1/admin/customers/${c.id}/unlock`, 'POST', {});
         if (data.success) {
@@ -254,7 +254,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       message: `⚠️ This permanently closes the account. All data is preserved but trading will be blocked. Requires zero open positions and zero used margin. Only SUPER_ADMIN can perform this action.`,
       requireReason: true,
       actionLabel: 'Confirm Close Account',
-      actionColor: 'bg-rose-700 hover:bg-rose-600',
+      actionColor: 'bg-[var(--loss)] hover:bg-[var(--loss)]',
       onConfirm: async (reason) => {
         const data = await adminAction(`/api/v1/admin/customers/${c.id}/close`, 'POST', { reason, confirmClose: true });
         if (data.success) {
@@ -449,20 +449,20 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       {/* Search, Filter & Action Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[240px] relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
           <input 
             type="text" 
             value={search} 
             onChange={e => setSearch(e.target.value)} 
             placeholder="Search by Client ID (TG-USR-XXXX), Name, or Email..."
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" 
+            className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl pl-10 pr-4 py-2 text-xs text-[var(--text-main)] placeholder-slate-500 focus:outline-none focus:border-[var(--primary)]" 
           />
         </div>
 
         <select 
           value={statusFilter} 
           onChange={e => { setStatusFilter(e.target.value); setPage(0); }}
-          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-semibold"
+          className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-[var(--text-main)] font-semibold"
         >
           <option value="">All Status</option>
           <option value="ACTIVE">Active</option>
@@ -476,29 +476,29 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
         {/* Duplicate Identity Scanner Button */}
         <button
           onClick={() => { setShowDuplicateScanner(true); fetchDuplicateClusters(); }}
-          className="bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-amber-300 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+          className="bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--warning)]/40 text-[var(--warning)] font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition cursor-pointer"
           title="Scan Database for Duplicate Identities"
         >
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+          <ShieldAlert className="w-3.5 h-3.5 text-[var(--warning)]" />
           <span>Duplicate Scanner</span>
         </button>
 
         {/* Add Customer Button */}
         <button
           onClick={handleOpenCreateModal}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 transition cursor-pointer"
+          className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--text-main)] font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 transition cursor-pointer"
         >
           <UserPlus className="w-3.5 h-3.5" />
           <span>+ Add Customer</span>
         </button>
 
-        <span className="text-[10px] text-slate-500 font-mono">{total} total</span>
+        <span className="text-[10px] text-[var(--text-tertiary)] font-mono">{total} total</span>
       </div>
 
       {/* Customer Directory Table */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden flex-1 overflow-y-auto shadow-xl">
-        <table className="w-full text-xs text-left text-slate-300">
-          <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] sticky top-0 font-bold tracking-wider">
+      <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-2xl overflow-hidden flex-1 overflow-y-auto shadow-xl">
+        <table className="w-full text-xs text-left text-[var(--text-muted)]">
+          <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px] sticky top-0 font-bold tracking-wider">
             <tr>
               <th className="py-3 px-3.5">Client ID</th>
               <th className="py-3 px-3.5">Client Name</th>
@@ -511,47 +511,47 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
               <th className="py-3 px-3.5 text-center">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800 font-medium">
+          <tbody className="divide-y divide-[var(--border-color)] font-medium">
             {customers.map(c => {
               const displayClientId = c.client_id || `TG-USR-${c.id.slice(4, 8).toUpperCase()}`;
               return (
-                <tr key={c.id} className="hover:bg-slate-800/40 transition">
-                  <td className="py-2.5 px-3.5 font-mono text-[11px] text-amber-400 font-bold">
+                <tr key={c.id} className="hover:bg-[var(--bg-surface-elevated)]/40 transition">
+                  <td className="py-2.5 px-3.5 font-mono text-[11px] text-[var(--warning)] font-bold">
                     {displayClientId}
                   </td>
-                  <td className="py-2.5 px-3.5 font-semibold text-white">
+                  <td className="py-2.5 px-3.5 font-semibold text-[var(--text-main)]">
                     <div>{c.username}</div>
                     {c.full_name && c.full_name !== c.username && (
-                      <div className="text-[10px] text-slate-500 font-normal">{c.full_name}</div>
+                      <div className="text-[10px] text-[var(--text-tertiary)] font-normal">{c.full_name}</div>
                     )}
                   </td>
-                  <td className="py-2.5 px-3.5 text-slate-400 font-mono text-[11px]">{c.email}</td>
+                  <td className="py-2.5 px-3.5 text-[var(--text-muted)] font-mono text-[11px]">{c.email}</td>
                   <td className="py-2.5 px-3.5">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      c.status === 'ACTIVE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      c.status === 'FROZEN' ? 'bg-blue-950 text-blue-400 border border-blue-800' :
+                      c.status === 'ACTIVE' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' :
+                      c.status === 'FROZEN' ? 'bg-[var(--info-light)] text-[var(--info)] border border-[var(--info)]' :
                       c.status === 'LOCKED' ? 'bg-violet-950 text-violet-400 border border-violet-800' :
-                      c.status === 'CLOSED' ? 'bg-slate-800 text-slate-500 border border-slate-700' :
-                      'bg-rose-950 text-rose-400 border border-rose-800'
+                      c.status === 'CLOSED' ? 'bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] border border-[var(--border-color)]' :
+                      'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]'
                     }`}>{c.status}</span>
                   </td>
                   <td className="py-2.5 px-3.5">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      c.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      c.kyc_status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                      c.kyc_status ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-slate-800 text-slate-500'
+                      c.kyc_status === 'APPROVED' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' :
+                      c.kyc_status === 'REJECTED' ? 'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]' :
+                      c.kyc_status ? 'bg-[var(--warning-light)] text-[var(--warning)] border border-[var(--warning)]' : 'bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)]'
                     }`}>{c.kyc_status || 'N/A'}</span>
                   </td>
-                  <td className="py-2.5 px-3.5"><span className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-amber-400 border border-slate-700 font-bold">{c.role}</span></td>
-                  <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-400">₹{(c.cash_balance || 0).toLocaleString('en-IN')}</td>
-                  <td className="py-2.5 px-3.5 text-slate-500 text-[10px]">{c.last_login_at ? new Date(c.last_login_at).toLocaleDateString() : 'Never'}</td>
+                  <td className="py-2.5 px-3.5"><span className="bg-[var(--bg-surface-elevated)] px-2 py-0.5 rounded text-[10px] text-[var(--warning)] border border-[var(--border-color)] font-bold">{c.role}</span></td>
+                  <td className="py-2.5 px-3.5 text-right font-mono font-bold text-[var(--primary)]">₹{(c.cash_balance || 0).toLocaleString('en-IN')}</td>
+                  <td className="py-2.5 px-3.5 text-[var(--text-tertiary)] text-[10px]">{c.last_login_at ? new Date(c.last_login_at).toLocaleDateString() : 'Never'}</td>
                   <td className="py-2.5 px-3.5 text-center">
                     <div className="flex items-center justify-center gap-1">
                       {/* View 360 */}
                       <button 
                         onClick={() => onSelectCustomer(c.id)} 
                         title="View 360" 
-                        className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                        className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] rounded-lg hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -560,7 +560,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                       <button
                         onClick={() => handleOpenResetModal(c)}
                         title="Admin Reset Password"
-                        className="p-1.5 text-amber-400/80 hover:text-amber-300 rounded-lg hover:bg-amber-950/40 transition cursor-pointer"
+                        className="p-1.5 text-[var(--warning)]/80 hover:text-[var(--warning)] rounded-lg hover:bg-[var(--warning-light)]/40 transition cursor-pointer"
                       >
                         <KeyRound className="w-4 h-4" />
                       </button>
@@ -570,24 +570,24 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                         <button
                           onClick={() => setOpenDropdown(openDropdown === c.id ? null : c.id)}
                           title="More Actions"
-                          className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                          className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer"
                         >
                           <MoreVertical className="w-4 h-4" />
                         </button>
 
                         {openDropdown === c.id && (
-                          <div className="absolute right-0 top-7 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-44 py-1 text-xs">
+                          <div className="absolute right-0 top-7 z-50 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl shadow-2xl w-44 py-1 text-xs">
                             <button
                               onClick={() => handleOpenEditModal(c)}
-                              className="w-full text-left px-3.5 py-2 text-slate-300 hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                              className="w-full text-left px-3.5 py-2 text-[var(--text-muted)] hover:bg-[var(--bg-surface-elevated)] flex items-center gap-2 cursor-pointer"
                             >
-                              <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Edit Profile
+                              <Edit2 className="w-3.5 h-3.5 text-[var(--text-muted)]" /> Edit Profile
                             </button>
-                            <div className="my-1 border-t border-slate-800" />
+                            <div className="my-1 border-t border-[var(--border-color)]" />
                             {c.status !== 'ACTIVE' && c.status !== 'CLOSED' && (
                               <button
                                 onClick={() => handleActivate(c)}
-                                className="w-full text-left px-3.5 py-2 text-emerald-400 hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                className="w-full text-left px-3.5 py-2 text-[var(--primary)] hover:bg-[var(--bg-surface-elevated)] flex items-center gap-2 cursor-pointer"
                               >
                                 <UserCheck className="w-3.5 h-3.5" /> Activate
                               </button>
@@ -595,7 +595,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                             {c.status === 'ACTIVE' && (
                               <button
                                 onClick={() => handleSuspend(c)}
-                                className="w-full text-left px-3.5 py-2 text-amber-400 hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                className="w-full text-left px-3.5 py-2 text-[var(--warning)] hover:bg-[var(--bg-surface-elevated)] flex items-center gap-2 cursor-pointer"
                               >
                                 <Ban className="w-3.5 h-3.5" /> Suspend
                               </button>
@@ -603,7 +603,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                             {c.status !== 'LOCKED' && c.status !== 'CLOSED' && (
                               <button
                                 onClick={() => handleLock(c)}
-                                className="w-full text-left px-3.5 py-2 text-violet-400 hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                className="w-full text-left px-3.5 py-2 text-violet-400 hover:bg-[var(--bg-surface-elevated)] flex items-center gap-2 cursor-pointer"
                               >
                                 <Lock className="w-3.5 h-3.5" /> Lock (Security Hold)
                               </button>
@@ -611,16 +611,16 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                             {c.status === 'LOCKED' && (
                               <button
                                 onClick={() => handleUnlock(c)}
-                                className="w-full text-left px-3.5 py-2 text-blue-400 hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                className="w-full text-left px-3.5 py-2 text-[var(--info)] hover:bg-[var(--bg-surface-elevated)] flex items-center gap-2 cursor-pointer"
                               >
                                 <Unlock className="w-3.5 h-3.5" /> Unlock
                               </button>
                             )}
-                            <div className="my-1 border-t border-slate-800" />
+                            <div className="my-1 border-t border-[var(--border-color)]" />
                             {c.status !== 'CLOSED' && (
                               <button
                                 onClick={() => handleCloseAccount(c)}
-                                className="w-full text-left px-3.5 py-2 text-rose-400 hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                className="w-full text-left px-3.5 py-2 text-[var(--loss)] hover:bg-[var(--bg-surface-elevated)] flex items-center gap-2 cursor-pointer"
                               >
                                 <UserX className="w-3.5 h-3.5" /> Close Account
                               </button>
@@ -640,22 +640,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
       {/* Pagination Controls */}
       {total > 50 && (
         <div className="flex items-center justify-between px-1">
-          <span className="text-[10px] text-slate-500 font-mono">
+          <span className="text-[10px] text-[var(--text-tertiary)] font-mono">
             Showing {page * 50 + 1}–{Math.min(page * 50 + 50, total)} of {total} customers
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="p-1.5 rounded-lg bg-slate-800 disabled:opacity-30 hover:bg-slate-700 text-slate-300 transition cursor-pointer disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg bg-[var(--bg-surface-elevated)] disabled:opacity-30 hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] transition cursor-pointer disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-bold text-white px-1">Page {page + 1} / {Math.ceil(total / 50)}</span>
+            <span className="text-xs font-bold text-[var(--text-main)] px-1">Page {page + 1} / {Math.ceil(total / 50)}</span>
             <button
               onClick={() => setPage(p => p + 1)}
               disabled={(page + 1) * 50 >= total}
-              className="p-1.5 rounded-lg bg-slate-800 disabled:opacity-30 hover:bg-slate-700 text-slate-300 transition cursor-pointer disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg bg-[var(--bg-surface-elevated)] disabled:opacity-30 hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] transition cursor-pointer disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -665,33 +665,33 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
       {/* ── CONFIRM ACTION DIALOG ───────────────────────────────────────────── */}
       {confirmDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
             <div className="flex items-start justify-between">
-              <h3 className="text-sm font-bold text-white">{confirmDialog.title}</h3>
-              <button onClick={() => setConfirmDialog(null)} className="p-1 text-slate-400 hover:text-white cursor-pointer">
+              <h3 className="text-sm font-bold text-[var(--text-main)]">{confirmDialog.title}</h3>
+              <button onClick={() => setConfirmDialog(null)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400 leading-relaxed">{confirmDialog.message}</p>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">{confirmDialog.message}</p>
 
             {confirmDialog.requireReason && (
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Reason / Notes *</label>
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">Reason / Notes *</label>
                 <textarea
                   value={confirmReason}
                   onChange={e => setConfirmReason(e.target.value)}
                   rows={2}
                   placeholder="Provide a reason for this action..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs resize-none focus:outline-none focus:border-amber-500"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs resize-none focus:outline-none focus:border-[var(--warning)]"
                 />
               </div>
             )}
 
             {actionMsg && (
               <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                actionMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                actionMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
               }`}>
                 {actionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                 {actionMsg.text}
@@ -702,7 +702,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
               <button
                 type="button"
                 onClick={() => setConfirmDialog(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs cursor-pointer"
               >
                 Cancel
               </button>
@@ -710,7 +710,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                 type="button"
                 onClick={handleConfirmAction}
                 disabled={actionLoading || (confirmDialog.requireReason && !confirmReason.trim())}
-                className={`px-5 py-2 rounded-xl ${confirmDialog.actionColor} disabled:opacity-40 text-white font-black text-xs transition cursor-pointer`}
+                className={`px-5 py-2 rounded-xl ${confirmDialog.actionColor} disabled:opacity-40 text-[var(--text-main)] font-black text-xs transition cursor-pointer`}
               >
                 {actionLoading ? 'Processing...' : confirmDialog.actionLabel}
               </button>
@@ -721,19 +721,19 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
       {/* ── EDIT CUSTOMER PROFILE MODAL ─────────────────────────────────────── */}
       {editTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                <div className="p-2.5 rounded-2xl bg-[var(--info)]/10 text-[var(--info)] border border-[var(--info)]/20">
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Edit Customer Profile</h3>
-                  <p className="text-[10px] text-slate-400 font-mono">{editTarget.client_id} — {editTarget.username}</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Edit Customer Profile</h3>
+                  <p className="text-[10px] text-[var(--text-muted)] font-mono">{editTarget.client_id} — {editTarget.username}</p>
                 </div>
               </div>
-              <button onClick={() => setEditTarget(null)} className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer">
+              <button onClick={() => setEditTarget(null)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg bg-[var(--bg-surface-elevated)]/80 hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -741,37 +741,37 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
             <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Full Name</label>
                   <input value={editFullName} onChange={e => setEditFullName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Email</label>
                   <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] font-mono text-xs focus:outline-none focus:border-[var(--info)]" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone Number</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Phone Number</label>
                   <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">City</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">City</label>
                   <input value={editCity} onChange={e => setEditCity(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Address</label>
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Address</label>
                 <input value={editAddress} onChange={e => setEditAddress(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</label>
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Role</label>
                 <select value={editRole} onChange={e => setEditRole(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-semibold focus:outline-none focus:border-blue-500">
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs font-semibold focus:outline-none focus:border-[var(--info)]">
                   <option value="USER">USER (Standard Client)</option>
                   <option value="MANAGER">MANAGER (Client Account Oversight)</option>
                   <option value="FINANCE_MANAGER">FINANCE_MANAGER (Deposits & Ledgers)</option>
@@ -789,20 +789,20 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
               {editMsg && (
                 <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                  editMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                  editMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
                 }`}>
                   {editMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                   {editMsg.text}
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-color)]">
                 <button type="button" onClick={() => setEditTarget(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer">
+                  className="px-4 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs cursor-pointer">
                   Cancel
                 </button>
                 <button type="submit" disabled={submittingEdit}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-black text-xs transition cursor-pointer">
+                  className="px-5 py-2 rounded-xl bg-[var(--info)] hover:bg-[var(--info)] disabled:opacity-40 text-[var(--text-main)] font-black text-xs transition cursor-pointer">
                   {submittingEdit ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
@@ -813,22 +813,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
       {/* ── CREATE CUSTOMER MODAL WITH LIVE DUPLICATE CHECKER ─────────────── */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <div className="p-2.5 rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Create New Customer Account</h3>
-                  <p className="text-[10px] text-slate-400">Strict unique email &amp; Client ID verification active</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Create New Customer Account</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Strict unique email &amp; Client ID verification active</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer"
+                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg bg-[var(--bg-surface-elevated)]/80 hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -836,17 +836,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
             {/* Live Duplicate Warning Banner */}
             {duplicateWarning && (
-              <div className="p-3.5 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-amber-300 text-xs space-y-2 animate-fadeIn">
+              <div className="p-3.5 bg-[var(--warning)]/15 border border-[var(--warning)]/30 rounded-2xl text-[var(--warning)] text-xs space-y-2 animate-fadeIn">
                 <div className="flex items-center gap-2 font-bold">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-[var(--warning)] flex-shrink-0" />
                   <span>Duplicate Client Detected ({duplicateWarning.field.toUpperCase()})</span>
                 </div>
-                <p className="text-[11px] text-slate-300">{duplicateWarning.message}</p>
+                <p className="text-[11px] text-[var(--text-muted)]">{duplicateWarning.message}</p>
                 {duplicateWarning.existingCustomer && (
-                  <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 font-mono text-[10px] space-y-1">
-                    <div className="flex justify-between"><span className="text-slate-500">Existing Client ID:</span><span className="text-amber-400 font-bold">{duplicateWarning.existingCustomer.clientId}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Username:</span><span className="text-white font-bold">{duplicateWarning.existingCustomer.username}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Status:</span><span className="text-emerald-400">{duplicateWarning.existingCustomer.status}</span></div>
+                  <div className="bg-[var(--bg-body)]/80 p-2.5 rounded-xl border border-[var(--border-color)] font-mono text-[10px] space-y-1">
+                    <div className="flex justify-between"><span className="text-[var(--text-tertiary)]">Existing Client ID:</span><span className="text-[var(--warning)] font-bold">{duplicateWarning.existingCustomer.clientId}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-tertiary)]">Username:</span><span className="text-[var(--text-main)] font-bold">{duplicateWarning.existingCustomer.username}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-tertiary)]">Status:</span><span className="text-[var(--primary)]">{duplicateWarning.existingCustomer.status}</span></div>
                   </div>
                 )}
               </div>
@@ -856,18 +856,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
               {/* Email Address */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Address *</label>
-                  {checkingDuplicate && <span className="text-[10px] text-slate-500 flex items-center gap-1"><RefreshCw className="w-2.5 h-2.5 animate-spin" /> Checking uniqueness...</span>}
+                  <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Email Address *</label>
+                  {checkingDuplicate && <span className="text-[10px] text-[var(--text-tertiary)] flex items-center gap-1"><RefreshCw className="w-2.5 h-2.5 animate-spin" /> Checking uniqueness...</span>}
                 </div>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-[var(--text-tertiary)] absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
                     required
                     placeholder="client@gmail.com"
                     value={createEmail}
                     onChange={e => setCreateEmail(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl pl-9 pr-3.5 py-2 text-[var(--text-main)] font-mono text-xs focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -876,11 +876,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client ID *</label>
+                    <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Client ID *</label>
                     <button
                       type="button"
                       onClick={handleGenerateClientId}
-                      className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                      className="text-[10px] font-bold text-[var(--warning)] hover:text-[var(--warning)] flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw className="w-2.5 h-2.5" /> Auto
                     </button>
@@ -890,19 +890,19 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                     required
                     value={createClientId}
                     onChange={e => setCreateClientId(e.target.value.toUpperCase())}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-400 font-mono font-bold text-xs focus:outline-none focus:border-amber-500"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--warning)] font-mono font-bold text-xs focus:outline-none focus:border-[var(--warning)]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Username *</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Username *</label>
                   <input
                     type="text"
                     required
                     placeholder="pravinbhai"
                     value={createUsername}
                     onChange={e => setCreateUsername(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-semibold text-xs focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] font-semibold text-xs focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -910,24 +910,24 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
               {/* Full Name & Phone Number */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Full Name</label>
                   <input
                     type="text"
                     placeholder="Pravin Bhai"
                     value={createFullName}
                     onChange={e => setCreateFullName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone Number</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Phone Number</label>
                   <input
                     type="text"
                     placeholder="+91 98765 43210"
                     value={createPhone}
                     onChange={e => setCreatePhone(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -935,22 +935,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
               {/* Password & Role */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password *</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Password *</label>
                   <input
                     type="text"
                     required
                     value={createPassword}
                     onChange={e => setCreatePassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] font-mono text-xs focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</label>
+                  <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Role</label>
                   <select
                     value={createRole}
                     onChange={e => setCreateRole(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs font-semibold"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs font-semibold"
                   >
                     <option value="USER">USER (Standard Client)</option>
                     <option value="MANAGER">MANAGER (Client Account Oversight)</option>
@@ -970,38 +970,38 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
               {/* Initial Capital */}
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Initial Wallet Capital (₹)</label>
+                <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Initial Wallet Capital (₹)</label>
                 <input
                   type="number"
                   min="0"
                   step="1000"
                   value={createInitialCapital}
                   onChange={e => setCreateInitialCapital(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-emerald-400 font-mono font-bold text-xs focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--primary)] font-mono font-bold text-xs focus:outline-none focus:border-[var(--primary)]"
                 />
               </div>
 
               {createMsg && (
                 <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                  createMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                  createMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
                 }`}>
                   {createMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                   {createMsg.text}
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[var(--border-color)]">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingCreate || !!duplicateWarning || !createEmail || !createUsername}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black text-xs transition shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40 text-[var(--text-main)] font-black text-xs transition shadow-lg shadow-emerald-950/40 cursor-pointer"
                 >
                   {submittingCreate ? 'Validating & Creating...' : 'Create Customer'}
                 </button>
@@ -1014,48 +1014,48 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
       {/* ── DUPLICATE IDENTITY SCANNER MODAL ─────────────────────────────── */}
       {showDuplicateScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <div className="p-2.5 rounded-2xl bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
                   <ShieldAlert className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Duplicate Identity Audit Scanner</h3>
-                  <p className="text-[10px] text-slate-400">Automated detection of shared emails, phones, and PAN identities</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Duplicate Identity Audit Scanner</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Automated detection of shared emails, phones, and PAN identities</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowDuplicateScanner(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer"
+                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg bg-[var(--bg-surface-elevated)]/80 hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {loadingDuplicates ? (
-              <div className="py-12 text-center text-slate-400 text-xs">Scanning database identities...</div>
+              <div className="py-12 text-center text-[var(--text-muted)] text-xs">Scanning database identities...</div>
             ) : duplicateClusters && (
               <div className="space-y-4 text-xs">
                 {/* Duplicate Emails Cluster */}
-                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="bg-[var(--bg-body)] p-4 rounded-2xl border border-[var(--border-color)] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="font-bold text-[var(--text-main)] flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-[var(--warning)]" />
                       Duplicate Email Groups ({(duplicateClusters.byEmail || []).length})
                     </span>
                   </div>
 
                   {(duplicateClusters.byEmail || []).length === 0 ? (
-                    <p className="text-[11px] text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Zero duplicate emails detected. Database uniqueness verified!</p>
+                    <p className="text-[11px] text-[var(--primary)] flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Zero duplicate emails detected. Database uniqueness verified!</p>
                   ) : (
                     <div className="space-y-2">
                       {duplicateClusters.byEmail.map((item: any, idx: number) => (
-                        <div key={idx} className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                          <div className="font-mono text-amber-300 font-bold">{item.norm_email} ({item.count} accounts)</div>
-                          <div className="text-[10px] text-slate-400 font-mono">User IDs: {item.user_ids?.join(', ')}</div>
+                        <div key={idx} className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] space-y-1">
+                          <div className="font-mono text-[var(--warning)] font-bold">{item.norm_email} ({item.count} accounts)</div>
+                          <div className="text-[10px] text-[var(--text-muted)] font-mono">User IDs: {item.user_ids?.join(', ')}</div>
                         </div>
                       ))}
                     </div>
@@ -1063,22 +1063,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                 </div>
 
                 {/* Duplicate Phone Numbers */}
-                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="bg-[var(--bg-body)] p-4 rounded-2xl border border-[var(--border-color)] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="font-bold text-[var(--text-main)] flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-[var(--warning)]" />
                       Duplicate Phone Number Clusters ({(duplicateClusters.byPhone || []).length})
                     </span>
                   </div>
 
                   {(duplicateClusters.byPhone || []).length === 0 ? (
-                    <p className="text-[11px] text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> No shared phone numbers found across accounts.</p>
+                    <p className="text-[11px] text-[var(--primary)] flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> No shared phone numbers found across accounts.</p>
                   ) : (
                     <div className="space-y-2">
                       {duplicateClusters.byPhone.map((item: any, idx: number) => (
-                        <div key={idx} className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                          <div className="font-mono text-amber-300 font-bold">Phone: {item.phone_number} ({item.count} accounts)</div>
-                          <div className="text-[10px] text-slate-400 font-mono">Usernames: {item.usernames?.join(', ')}</div>
+                        <div key={idx} className="p-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] space-y-1">
+                          <div className="font-mono text-[var(--warning)] font-bold">Phone: {item.phone_number} ({item.count} accounts)</div>
+                          <div className="text-[10px] text-[var(--text-muted)] font-mono">Usernames: {item.usernames?.join(', ')}</div>
                         </div>
                       ))}
                     </div>
@@ -1090,7 +1090,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setShowDuplicateScanner(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs cursor-pointer"
               >
                 Close Scanner
               </button>
@@ -1101,51 +1101,51 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
       {/* ── ADMIN RESET PASSWORD MODAL ───────────────────────────────────── */}
       {resetTargetUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <div className="p-2 rounded-xl bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Admin Password Reset</h3>
-                  <p className="text-[10px] text-slate-400">Set a new password for client login</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Admin Password Reset</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Set a new password for client login</p>
                 </div>
               </div>
               <button
                 onClick={() => setResetTargetUser(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer"
+                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg bg-[var(--bg-surface-elevated)]/80 hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Target User Card */}
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1 font-mono text-xs">
-              <div className="flex justify-between text-slate-400">
+            <div className="bg-[var(--bg-body)] p-3.5 rounded-xl border border-[var(--border-color)] space-y-1 font-mono text-xs">
+              <div className="flex justify-between text-[var(--text-muted)]">
                 <span>Client ID:</span>
-                <span className="text-emerald-400 font-bold">{resetTargetUser.client_id || `TG-${resetTargetUser.id.slice(0, 8).toUpperCase()}`}</span>
+                <span className="text-[var(--primary)] font-bold">{resetTargetUser.client_id || `TG-${resetTargetUser.id.slice(0, 8).toUpperCase()}`}</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-[var(--text-muted)]">
                 <span>Username:</span>
-                <span className="text-white font-bold">{resetTargetUser.username}</span>
+                <span className="text-[var(--text-main)] font-bold">{resetTargetUser.username}</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-[var(--text-muted)]">
                 <span>Email:</span>
-                <span className="text-slate-300">{resetTargetUser.email}</span>
+                <span className="text-[var(--text-muted)]">{resetTargetUser.email}</span>
               </div>
             </div>
 
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">New Password *</label>
+                  <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">New Password *</label>
                   <button
                     type="button"
                     onClick={generateRandomPassword}
-                    className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] font-bold text-[var(--warning)] hover:text-[var(--warning)] flex items-center gap-1 cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" /> Auto-Generate Strong
                   </button>
@@ -1158,16 +1158,16 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                     placeholder="Enter new password (min 6 chars)"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500 pr-10"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3.5 py-2.5 text-[var(--text-main)] font-mono text-xs focus:outline-none focus:border-[var(--warning)] pr-10"
                   />
                   {newPassword && (
                     <button
                       type="button"
                       onClick={handleCopyPassword}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
                       title="Copy Password"
                     >
-                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? <Check className="w-3.5 h-3.5 text-[var(--primary)]" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </div>
@@ -1175,7 +1175,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
 
               {resetMsg && (
                 <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                  resetMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                  resetMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
                 }`}>
                   {resetMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                   {resetMsg.text}
@@ -1186,14 +1186,14 @@ export const CustomerList: React.FC<CustomerListProps> = ({ token, onSelectCusto
                 <button
                   type="button"
                   onClick={() => setResetTargetUser(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReset || !newPassword || newPassword.length < 6}
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs transition shadow-md shadow-amber-500/20 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[var(--warning)] hover:bg-[var(--warning)] disabled:opacity-50 text-slate-950 font-black text-xs transition shadow-md shadow-amber-500/20 cursor-pointer"
                 >
                   {submittingReset ? 'Updating Password...' : 'Confirm Reset Password'}
                 </button>

@@ -205,7 +205,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
     if (activeTab === 'SECURITY') fetchLoginActivity();
   }, [activeTab, fetchLoginActivity]);
 
-  if (!data) return <div className="text-slate-400 text-sm p-8 flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" />Loading customer profile...</div>;
+  if (!data) return <div className="text-[var(--text-muted)] text-sm p-8 flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" />Loading customer profile...</div>;
 
   const tabs = ['OVERVIEW', 'POSITIONS', 'ORDERS', 'TRADES', 'HOLDINGS', 'FUNDS', 'KYC', 'LEDGER', 'AUDIT', 'PROFILE', 'SECURITY'];
 
@@ -368,22 +368,22 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden select-none">
       {/* Header */}
-      <div className="flex items-center gap-4 border-b border-slate-800 pb-3">
-        <button onClick={onBack} className="p-2 text-slate-400 hover:text-white rounded hover:bg-slate-800">
+      <div className="flex items-center gap-4 border-b border-[var(--border-color)] pb-3">
+        <button onClick={onBack} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded hover:bg-[var(--bg-surface-elevated)]">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
             <span>{data.profile.username}</span>
-            <span className="text-xs font-mono font-normal text-slate-400">({data.profile.email})</span>
+            <span className="text-xs font-mono font-normal text-[var(--text-muted)]">({data.profile.email})</span>
           </h2>
-          <span className="text-[10px] text-slate-500 font-mono">User ID: {data.profile.id}</span>
+          <span className="text-[10px] text-[var(--text-tertiary)] font-mono">User ID: {data.profile.id}</span>
         </div>
 
         <div className="ml-auto flex items-center gap-2.5">
           <button
             onClick={() => { setShowPasswordModal(true); setNewPassword(''); setPasswordMsg(null); setCopied(false); }}
-            className="bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+            className="bg-[var(--warning)]/15 hover:bg-[var(--warning)]/25 text-[var(--warning)] border border-[var(--warning)]/40 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
           >
             <KeyRound className="w-3.5 h-3.5" />
             <span>Reset Password</span>
@@ -391,7 +391,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
           <button
             onClick={() => setShowFundsModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow transition cursor-pointer"
+            className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--text-main)] font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow transition cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>+ Add / Deduct Funds</span>
@@ -400,34 +400,34 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
           {/* WS connection indicator */}
           <span title={wsConnected ? 'Real-time connected' : 'Polling mode'} className="flex items-center gap-1">
             {wsConnected
-              ? <><Wifi className="w-3.5 h-3.5 text-emerald-400" /><span className="text-[10px] text-emerald-400 font-bold">LIVE</span></>
-              : <><WifiOff className="w-3.5 h-3.5 text-slate-500" /><span className="text-[10px] text-slate-500">offline</span></>}
+              ? <><Wifi className="w-3.5 h-3.5 text-[var(--primary)]" /><span className="text-[10px] text-[var(--primary)] font-bold">LIVE</span></>
+              : <><WifiOff className="w-3.5 h-3.5 text-[var(--text-tertiary)]" /><span className="text-[10px] text-[var(--text-tertiary)]">offline</span></>}
           </span>
 
           <span className={`px-3 py-1 rounded text-xs font-bold ${
-            data.profile.status === 'ACTIVE' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-            data.profile.status === 'FROZEN' ? 'bg-blue-950 text-blue-400 border border-blue-800' :
+            data.profile.status === 'ACTIVE' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' :
+            data.profile.status === 'FROZEN' ? 'bg-[var(--info-light)] text-[var(--info)] border border-[var(--info)]' :
             data.profile.status === 'LOCKED' ? 'bg-violet-950 text-violet-400 border border-violet-800' :
-            data.profile.status === 'CLOSED' ? 'bg-slate-800 text-slate-500 border border-slate-700' :
-            'bg-rose-950 text-rose-400 border border-rose-800'
+            data.profile.status === 'CLOSED' ? 'bg-[var(--bg-surface-elevated)] text-[var(--text-tertiary)] border border-[var(--border-color)]' :
+            'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]'
           }`}>{data.profile.status}</span>
         </div>
       </div>
 
       {actionMsg && (
-        <div className={`p-3 rounded-lg text-xs font-semibold ${actionMsg.type === 'success' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'}`}>
+        <div className={`p-3 rounded-lg text-xs font-semibold ${actionMsg.type === 'success' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' : 'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]'}`}>
           {actionMsg.text}
         </div>
       )}
 
       {/* Navigation Tabs */}
-      <div className="flex gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs font-semibold overflow-x-auto">
+      <div className="flex gap-1 bg-[var(--bg-surface)]/80 p-1 rounded-lg border border-[var(--border-color)] text-xs font-semibold overflow-x-auto">
         {tabs.map(t => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
             className={`px-3.5 py-1.5 rounded whitespace-nowrap transition font-bold ${
-              activeTab === t ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'
+              activeTab === t ? 'bg-[var(--primary)] text-[var(--text-main)] shadow' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
             }`}
           >
             {t} {t === 'POSITIONS' && `(${(data.positions || []).length})`}
@@ -441,9 +441,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
       <div className="flex-1 overflow-y-auto">
         {/* ── 1. POSITIONS TAB ────────────────────────────────────────────── */}
         {activeTab === 'POSITIONS' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] sticky top-0 font-bold">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl overflow-hidden">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px] sticky top-0 font-bold">
                 <tr>
                   <th className="py-2.5 px-3">Instrument</th>
                   <th className="py-2.5 px-3">Product</th>
@@ -455,9 +455,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   <th className="py-2.5 px-3 text-center">Admin Controls</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(data.positions || []).length === 0 ? (
-                  <tr><td colSpan={8} className="py-8 text-center text-slate-500 text-xs">No active or closed positions found for this client.</td></tr>
+                  <tr><td colSpan={8} className="py-8 text-center text-[var(--text-tertiary)] text-xs">No active or closed positions found for this client.</td></tr>
                 ) : (
                   (data.positions || []).map((p: any) => {
                     const netQty = parseInt(p.net_qty || '0', 10);
@@ -470,24 +470,24 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                     const isOpen = netQty !== 0;
 
                     return (
-                      <tr key={p.id} className="hover:bg-slate-800/40">
+                      <tr key={p.id} className="hover:bg-[var(--bg-surface-elevated)]/40">
                         <td className="py-2.5 px-3">
-                          <div className="font-bold text-white flex items-center gap-1.5">
+                          <div className="font-bold text-[var(--text-main)] flex items-center gap-1.5">
                             <span>{p.symbol}</span>
-                            {hasLiveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Live stream tick" />}
+                            {hasLiveTick && <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] animate-pulse" title="Live stream tick" />}
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono">{p.exchange || 'NSE'}</div>
+                          <div className="text-[10px] text-[var(--text-tertiary)] font-mono">{p.exchange || 'NSE'}</div>
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-400">{p.product_type || 'MIS'}</td>
-                        <td className={`py-2.5 px-3 text-right font-bold font-mono ${netQty > 0 ? 'text-emerald-400' : netQty < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                        <td className="py-2.5 px-3 font-semibold text-[var(--text-muted)]">{p.product_type || 'MIS'}</td>
+                        <td className={`py-2.5 px-3 text-right font-bold font-mono ${netQty > 0 ? 'text-[var(--primary)]' : netQty < 0 ? 'text-[var(--loss)]' : 'text-[var(--text-tertiary)]'}`}>
                           {netQty > 0 ? `+${netQty}` : netQty}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-semibold">₹{avgPx.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-white">₹{ltp.toFixed(2)}</td>
-                        <td className={`py-2.5 px-3 text-right font-mono font-bold ${unrealized > 0 ? 'text-emerald-400' : unrealized < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-main)]">₹{ltp.toFixed(2)}</td>
+                        <td className={`py-2.5 px-3 text-right font-mono font-bold ${unrealized > 0 ? 'text-[var(--primary)]' : unrealized < 0 ? 'text-[var(--loss)]' : 'text-[var(--text-muted)]'}`}>
                           {unrealized >= 0 ? `+₹${unrealized.toFixed(2)}` : `-₹${Math.abs(unrealized).toFixed(2)}`}
                         </td>
-                        <td className={`py-2.5 px-3 text-right font-mono font-bold ${realized > 0 ? 'text-emerald-400' : realized < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                        <td className={`py-2.5 px-3 text-right font-mono font-bold ${realized > 0 ? 'text-[var(--primary)]' : realized < 0 ? 'text-[var(--loss)]' : 'text-[var(--text-muted)]'}`}>
                           {realized >= 0 ? `+₹${realized.toFixed(2)}` : `-₹${Math.abs(realized).toFixed(2)}`}
                         </td>
                         <td className="py-2.5 px-3 text-center">
@@ -495,16 +495,16 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                             {isOpen ? (
                               <button
                                 onClick={() => handleSquareOffPosition(p)}
-                                className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] px-2.5 py-1 rounded transition"
+                                className="bg-[var(--loss)] hover:bg-[var(--loss)] text-[var(--text-main)] font-bold text-[10px] px-2.5 py-1 rounded transition"
                               >
                                 Square Off
                               </button>
                             ) : (
-                              <span className="text-[10px] font-bold text-slate-500 uppercase px-2 py-0.5 rounded bg-slate-800">CLOSED</span>
+                              <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase px-2 py-0.5 rounded bg-[var(--bg-surface-elevated)]">CLOSED</span>
                             )}
                             <button
                               onClick={() => handleEditPosition(p)}
-                              className="bg-amber-600/20 text-amber-300 hover:bg-amber-600 hover:text-white border border-amber-500/30 font-bold text-[10px] px-2 py-1 rounded transition flex items-center gap-1"
+                              className="bg-[var(--warning)]/20 text-[var(--warning)] hover:bg-[var(--warning)] hover:text-[var(--text-main)] border border-[var(--warning)]/30 font-bold text-[10px] px-2 py-1 rounded transition flex items-center gap-1"
                               title="Edit Net Qty or Entry Price"
                             >
                               <Edit2 className="w-3 h-3" />
@@ -523,9 +523,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
         {/* ── 2. ORDERS TAB ─────────────────────────────────────────────── */}
         {activeTab === 'ORDERS' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] sticky top-0 font-bold">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl overflow-hidden">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px] sticky top-0 font-bold">
                 <tr>
                   <th className="py-2.5 px-3">Order ID</th>
                   <th className="py-2.5 px-3">Symbol</th>
@@ -537,26 +537,26 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   <th className="py-2.5 px-3 text-center">Admin Controls</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(data.orders || []).length === 0 ? (
-                  <tr><td colSpan={8} className="py-8 text-center text-slate-500 text-xs">No orders recorded for this client.</td></tr>
+                  <tr><td colSpan={8} className="py-8 text-center text-[var(--text-tertiary)] text-xs">No orders recorded for this client.</td></tr>
                 ) : (
                   (data.orders || []).map((o: any) => {
                     const isPending = ['ACCEPTED', 'PENDING', 'OPEN', 'TRIGGER_PENDING'].includes(o.status);
 
                     return (
-                      <tr key={o.id || o.order_id} className="hover:bg-slate-800/40">
-                        <td className="py-2.5 px-3 font-mono text-[10px] text-amber-400">{o.order_id}</td>
-                        <td className="py-2.5 px-3 font-bold text-white">{o.symbol}</td>
-                        <td className={`py-2.5 px-3 font-bold ${o.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>{o.side}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-400">{o.order_type}</td>
+                      <tr key={o.id || o.order_id} className="hover:bg-[var(--bg-surface-elevated)]/40">
+                        <td className="py-2.5 px-3 font-mono text-[10px] text-[var(--warning)]">{o.order_id}</td>
+                        <td className="py-2.5 px-3 font-bold text-[var(--text-main)]">{o.symbol}</td>
+                        <td className={`py-2.5 px-3 font-bold ${o.side === 'BUY' ? 'text-[var(--primary)]' : 'text-[var(--loss)]'}`}>{o.side}</td>
+                        <td className="py-2.5 px-3 font-semibold text-[var(--text-muted)]">{o.order_type}</td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold">{o.quantity}</td>
                         <td className="py-2.5 px-3 text-right font-mono">₹{parseFloat(o.price || '0').toFixed(2)}</td>
                         <td className="py-2.5 px-3 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            o.status === 'FILLED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                            o.status === 'CANCELLED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                            'bg-amber-950 text-amber-400 border border-amber-800'
+                            o.status === 'FILLED' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' :
+                            o.status === 'CANCELLED' ? 'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]' :
+                            'bg-[var(--warning-light)] text-[var(--warning)] border border-[var(--warning)]'
                           }`}>{o.status}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center">
@@ -564,22 +564,22 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => handleEditOrderPrice(o.order_id || o.id, parseFloat(o.price || '0'))}
-                                className="p-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded"
+                                className="p-1 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--warning)] rounded"
                                 title="Edit Price"
                               ><Edit2 className="w-3.5 h-3.5" /></button>
                               <button
                                 onClick={() => handleForceExecuteOrder(o.order_id || o.id, parseFloat(o.price || '0'))}
-                                className="p-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded"
+                                className="p-1 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--primary)] rounded"
                                 title="Force Execute"
                               ><Play className="w-3.5 h-3.5" /></button>
                               <button
                                 onClick={() => handleCancelOrder(o.order_id || o.id)}
-                                className="p-1 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 rounded transition"
+                                className="p-1 bg-[var(--loss)]/20 hover:bg-[var(--loss)] text-[var(--loss)] hover:text-[var(--text-main)] border border-[var(--loss)]/30 rounded transition"
                                 title="Cancel Order"
                               ><XCircle className="w-3.5 h-3.5" /></button>
                             </div>
                           ) : (
-                            <span className="text-[10px] text-slate-500 font-mono">Finalized</span>
+                            <span className="text-[10px] text-[var(--text-tertiary)] font-mono">Finalized</span>
                           )}
                         </td>
                       </tr>
@@ -593,9 +593,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
         {/* ── 3. TRADES TAB ─────────────────────────────────────────────── */}
         {activeTab === 'TRADES' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] sticky top-0 font-bold">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl overflow-hidden">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px] sticky top-0 font-bold">
                 <tr>
                   <th className="py-2.5 px-3">Execution ID</th>
                   <th className="py-2.5 px-3">Symbol</th>
@@ -606,19 +606,19 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   <th className="py-2.5 px-3 text-right">Executed Time</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(data.trades || []).length === 0 ? (
-                  <tr><td colSpan={7} className="py-8 text-center text-slate-500 text-xs">No trade executions found for this client.</td></tr>
+                  <tr><td colSpan={7} className="py-8 text-center text-[var(--text-tertiary)] text-xs">No trade executions found for this client.</td></tr>
                 ) : (
                   (data.trades || []).map((t: any) => (
-                    <tr key={t.id} className="hover:bg-slate-800/40">
-                      <td className="py-2.5 px-3 font-mono text-[10px] text-slate-400">{t.id}</td>
-                      <td className="py-2.5 px-3 font-bold text-white">{t.symbol}</td>
-                      <td className={`py-2.5 px-3 font-bold ${t.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side}</td>
+                    <tr key={t.id} className="hover:bg-[var(--bg-surface-elevated)]/40">
+                      <td className="py-2.5 px-3 font-mono text-[10px] text-[var(--text-muted)]">{t.id}</td>
+                      <td className="py-2.5 px-3 font-bold text-[var(--text-main)]">{t.symbol}</td>
+                      <td className={`py-2.5 px-3 font-bold ${t.side === 'BUY' ? 'text-[var(--primary)]' : 'text-[var(--loss)]'}`}>{t.side}</td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold">{t.quantity}</td>
-                      <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-bold">₹{parseFloat(t.price).toFixed(2)}</td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-400">₹{parseFloat(t.brokerage || 0).toFixed(2)}</td>
-                      <td className="py-2.5 px-3 text-right text-[10px] text-slate-400">{new Date(t.executed_at).toLocaleString()}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-[var(--primary)] font-bold">₹{parseFloat(t.price).toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-[var(--text-muted)]">₹{parseFloat(t.brokerage || 0).toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right text-[10px] text-[var(--text-muted)]">{new Date(t.executed_at).toLocaleString()}</td>
                     </tr>
                   ))
                 )}
@@ -629,9 +629,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
         {/* ── 4. HOLDINGS TAB ───────────────────────────────────────────── */}
         {activeTab === 'HOLDINGS' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] sticky top-0 font-bold">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl overflow-hidden">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px] sticky top-0 font-bold">
                 <tr>
                   <th className="py-2.5 px-3">Symbol</th>
                   <th className="py-2.5 px-3 text-right">Quantity</th>
@@ -641,9 +641,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   <th className="py-2.5 px-3 text-right">P&L</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(data.holdings || []).length === 0 ? (
-                  <tr><td colSpan={6} className="py-8 text-center text-slate-500 text-xs">No delivery holdings found for this client.</td></tr>
+                  <tr><td colSpan={6} className="py-8 text-center text-[var(--text-tertiary)] text-xs">No delivery holdings found for this client.</td></tr>
                 ) : (
                   (data.holdings || []).map((h: any) => {
                     const qty = parseInt(h.quantity || '0', 10);
@@ -655,16 +655,16 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                     const pnl = qty * (ltp - avg);
 
                     return (
-                      <tr key={h.id} className="hover:bg-slate-800/40">
-                        <td className="py-2.5 px-3 font-bold text-white flex items-center gap-1.5">
+                      <tr key={h.id} className="hover:bg-[var(--bg-surface-elevated)]/40">
+                        <td className="py-2.5 px-3 font-bold text-[var(--text-main)] flex items-center gap-1.5">
                           <span>{h.symbol}</span>
-                          {hasLiveTick && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Live stream tick" />}
+                          {hasLiveTick && <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] animate-pulse" title="Live stream tick" />}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold">{qty}</td>
                         <td className="py-2.5 px-3 text-right font-mono">₹{avg.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-white">₹{ltp.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-emerald-400 font-bold">₹{val.toLocaleString('en-IN')}</td>
-                        <td className={`py-2.5 px-3 text-right font-mono font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-main)]">₹{ltp.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-[var(--primary)] font-bold">₹{val.toLocaleString('en-IN')}</td>
+                        <td className={`py-2.5 px-3 text-right font-mono font-bold ${pnl >= 0 ? 'text-[var(--primary)]' : 'text-[var(--loss)]'}`}>
                           {pnl >= 0 ? `+₹${pnl.toFixed(2)}` : `-₹${Math.abs(pnl).toFixed(2)}`}
                         </td>
                       </tr>
@@ -680,34 +680,34 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
         {activeTab === 'FUNDS' && (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">Cash Balance</span>
-                <div className="text-xl font-bold font-mono text-emerald-400 mt-1">₹{walletCash.toLocaleString('en-IN')}</div>
+              <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4">
+                <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold">Cash Balance</span>
+                <div className="text-xl font-bold font-mono text-[var(--primary)] mt-1">₹{walletCash.toLocaleString('en-IN')}</div>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">Used Margin</span>
-                <div className="text-xl font-bold font-mono text-amber-400 mt-1">₹{walletUsed.toLocaleString('en-IN')}</div>
+              <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4">
+                <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold">Used Margin</span>
+                <div className="text-xl font-bold font-mono text-[var(--warning)] mt-1">₹{walletUsed.toLocaleString('en-IN')}</div>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                <span className="text-[10px] text-slate-500 uppercase font-bold">Available Buying Power</span>
-                <div className="text-xl font-bold font-mono text-white mt-1">₹{walletAvail.toLocaleString('en-IN')}</div>
+              <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4">
+                <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold">Available Buying Power</span>
+                <div className="text-xl font-bold font-mono text-[var(--text-main)] mt-1">₹{walletAvail.toLocaleString('en-IN')}</div>
               </div>
             </div>
 
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+            <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-bold text-white uppercase">Client Wallet Transactions (Ledger)</h4>
+                <h4 className="text-xs font-bold text-[var(--text-main)] uppercase">Client Wallet Transactions (Ledger)</h4>
                 <button
                   onClick={() => setShowFundsModal(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
+                  className="bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--text-main)] font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
                   <span>+ Adjust Capital</span>
                 </button>
               </div>
 
-              <table className="w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
+              <table className="w-full text-xs text-left text-[var(--text-muted)]">
+                <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px]">
                   <tr>
                     <th className="py-2 px-3">Txn ID</th>
                     <th className="py-2 px-3">Type</th>
@@ -717,19 +717,19 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                     <th className="py-2 px-3 text-right">Time</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-[var(--border-color)]">
                   {(data.ledger || []).map((l: any) => (
                     <tr key={l.id}>
-                      <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{l.transaction_id?.slice(0,8)}</td>
+                      <td className="py-2 px-3 font-mono text-[10px] text-[var(--text-tertiary)]">{l.transaction_id?.slice(0,8)}</td>
                       <td className="py-2 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${l.transaction_type === 'CREDIT' ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${l.transaction_type === 'CREDIT' ? 'bg-[var(--primary-light)] text-[var(--primary)]' : 'bg-[var(--loss-light)] text-[var(--loss)]'}`}>
                           {l.transaction_type}
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-right font-mono font-bold text-white">₹{parseFloat(l.amount).toLocaleString('en-IN')}</td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-400">₹{parseFloat(l.balance_before).toLocaleString('en-IN')}</td>
-                      <td className="py-2 px-3 text-right font-mono text-emerald-400 font-bold">₹{parseFloat(l.balance_after).toLocaleString('en-IN')}</td>
-                      <td className="py-2 px-3 text-right text-[10px] text-slate-500">{new Date(l.created_at).toLocaleString()}</td>
+                      <td className="py-2 px-3 text-right font-mono font-bold text-[var(--text-main)]">₹{parseFloat(l.amount).toLocaleString('en-IN')}</td>
+                      <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">₹{parseFloat(l.balance_before).toLocaleString('en-IN')}</td>
+                      <td className="py-2 px-3 text-right font-mono text-[var(--primary)] font-bold">₹{parseFloat(l.balance_after).toLocaleString('en-IN')}</td>
+                      <td className="py-2 px-3 text-right text-[10px] text-[var(--text-tertiary)]">{new Date(l.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -741,29 +741,29 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
         {/* ── 6. OVERVIEW TAB ───────────────────────────────────────────── */}
         {activeTab === 'OVERVIEW' && (
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
-              <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-2">Profile</h4>
+            <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg p-4">
+              <h4 className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mb-2">Profile</h4>
               <div className="text-xs space-y-1.5">
-                <div className="flex justify-between"><span className="text-slate-400">Role</span><span className="text-amber-400 font-bold">{data.profile.role}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Created</span><span className="text-white">{new Date(data.profile.created_at).toLocaleDateString()}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Last Login</span><span className="text-white">{data.profile.last_login_at ? new Date(data.profile.last_login_at).toLocaleString() : 'Never'}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Failed Logins</span><span className="text-white">{data.profile.failed_login_attempts || 0}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Role</span><span className="text-[var(--warning)] font-bold">{data.profile.role}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Created</span><span className="text-[var(--text-main)]">{new Date(data.profile.created_at).toLocaleDateString()}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Last Login</span><span className="text-[var(--text-main)]">{data.profile.last_login_at ? new Date(data.profile.last_login_at).toLocaleString() : 'Never'}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Failed Logins</span><span className="text-[var(--text-main)]">{data.profile.failed_login_attempts || 0}</span></div>
               </div>
             </div>
-            <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
-              <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-2">Wallet Summary</h4>
+            <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg p-4">
+              <h4 className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mb-2">Wallet Summary</h4>
               <div className="text-xs space-y-1.5">
-                <div className="flex justify-between"><span className="text-slate-400">Cash Balance</span><span className="text-emerald-400 font-bold font-mono">₹{walletCash.toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Used Margin</span><span className="text-amber-400 font-mono">₹{walletUsed.toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Cash Balance</span><span className="text-[var(--primary)] font-bold font-mono">₹{walletCash.toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Used Margin</span><span className="text-[var(--warning)] font-mono">₹{walletUsed.toLocaleString('en-IN')}</span></div>
               </div>
             </div>
-            <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
-              <h4 className="text-[10px] text-slate-500 uppercase font-bold mb-2">Activity Summary</h4>
+            <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg p-4">
+              <h4 className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mb-2">Activity Summary</h4>
               <div className="text-xs space-y-1.5">
-                <div className="flex justify-between"><span className="text-slate-400">Positions</span><span className="text-white font-bold">{data.positions?.length || 0}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Orders</span><span className="text-white font-bold">{data.orders?.length || 0}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Trades</span><span className="text-white font-bold">{data.trades?.length || 0}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Holdings</span><span className="text-white font-bold">{data.holdings?.length || 0}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Positions</span><span className="text-[var(--text-main)] font-bold">{data.positions?.length || 0}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Orders</span><span className="text-[var(--text-main)] font-bold">{data.orders?.length || 0}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Trades</span><span className="text-[var(--text-main)] font-bold">{data.trades?.length || 0}</span></div>
+                <div className="flex justify-between"><span className="text-[var(--text-muted)]">Holdings</span><span className="text-[var(--text-main)] font-bold">{data.holdings?.length || 0}</span></div>
               </div>
             </div>
           </div>
@@ -771,20 +771,20 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
         {/* ── 7. LEDGER TAB ─────────────────────────────────────────────── */}
         {activeTab === 'LEDGER' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-lg overflow-hidden">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg overflow-hidden">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px]">
                 <tr><th className="py-2 px-3">Txn ID</th><th className="py-2 px-3">Type</th><th className="py-2 px-3 text-right">Amount</th><th className="py-2 px-3 text-right">Before</th><th className="py-2 px-3 text-right">After</th><th className="py-2 px-3 text-right">Time</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(data.ledger || []).map((l: any) => (
                   <tr key={l.id}>
-                    <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{l.transaction_id?.slice(0,8)}</td>
-                    <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${l.transaction_type === 'CREDIT' ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}`}>{l.transaction_type}</span></td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-white">₹{parseFloat(l.amount).toLocaleString('en-IN')}</td>
-                    <td className="py-2 px-3 text-right font-mono text-slate-400">₹{parseFloat(l.balance_before).toLocaleString('en-IN')}</td>
-                    <td className="py-2 px-3 text-right font-mono text-emerald-400">₹{parseFloat(l.balance_after).toLocaleString('en-IN')}</td>
-                    <td className="py-2 px-3 text-right text-[10px] text-slate-500">{new Date(l.created_at).toLocaleString()}</td>
+                    <td className="py-2 px-3 font-mono text-[10px] text-[var(--text-tertiary)]">{l.transaction_id?.slice(0,8)}</td>
+                    <td className="py-2 px-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${l.transaction_type === 'CREDIT' ? 'bg-[var(--primary-light)] text-[var(--primary)]' : 'bg-[var(--loss-light)] text-[var(--loss)]'}`}>{l.transaction_type}</span></td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-[var(--text-main)]">₹{parseFloat(l.amount).toLocaleString('en-IN')}</td>
+                    <td className="py-2 px-3 text-right font-mono text-[var(--text-muted)]">₹{parseFloat(l.balance_before).toLocaleString('en-IN')}</td>
+                    <td className="py-2 px-3 text-right font-mono text-[var(--primary)]">₹{parseFloat(l.balance_after).toLocaleString('en-IN')}</td>
+                    <td className="py-2 px-3 text-right text-[10px] text-[var(--text-tertiary)]">{new Date(l.created_at).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -794,18 +794,18 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
         {/* ── 8. AUDIT TAB ──────────────────────────────────────────────── */}
         {activeTab === 'AUDIT' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-lg overflow-hidden">
-            <table className="w-full text-xs text-left text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg overflow-hidden">
+            <table className="w-full text-xs text-left text-[var(--text-muted)]">
+              <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px]">
                 <tr><th className="py-2 px-3">Time</th><th className="py-2 px-3">Action</th><th className="py-2 px-3">Resource</th><th className="py-2 px-3 font-mono">IP</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-[var(--border-color)]">
                 {(data.auditLogs || []).map((a: any) => (
                   <tr key={a.id}>
-                    <td className="py-2 px-3 text-[10px] text-slate-500">{new Date(a.timestamp).toLocaleString()}</td>
-                    <td className="py-2 px-3 font-bold text-white">{a.action}</td>
-                    <td className="py-2 px-3 text-slate-400">{a.resource_type}</td>
-                    <td className="py-2 px-3 font-mono text-[10px] text-slate-500">{a.ip_address}</td>
+                    <td className="py-2 px-3 text-[10px] text-[var(--text-tertiary)]">{new Date(a.timestamp).toLocaleString()}</td>
+                    <td className="py-2 px-3 font-bold text-[var(--text-main)]">{a.action}</td>
+                    <td className="py-2 px-3 text-[var(--text-muted)]">{a.resource_type}</td>
+                    <td className="py-2 px-3 font-mono text-[10px] text-[var(--text-tertiary)]">{a.ip_address}</td>
                   </tr>
                 ))}
               </tbody>
@@ -817,8 +817,8 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
         {activeTab === 'KYC' && (
           <div className="space-y-4">
             {/* KYC Action Buttons */}
-            <div className="flex items-center gap-3 p-4 bg-slate-900/60 border border-slate-800 rounded-xl">
-              <span className="text-xs font-bold text-slate-300 flex-1">KYC Admin Actions</span>
+            <div className="flex items-center gap-3 p-4 bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl">
+              <span className="text-xs font-bold text-[var(--text-muted)] flex-1">KYC Admin Actions</span>
 
               <button
                 onClick={async () => {
@@ -829,7 +829,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   setKycActionMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.error?.message || 'Failed' });
                 }}
                 disabled={kycActionLoading !== null}
-                className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white border border-emerald-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
+                className="bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary-hover)] hover:text-[var(--text-main)] border border-[var(--primary)]/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
               >
                 <ThumbsUp className="w-3.5 h-3.5" />
                 {kycActionLoading === 'approve' ? 'Approving...' : 'Approve KYC'}
@@ -846,7 +846,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   setKycActionMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.error?.message || 'Failed' });
                 }}
                 disabled={kycActionLoading !== null}
-                className="bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white border border-rose-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
+                className="bg-[var(--loss)]/20 text-[var(--loss)] hover:bg-[var(--loss)] hover:text-[var(--text-main)] border border-[var(--loss)]/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
               >
                 <ThumbsDown className="w-3.5 h-3.5" />
                 {kycActionLoading === 'reject' ? 'Rejecting...' : 'Reject KYC'}
@@ -861,7 +861,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   setKycActionMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.error?.message || 'Failed' });
                 }}
                 disabled={kycActionLoading !== null}
-                className="bg-amber-600/20 text-amber-400 hover:bg-amber-600 hover:text-white border border-amber-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
+                className="bg-[var(--warning)]/20 text-[var(--warning)] hover:bg-[var(--warning)] hover:text-[var(--text-main)] border border-[var(--warning)]/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 {kycActionLoading === 'reupload' ? 'Requesting...' : 'Request Re-upload'}
@@ -870,7 +870,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
             {kycActionMsg && (
               <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                kycActionMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                kycActionMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
               }`}>
                 {kycActionMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                 {kycActionMsg.text}
@@ -878,25 +878,25 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
             )}
 
             {/* KYC Records */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-              <h4 className="text-xs font-bold text-white uppercase mb-3">KYC Verification Record</h4>
+            <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4">
+              <h4 className="text-xs font-bold text-[var(--text-main)] uppercase mb-3">KYC Verification Record</h4>
               {(data.kycRecords || []).length === 0 ? (
-                <div className="text-slate-500 text-xs py-4 text-center">No KYC document records found for this client.</div>
+                <div className="text-[var(--text-tertiary)] text-xs py-4 text-center">No KYC document records found for this client.</div>
               ) : (
                 (data.kycRecords || []).map((k: any) => (
-                  <div key={k.id} className="border border-slate-800 rounded-lg p-3 space-y-2 text-xs mb-3">
+                  <div key={k.id} className="border border-[var(--border-color)] rounded-lg p-3 space-y-2 text-xs mb-3">
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-white">Verification Status</span>
+                      <span className="font-bold text-[var(--text-main)]">Verification Status</span>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        k.kyc_status === 'APPROVED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                        k.kyc_status === 'REJECTED' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                        'bg-amber-950 text-amber-400 border border-amber-800'
+                        k.kyc_status === 'APPROVED' ? 'bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]' :
+                        k.kyc_status === 'REJECTED' ? 'bg-[var(--loss-light)] text-[var(--loss)] border border-[var(--loss)]' :
+                        'bg-[var(--warning-light)] text-[var(--warning)] border border-[var(--warning)]'
                       }`}>{k.kyc_status || 'PENDING'}</span>
                     </div>
-                    <div className="flex justify-between"><span className="text-slate-400">PAN</span><span className="font-mono text-white">{k.pan_number || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Aadhaar</span><span className="font-mono text-white">{k.aadhaar_number || 'N/A'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Bank Account</span><span className="font-mono text-white">{k.bank_account_no || 'N/A'} ({k.ifsc_code || 'N/A'})</span></div>
-                    {k.notes && <div className="flex justify-between"><span className="text-slate-400">Notes</span><span className="text-slate-300">{k.notes}</span></div>}
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">PAN</span><span className="font-mono text-[var(--text-main)]">{k.pan_number || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">Aadhaar</span><span className="font-mono text-[var(--text-main)]">{k.aadhaar_number || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--text-muted)]">Bank Account</span><span className="font-mono text-[var(--text-main)]">{k.bank_account_no || 'N/A'} ({k.ifsc_code || 'N/A'})</span></div>
+                    {k.notes && <div className="flex justify-between"><span className="text-[var(--text-muted)]">Notes</span><span className="text-[var(--text-muted)]">{k.notes}</span></div>}
                   </div>
                 ))
               )}
@@ -906,9 +906,9 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
         {/* ── 10. PROFILE TAB (Editable) ───────────────────────────────────── */}
         {activeTab === 'PROFILE' && (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-white uppercase">Customer Profile Details</h4>
+              <h4 className="text-xs font-bold text-[var(--text-main)] uppercase">Customer Profile Details</h4>
               {!editingProfile && (
                 <button
                   onClick={() => {
@@ -919,7 +919,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                     setProfileMsg(null);
                     setEditingProfile(true);
                   }}
-                  className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white border border-blue-500/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+                  className="bg-[var(--info)]/20 text-[var(--info)] hover:bg-[var(--info)] hover:text-[var(--text-main)] border border-[var(--info)]/30 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <Edit2 className="w-3 h-3" /> Edit Profile
                 </button>
@@ -934,14 +934,14 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                   { icon: <Phone className="w-3.5 h-3.5" />, label: 'Phone', value: data.profile.phone_number || '—' },
                   { icon: <MapPin className="w-3.5 h-3.5" />, label: 'City', value: data.profile.city || '—' },
                 ].map(({ icon, label, value }) => (
-                  <div key={label} className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                    <div className="flex items-center gap-1.5 text-slate-500 mb-1">{icon}<span className="text-[10px] uppercase font-bold">{label}</span></div>
-                    <div className="text-white font-semibold">{value}</div>
+                  <div key={label} className="bg-[var(--bg-body)] rounded-xl p-3 border border-[var(--border-color)]">
+                    <div className="flex items-center gap-1.5 text-[var(--text-tertiary)] mb-1">{icon}<span className="text-[10px] uppercase font-bold">{label}</span></div>
+                    <div className="text-[var(--text-main)] font-semibold">{value}</div>
                   </div>
                 ))}
-                <div className="col-span-2 bg-slate-950 rounded-xl p-3 border border-slate-800">
-                  <div className="flex items-center gap-1.5 text-slate-500 mb-1"><MapPin className="w-3.5 h-3.5" /><span className="text-[10px] uppercase font-bold">Address</span></div>
-                  <div className="text-white font-semibold">{data.profile.address || '—'}</div>
+                <div className="col-span-2 bg-[var(--bg-body)] rounded-xl p-3 border border-[var(--border-color)]">
+                  <div className="flex items-center gap-1.5 text-[var(--text-tertiary)] mb-1"><MapPin className="w-3.5 h-3.5" /><span className="text-[10px] uppercase font-bold">Address</span></div>
+                  <div className="text-[var(--text-main)] font-semibold">{data.profile.address || '—'}</div>
                 </div>
               </div>
             ) : (
@@ -963,39 +963,39 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
               }} className="space-y-3 text-xs">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                    <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Full Name</label>
                     <input value={editFullName} onChange={e => setEditFullName(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Phone</label>
+                    <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Phone</label>
                     <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">City</label>
+                    <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">City</label>
                     <input value={editCity} onChange={e => setEditCity(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Address</label>
+                    <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Address</label>
                     <input value={editAddress} onChange={e => setEditAddress(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500" />
+                      className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-[var(--text-main)] text-xs focus:outline-none focus:border-[var(--info)]" />
                   </div>
                 </div>
                 {profileMsg && (
                   <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                    profileMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                    profileMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
                   }`}>
                     {profileMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                     {profileMsg.text}
                   </div>
                 )}
                 <div className="flex gap-2 justify-end">
-                  <button type="button" onClick={() => setEditingProfile(false)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg cursor-pointer">Cancel</button>
-                  <button type="submit" disabled={savingProfile} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-black text-xs rounded-lg transition cursor-pointer">
+                  <button type="button" onClick={() => setEditingProfile(false)} className="px-4 py-2 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs rounded-lg cursor-pointer">Cancel</button>
+                  <button type="submit" disabled={savingProfile} className="px-5 py-2 bg-[var(--info)] hover:bg-[var(--info)] disabled:opacity-40 text-[var(--text-main)] font-black text-xs rounded-lg transition cursor-pointer">
                     {savingProfile ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
@@ -1009,21 +1009,21 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
           <div className="space-y-4">
             {/* Security Overview */}
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs">
-                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Failed Login Attempts</div>
-                <div className={`text-xl font-bold font-mono ${(loginActivity?.security?.failedLoginAttempts || 0) > 3 ? 'text-rose-400' : 'text-white'}`}>
+              <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4 text-xs">
+                <div className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mb-1">Failed Login Attempts</div>
+                <div className={`text-xl font-bold font-mono ${(loginActivity?.security?.failedLoginAttempts || 0) > 3 ? 'text-[var(--loss)]' : 'text-[var(--text-main)]'}`}>
                   {loginActivity?.security?.failedLoginAttempts || 0}
                 </div>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs">
-                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Last Login</div>
-                <div className="text-white font-semibold">
+              <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4 text-xs">
+                <div className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mb-1">Last Login</div>
+                <div className="text-[var(--text-main)] font-semibold">
                   {loginActivity?.security?.lastLoginAt ? new Date(loginActivity.security.lastLoginAt).toLocaleString() : 'Never'}
                 </div>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs">
-                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Account Lock Status</div>
-                <div className={`font-bold ${loginActivity?.security?.lockedUntil ? 'text-rose-400' : 'text-emerald-400'}`}>
+              <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-4 text-xs">
+                <div className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold mb-1">Account Lock Status</div>
+                <div className={`font-bold ${loginActivity?.security?.lockedUntil ? 'text-[var(--loss)]' : 'text-[var(--primary)]'}`}>
                   {loginActivity?.security?.lockedUntil
                     ? `Locked until ${new Date(loginActivity.security.lockedUntil).toLocaleString()}`
                     : 'Not Locked'}
@@ -1032,15 +1032,15 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
             </div>
 
             {/* Login Sessions */}
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
-              <div className="p-3 border-b border-slate-800 flex items-center justify-between">
-                <h4 className="text-xs font-bold text-white uppercase flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-blue-400" />Login History</h4>
-                <button onClick={fetchLoginActivity} className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer">
+            <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl overflow-hidden">
+              <div className="p-3 border-b border-[var(--border-color)] flex items-center justify-between">
+                <h4 className="text-xs font-bold text-[var(--text-main)] uppercase flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-[var(--info)]" />Login History</h4>
+                <button onClick={fetchLoginActivity} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1 cursor-pointer">
                   <RefreshCw className="w-3 h-3" /> Refresh
                 </button>
               </div>
-              <table className="w-full text-xs text-left text-slate-300">
-                <thead className="bg-slate-950 text-slate-400 uppercase text-[10px]">
+              <table className="w-full text-xs text-left text-[var(--text-muted)]">
+                <thead className="bg-[var(--bg-body)] text-[var(--text-muted)] uppercase text-[10px]">
                   <tr>
                     <th className="py-2 px-3">Login Time</th>
                     <th className="py-2 px-3">IP Address</th>
@@ -1049,24 +1049,24 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                     <th className="py-2 px-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-[var(--border-color)]">
                   {(loginActivity?.sessions || []).length === 0 ? (
-                    <tr><td colSpan={5} className="py-8 text-center text-slate-500">No login activity recorded yet.</td></tr>
+                    <tr><td colSpan={5} className="py-8 text-center text-[var(--text-tertiary)]">No login activity recorded yet.</td></tr>
                   ) : (
                     (loginActivity?.sessions || []).map((s: any) => (
-                      <tr key={s.id} className="hover:bg-slate-800/40">
-                        <td className="py-2 px-3 text-[10px] font-mono text-slate-400">{new Date(s.login_at).toLocaleString()}</td>
-                        <td className="py-2 px-3 font-mono text-[10px] text-amber-400">{s.ip_address || '—'}</td>
+                      <tr key={s.id} className="hover:bg-[var(--bg-surface-elevated)]/40">
+                        <td className="py-2 px-3 text-[10px] font-mono text-[var(--text-muted)]">{new Date(s.login_at).toLocaleString()}</td>
+                        <td className="py-2 px-3 font-mono text-[10px] text-[var(--warning)]">{s.ip_address || '—'}</td>
                         <td className="py-2 px-3">
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                            s.login_result === 'SUCCESS' ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'
+                            s.login_result === 'SUCCESS' ? 'bg-[var(--primary-light)] text-[var(--primary)]' : 'bg-[var(--loss-light)] text-[var(--loss)]'
                           }`}>{s.login_result}</span>
                         </td>
-                        <td className="py-2 px-3 text-[10px] text-slate-500">{s.device_type || '—'}</td>
+                        <td className="py-2 px-3 text-[10px] text-[var(--text-tertiary)]">{s.device_type || '—'}</td>
                         <td className="py-2 px-3">
                           {s.is_active
-                            ? <span className="text-emerald-400 text-[10px] font-bold flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full inline-block animate-pulse" />Active</span>
-                            : <span className="text-slate-500 text-[10px]">Ended</span>}
+                            ? <span className="text-[var(--primary)] text-[10px] font-bold flex items-center gap-1"><span className="w-1.5 h-1.5 bg-[var(--primary)] rounded-full inline-block animate-pulse" />Active</span>
+                            : <span className="text-[var(--text-tertiary)] text-[10px]">Ended</span>}
                         </td>
                       </tr>
                     ))
@@ -1080,29 +1080,29 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
       {/* ── ADMIN FUNDS MODAL ────────────────────────────────────────────── */}
       {showFundsModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center justify-between">
+        <div className="fixed inset-0 bg-[var(--overlay-backdrop)] backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl max-w-md w-full p-5 space-y-4">
+            <h3 className="text-base font-bold text-[var(--text-main)] flex items-center justify-between">
               <span>Admin Capital Adjustment</span>
-              <button onClick={() => setShowFundsModal(false)} className="text-slate-400 hover:text-white">✕</button>
+              <button onClick={() => setShowFundsModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-main)]">✕</button>
             </h3>
 
             <form onSubmit={handleUpdateFunds} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Adjustment Action</label>
+                <label className="block text-[var(--text-muted)] font-semibold mb-1">Adjustment Action</label>
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setFundAction('ADD')}
-                    className={`py-2 rounded-lg font-bold border ${fundAction === 'ADD' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-800 text-slate-400 border-slate-700'}`}
+                    className={`py-2 rounded-lg font-bold border ${fundAction === 'ADD' ? 'bg-[var(--primary)] text-[var(--text-main)] border-[var(--primary)]' : 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border-[var(--border-color)]'}`}
                   >
                     + Add Capital
                   </button>
                   <button
                     type="button"
                     onClick={() => setFundAction('DEDUCT')}
-                    className={`py-2 rounded-lg font-bold border ${fundAction === 'DEDUCT' ? 'bg-rose-600 text-white border-rose-500' : 'bg-slate-800 text-slate-400 border-slate-700'}`}
+                    className={`py-2 rounded-lg font-bold border ${fundAction === 'DEDUCT' ? 'bg-[var(--loss)] text-[var(--text-main)] border-[var(--loss)]' : 'bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] border-[var(--border-color)]'}`}
                   >
                     - Deduct Capital
                   </button>
@@ -1110,23 +1110,23 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Amount (₹)</label>
+                <label className="block text-[var(--text-muted)] font-semibold mb-1">Amount (₹)</label>
                 <input
                   type="number"
                   value={fundAmount}
                   onChange={e => setFundAmount(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono text-sm"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg p-2.5 text-[var(--text-main)] font-mono text-sm"
                   min={1}
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Reason / Notes</label>
+                <label className="block text-[var(--text-muted)] font-semibold mb-1">Reason / Notes</label>
                 <input
                   type="text"
                   value={fundReason}
                   onChange={e => setFundReason(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white"
+                  className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-lg p-2 text-[var(--text-main)]"
                   required
                 />
               </div>
@@ -1135,14 +1135,14 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                 <button
                   type="button"
                   onClick={() => setShowFundsModal(false)}
-                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 rounded-lg"
+                  className="w-1/2 bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold py-2 rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingFunds}
-                  className={`w-1/2 font-bold py-2 rounded-lg text-white ${fundAction === 'ADD' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'}`}
+                  className={`w-1/2 font-bold py-2 rounded-lg text-[var(--text-main)] ${fundAction === 'ADD' ? 'bg-[var(--primary)] hover:bg-[var(--primary-hover)]' : 'bg-[var(--loss)] hover:bg-[var(--loss)]'}`}
                 >
                   {submittingFunds ? 'Processing...' : 'Confirm Adjustment'}
                 </button>
@@ -1154,51 +1154,51 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
       {/* ADMIN RESET PASSWORD MODAL */}
       {showPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-body)]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <div className="p-2 rounded-xl bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Reset Client Password</h3>
-                  <p className="text-[10px] text-slate-400">Set a new password for {data.profile.username}</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Reset Client Password</h3>
+                  <p className="text-[10px] text-[var(--text-muted)]">Set a new password for {data.profile.username}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowPasswordModal(false)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer"
+                className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg bg-[var(--bg-surface-elevated)]/80 hover:bg-[var(--bg-surface-elevated)] transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Target User Info Card */}
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1 font-mono text-xs">
-              <div className="flex justify-between text-slate-400">
+            <div className="bg-[var(--bg-body)] p-3.5 rounded-xl border border-[var(--border-color)] space-y-1 font-mono text-xs">
+              <div className="flex justify-between text-[var(--text-muted)]">
                 <span>Client ID:</span>
-                <span className="text-emerald-400 font-bold">TG-{data.profile.id.slice(0, 8).toUpperCase()}</span>
+                <span className="text-[var(--primary)] font-bold">TG-{data.profile.id.slice(0, 8).toUpperCase()}</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-[var(--text-muted)]">
                 <span>Username:</span>
-                <span className="text-white font-bold">{data.profile.username}</span>
+                <span className="text-[var(--text-main)] font-bold">{data.profile.username}</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-[var(--text-muted)]">
                 <span>Email:</span>
-                <span className="text-slate-300">{data.profile.email}</span>
+                <span className="text-[var(--text-muted)]">{data.profile.email}</span>
               </div>
             </div>
 
             <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">New Password *</label>
+                  <label className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">New Password *</label>
                   <button
                     type="button"
                     onClick={generateRandomPassword}
-                    className="text-[10px] font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] font-bold text-[var(--warning)] hover:text-[var(--warning)] flex items-center gap-1 cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" /> Auto-Generate Strong
                   </button>
@@ -1211,7 +1211,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                     placeholder="Enter new password (min 6 chars)"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500 pr-10"
+                    className="w-full bg-[var(--bg-body)] border border-[var(--border-color)] rounded-xl px-3.5 py-2.5 text-[var(--text-main)] font-mono text-xs focus:outline-none focus:border-[var(--warning)] pr-10"
                   />
                   {newPassword && (
                     <button
@@ -1221,10 +1221,10 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                         setCopied(true);
                         setTimeout(() => setCopied(false), 2000);
                       }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
                       title="Copy Password"
                     >
-                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? <Check className="w-3.5 h-3.5 text-[var(--primary)]" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </div>
@@ -1232,7 +1232,7 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
 
               {passwordMsg && (
                 <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                  passwordMsg.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                  passwordMsg.type === 'success' ? 'bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30' : 'bg-[var(--loss)]/15 text-[var(--loss)] border border-[var(--loss)]/30'
                 }`}>
                   {passwordMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                   {passwordMsg.text}
@@ -1243,14 +1243,14 @@ export const Customer360: React.FC<Customer360Props> = ({ token, customerId, onB
                 <button
                   type="button"
                   onClick={() => setShowPasswordModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[var(--bg-surface-elevated)] hover:bg-[var(--bg-surface-elevated)] text-[var(--text-muted)] font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingPassword || !newPassword || newPassword.length < 6}
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs transition shadow-md shadow-amber-500/20 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[var(--warning)] hover:bg-[var(--warning)] disabled:opacity-50 text-slate-950 font-black text-xs transition shadow-md shadow-amber-500/20 cursor-pointer"
                 >
                   {submittingPassword ? 'Updating Password...' : 'Confirm Reset Password'}
                 </button>

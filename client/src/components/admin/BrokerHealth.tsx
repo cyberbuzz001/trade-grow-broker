@@ -14,24 +14,24 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
     return () => clearInterval(i);
   }, [token]);
 
-  if (!broker) return <div className="text-slate-400 text-sm p-8">Loading broker health...</div>;
+  if (!broker) return <div className="text-[var(--text-muted)] text-sm p-8">Loading broker health...</div>;
 
   const ProviderBadge = ({ name }: { name: string }) => (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-900/50 text-indigo-300 border border-indigo-800">
-      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[var(--gogrow-blue-light)]/50 text-[var(--gogrow-blue)] border border-[var(--gogrow-blue)]">
+      <span className="w-2 h-2 rounded-full bg-[var(--gogrow-blue)] animate-pulse" />
       {name}
     </span>
   );
 
   const StatusBadge = ({ status }: { status: string }) => (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-      ['CONNECTED', 'HEALTHY', 'LIVE'].includes(status) ? 'bg-emerald-900/50 text-emerald-300 border border-emerald-800' :
-      ['WAITING', 'IDLE'].includes(status) ? 'bg-amber-900/50 text-amber-300 border border-amber-800' :
-      'bg-rose-900/50 text-rose-300 border border-rose-800'
+      ['CONNECTED', 'HEALTHY', 'LIVE'].includes(status) ? 'bg-[var(--primary-light)]/50 text-[var(--primary)] border border-[var(--primary)]' :
+      ['WAITING', 'IDLE'].includes(status) ? 'bg-[var(--warning-light)]/50 text-[var(--warning)] border border-[var(--warning)]' :
+      'bg-[var(--loss-light)]/50 text-[var(--loss)] border border-[var(--loss)]'
     }`}>
       <span className={`w-2 h-2 rounded-full ${
-        ['CONNECTED', 'HEALTHY', 'LIVE'].includes(status) ? 'bg-emerald-400 animate-pulse' :
-        ['WAITING', 'IDLE'].includes(status) ? 'bg-amber-400' : 'bg-rose-400'
+        ['CONNECTED', 'HEALTHY', 'LIVE'].includes(status) ? 'bg-[var(--primary)] animate-pulse' :
+        ['WAITING', 'IDLE'].includes(status) ? 'bg-[var(--warning)]' : 'bg-[var(--loss)]'
       }`} />
       {status}
     </span>
@@ -39,7 +39,7 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
 
   return (
     <div className="flex flex-col gap-5 h-full overflow-y-auto">
-      <div className="flex items-center gap-3 text-emerald-400">
+      <div className="flex items-center gap-3 text-[var(--primary)]">
         <Zap className="w-4 h-4 animate-pulse" />
         <span className="text-[10px] font-bold uppercase">Auto-refresh every 10s</span>
       </div>
@@ -52,10 +52,10 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
           { label: 'Order API', value: broker.orderApiStatus, icon: <Zap className="w-5 h-5" /> },
           { label: 'Market Data', value: broker.marketDataStatus, icon: <Zap className="w-5 h-5" /> },
         ].map(s => (
-          <div key={s.label} className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 flex items-center gap-4">
-            <div className="text-slate-500">{s.icon}</div>
+          <div key={s.label} className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-xl p-5 flex items-center gap-4">
+            <div className="text-[var(--text-tertiary)]">{s.icon}</div>
             <div className="flex-1">
-              <span className="text-[10px] text-slate-500 uppercase font-semibold block">{s.label}</span>
+              <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-semibold block">{s.label}</span>
               {s.isProvider ? <ProviderBadge name={s.value} /> : <StatusBadge status={s.value} />}
             </div>
           </div>
@@ -63,17 +63,17 @@ export const BrokerHealth: React.FC<BrokerHealthProps> = ({ token }) => {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
-          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Latency</span>
-          <span className="text-2xl font-bold text-white font-mono block mt-1">{broker.latencyMs}ms</span>
+        <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg p-4">
+          <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-semibold block">Latency</span>
+          <span className="text-2xl font-bold text-[var(--text-main)] font-mono block mt-1">{broker.latencyMs}ms</span>
         </div>
-        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
-          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Active Subscriptions</span>
-          <span className="text-2xl font-bold text-indigo-400 block mt-1">{broker.activeSubscriptions}</span>
+        <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg p-4">
+          <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-semibold block">Active Subscriptions</span>
+          <span className="text-2xl font-bold text-[var(--gogrow-blue)] block mt-1">{broker.activeSubscriptions}</span>
         </div>
-        <div className="bg-slate-900/60 border border-slate-800 rounded-lg p-4">
-          <span className="text-[10px] text-slate-500 uppercase font-semibold block">Last Tick</span>
-          <span className="text-sm font-bold text-emerald-400 block mt-1">{new Date(broker.lastTickAt).toLocaleTimeString()}</span>
+        <div className="bg-[var(--bg-surface)]/60 border border-[var(--border-color)] rounded-lg p-4">
+          <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-semibold block">Last Tick</span>
+          <span className="text-sm font-bold text-[var(--primary)] block mt-1">{new Date(broker.lastTickAt).toLocaleTimeString()}</span>
         </div>
       </div>
     </div>
